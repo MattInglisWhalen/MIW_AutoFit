@@ -1,0 +1,206 @@
+
+# built-in libraries
+import random as rng
+from dataclasses import field
+
+# external libraries
+import numpy as np
+from cmath import sin, cos, exp, log
+
+
+class PrimitiveFunction:
+
+    """
+    A wrapper for basic single-variable functions with one parameter
+
+    Instance variables
+
+    _name : string
+    _func : a callable function with the form f(x, arg), e.g. A*x^2
+    _arg  : the argument for the function
+    _deriv : another PrimitiveFunction which is the derivative of self.
+                    If left as None, it will be found numerically when required
+
+    Static Variables
+
+    _func_list : a list of all possible
+
+    """
+
+
+    def __init__(self, name="", func=None, arg=1, deriv=None):
+        self._name = name
+        if name == "" :
+            self._name = func.__name__
+        self._func = func  # valid functions must all be of the type f(x,arg)
+        self._arg = arg
+        self._deriv = deriv
+
+        self._track_changes = False
+
+    def __repr__(self):
+        return f"Function {self._name} uses {self._func.__name__}(x,arg) with coefficient {self._arg}"
+
+
+    @property
+    def name(self):
+        # Try to keep names less than 10 characters, so a composite function's tree looks good
+        return self._name
+
+    @property
+    def f(self):
+        return self._func
+    @f.setter
+    def f(self, other):
+        self._func = other
+
+    @property
+    def arg(self):
+        return self._arg
+    @arg.setter
+    def arg(self, val):
+        if self._track_changes :
+            print(f"Changing")
+        self._arg = val
+
+    @property
+    def deriv(self):
+        return self._deriv
+    @deriv.setter
+    def deriv(self, other):
+        self._deriv = other
+
+    @property
+    def derivative(self):
+        prim_deriv = None
+        if self._func == PrimitiveFunction.pow0 :
+            prim_deriv = PrimitiveFunction( arg=0, func=PrimitiveFunction.pow0)
+        elif self._func == PrimitiveFunction.pow1 :
+            prim_deriv = PrimitiveFunction( arg=self.arg, func=PrimitiveFunction.pow0)
+        elif self._func == PrimitiveFunction.pow2 :
+            prim_deriv = PrimitiveFunction( arg=2*self.arg, func=PrimitiveFunction.pow1)
+        return prim_deriv
+
+    def eval_at(self,x):
+        return self._func(x, self._arg)
+
+    def eval_deriv_at(self,x):
+        if self._deriv is not None:
+            return self._deriv(x, self._arg)
+        else :
+            # simple symmetric difference
+            delta = 1e-5
+            return (self.eval_at(x+delta) - self.eval_at(x-delta) ) / (2*delta)
+            # can do higher differences later? https://en.wikipedia.org/wiki/Finite_difference_coefficient
+            # return ( self.eval_at(x-2*delta) - 8*self.eval_at(x-delta)
+            #           + 8*self.eval_at(x+delta) - self.eval_at(x+2*delta) ) / (12*delta)
+
+    def copy(self):
+        new_prim = PrimitiveFunction( name=self._name, func=self._func, arg=self.arg, deriv=self.deriv)
+        return new_prim
+
+    """
+    Static methods
+    """
+
+    @staticmethod
+    def pow_neg1(x, arg):
+        return arg/x
+    @staticmethod
+    def pow0(x, arg):
+        return arg*x**0
+    @staticmethod
+    def pow1(x, arg):
+        return arg*x
+    @staticmethod
+    def pow2(x, arg):
+        return arg*x*x
+    @staticmethod
+    def pow3(x, arg):
+        return arg*x*x*x
+    @staticmethod
+    def pow4(x, arg):
+        return arg*x*x*x*x
+    @staticmethod
+    def my_sin(x, arg):
+        # arg^2 is needed to break the tie between A*sin(omega*t) and -A*sin(-omega*t)
+        return arg*np.sin(x)
+    @staticmethod
+    def my_cos(x, arg):
+        # there is a tie between A*cos(omega*t) and A*cos(-omega*t). How to break this tie?
+        return arg*np.cos(x)
+    @staticmethod
+    def my_exp(x, arg):
+        return arg*np.exp(x)
+    @staticmethod
+    def my_log(x, arg):
+        return arg*np.log(x)
+
+    # arbitrary powers can be created using function composition,
+    # i.e use the CompositeFunction class, e.g. exp( 1.5 log(x) ) == x^1.5
+
+
+    @staticmethod
+    def built_in_dict():
+
+        built_ins = {}
+
+        # Powers
+        prim_pow_neg1 = PrimitiveFunction(func=PrimitiveFunction.pow_neg1 )
+        prim_pow0 = PrimitiveFunction(func=PrimitiveFunction.pow0 )
+        prim_pow1 = PrimitiveFunction(func=PrimitiveFunction.pow1 )
+        prim_pow2 = PrimitiveFunction(func=PrimitiveFunction.pow2 )
+        prim_pow3 = PrimitiveFunction(func=PrimitiveFunction.pow3 )
+        prim_pow4 = PrimitiveFunction(func=PrimitiveFunction.pow4 )
+
+        built_ins["pow_neg1"] = prim_pow_neg1
+        built_ins["pow0"] = prim_pow0
+        built_ins["pow1"] = prim_pow1
+        built_ins["pow2"] = prim_pow2
+        built_ins["pow3"] = prim_pow3
+        built_ins["pow4"] = prim_pow4
+
+        # Trig
+        prim_sin = PrimitiveFunction(func=PrimitiveFunction.my_sin )
+        prim_cos = PrimitiveFunction(func=PrimitiveFunction.my_cos )
+
+        built_ins["sin"] = prim_sin
+        built_ins["cos"] = prim_cos
+
+        # Exponential
+        prim_exp = PrimitiveFunction(func=PrimitiveFunction.my_exp )
+        prim_log = PrimitiveFunction(func=PrimitiveFunction.my_log )
+
+        built_ins["exp"] = prim_exp
+        built_ins["log"] = prim_log
+
+
+        return built_ins
+
+    @staticmethod
+    def built_in_list():
+        built_ins = []
+        for key, prim in PrimitiveFunction.built_in_dict().items():
+            built_ins.append( prim )
+        return built_ins
+
+    @staticmethod
+    def built_in(key):
+        return PrimitiveFunction.built_in_dict()[key]
+
+
+
+def test_primitive_functions():
+
+    built_ins = PrimitiveFunction.built_in_list()
+    for prim in built_ins:
+        print(f"{prim.name}: {prim.eval(0.1)}")
+
+
+if __name__ == "__main__" :
+
+    test_primitive_functions()
+    my_str = "abcdefghijk"
+    print( f"{my_str[:10]: <10} <--")
+    my_str = "abcd"
+    print( f"{my_str[:10]: <10} <--")
