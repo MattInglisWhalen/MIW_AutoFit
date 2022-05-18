@@ -17,6 +17,11 @@ def list_of_random_positions_in_range(n=50, x_low=0., x_high=10.):
 def list_of_uniformly_spaced_positions_in_range(n=50, x_low=0., x_high=10.):
     return np.linspace(x_low,x_high,n)
 
+def list_of_random_normal_data(n=50, mean=5., width=2.):
+    positions = [ rng.normalvariate( mu=mean, sigma=width) for i in range(n) ]
+    data = [ Datum1D(pos=positions[i], val=0) for i in range(n) ]
+    return data
+
 def list_of_random_linear_data(n=50, slope=5., intercept=7., sigma=1., x_low=1, x_high=50):
     positions = list_of_uniformly_spaced_positions_in_range(n=n, x_low=x_low, x_high=x_high)
     values = [ rng.normalvariate( mu=slope*positions[i] + intercept, sigma=sigma) for i in range(n) ]
@@ -51,15 +56,39 @@ def list_of_random_log_data(n=50, amplitude=13, x0=1., sigma=1., x_low=1, x_high
 def list_of_random_logistic_data(n=50, amplitude=13, width=5., x0=1., sigma=1., x_low=1, x_high=50):
     positions = list_of_uniformly_spaced_positions_in_range(n=n, x_low=x_low, x_high=x_high)
     values = [ rng.normalvariate( mu=amplitude/(1+math.exp(-width*(positions[i]-x0))), sigma=sigma) for i in range(n) ]
-    data = [ Datum1D(pos=positions[i], val=values[i], sigma_val=sigma) for i in range(n) ]
+    data = [ Datum1D(pos=positions[i], val=values[i], sigma_val=sigma, sigma_pos=0.05) for i in range(n) ]
     return data
 
+def test_histogram_fit():
 
+    data = list_of_random_normal_data(n=50,mean=5,width=2)
+    prt_str = ""
+    for datum in data :
+        prt_str += f"{datum.pos:.2f},"
+    print(prt_str)
+    # opt = Optimizer(data = data, use_trig=True, use_exp=False, use_powers=False, max_functions=3)
+    # opt.fit_single_data_set()
+    # opt.show_fit()
 
 def test_linear_fit():
 
-    data = list_of_random_linear_data(n=500,slope=7,intercept=5,sigma=5)
-    opt = Optimizer(data = data, use_trig=True, use_exp=False, use_powers=False, max_functions=3)
+    data1 = list_of_random_linear_data(n=5,slope=1,intercept=2,sigma=0.8,x_low=1,x_high=5)
+    data2 = list_of_random_linear_data(n=5,slope=1,intercept=2,sigma=0.8,x_low=1,x_high=5)
+    data3 = list_of_random_linear_data(n=5,slope=1,intercept=2,sigma=0.8,x_low=1,x_high=5)
+    data4 = list_of_random_linear_data(n=5,slope=1,intercept=2,sigma=0.8,x_low=1,x_high=5)
+    data5 = list_of_random_linear_data(n=5,slope=1,intercept=2,sigma=0.8,x_low=1,x_high=5)
+
+    for datum in data1 :
+        print(f"{datum.pos}, {0.05}, {datum.val:.2f}, {datum.sigma_val:.2f}")
+    for datum in data2 :
+        print(f"{datum.pos}, {0.05}, {datum.val:.2f}, {datum.sigma_val:.2f}")
+    for datum in data3 :
+        print(f"{datum.pos}, {0.05}, {datum.val:.2f}, {datum.sigma_val:.2f}")
+    for datum in data4 :
+        print(f"{datum.pos}, {0.05}, {datum.val:.2f}, {datum.sigma_val:.2f}")
+    for datum in data5 :
+        print(f"{datum.pos}, {0.05}, {datum.val:.2f}, {datum.sigma_val:.2f}")
+    opt = Optimizer(data = data, use_trig=False, use_exp=False, use_powers=False, max_functions=3)
     opt.fit_single_data_set()
     opt.show_fit()
 
@@ -102,9 +131,10 @@ def test_logistic_fit():
 
 if __name__ == "__main__" :
 
-    # test_linear_fit()
+    test_histogram_fit()
+    test_linear_fit()
     # test_cosine_fit()
     # test_sin_cosine_fit()
     # test_exp_fit()
     # test_log_fit()
-    test_logistic_fit()
+    # test_logistic_fit()

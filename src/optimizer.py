@@ -3,6 +3,7 @@
 import math
 from dataclasses import field
 import re as regex
+from collections import defaultdict
 
 # external libraries
 import numpy
@@ -26,18 +27,33 @@ as a discriminator. The model which achieves a reduced chi-squared closest to 1 
 
 class Optimizer:
 
-    def __init__(self, use_trig = True, use_powers = True, use_exp = True, data=None, max_functions=5):
-        self._data = field(default_factory=list)
-        self._best_function = None      # a CompositeFunction
-        self._best_args = None  # the arguments (parameters) of best_function CompositeFunction
+    def __init__(self, use_trig = False, use_powers = False, use_exp = False, data=None, max_functions=5):
+
+        # datasets, which are lists of Datum1D instances
+        self._data = []             # the raw datapoints of (x,y), possibly with uncertainties
+                                    # May also represent a binned point if the input file is a list of x_values only
+        self._averaged_data = []    # the model optimizer requires approximate slope knowledge,
+                                    # so multiple measurements at each x-value are collapsed into a single value
+
+        # fit results
+        self._best_function = None          # a CompositeFunction
+        self._best_args = None              # the arguments (parameters) of best_function CompositeFunction
         self._best_args_uncertainty = None  # the uncorrelated uncertainties of the arguments
+
+        self._top_5_models = []
+        self._top_5_args = []
+        self._top_5_uncertainties = []
+
+        # function construction parameters
         self._max_functions = max_functions
         self._primitive_function_list = []
 
+        # useful auxiliary varibles
         self._temp_function = None      # a CompositeFunction
 
         if data is not None :
-            self._data = data  # list of Datum1D
+            self._data = sorted(data)  # list of Datum1D. Sort makes the data monotone increasing in x-value
+            self.average_data()
 
         self.load_default_functions()
         if use_trig :
@@ -53,6 +69,16 @@ class Optimizer:
 
     def __repr__(self):
         pass
+
+    @property
+    def best_model(self):
+        return self._best_function
+    @property
+    def parameters(self):
+        return self._best_args
+    @property
+    def uncertainties(self):
+        return self._best_args_uncertainty
 
     def build_composite_function_list1(self):
 
@@ -296,7 +322,9 @@ class Optimizer:
             y_points.append( datum.val )
             if datum.sigma_val < 1e-5 :
                 use_errors = False
-            sigma_points.append( datum.sigma_val )
+                sigma_points.append( 1. )
+            else:
+                sigma_points.append( datum.sigma_val )
 
         num_models = len(self._composite_function_list)
         for idx, model in enumerate(self._composite_function_list) :
@@ -307,7 +335,7 @@ class Optimizer:
             # The loss function there also tries to fit the data's smoothed derivatives
             initial_guess = self.find_initial_guess_genetic(model)
             model.set_args(*initial_guess)
-            print(f"{idx}/{num_models} Genetic guess:")
+            print(f"{idx+1}/{num_models} Genetic guess:")
             model.print_tree()
 
             # Next, find a better guess by relaxing the error bars on the data
@@ -331,6 +359,7 @@ class Optimizer:
 
             pars = np_pars.tolist()
             uncertainties = np.sqrt(np.diagonal(np_cov)).tolist()
+            print(np_cov)
             model.set_args( *pars )     # ignore iterable
 
             if model.name == "pow1(my_cos(pow1)+my_sin(pow1))" :
@@ -356,7 +385,7 @@ class Optimizer:
         print(f"\nBest model is {self._best_function} "
               f"\n with args {self._best_args} += {self._best_args_uncertainty} "
               f"\n and reduced chi-sqr {math.exp(math.sqrt(best_LXsqr))}")
-        self._best_function.set_args( *self._best_args )
+        self._best_function.set_args( *self._best_args )  # ignore iterable
         self._best_function.print_tree()
 
 
@@ -403,12 +432,14 @@ class Optimizer:
 
         x_points = []
         y_points = []
-        sigma_points = []
+        sigma_x_points = []
+        sigma_y_points = []
 
         for datum in self._data :
             x_points.append( datum.pos )
             y_points.append( datum.val )
-            sigma_points.append( datum.sigma_val )
+            sigma_x_points.append( datum.sigma_pos )
+            sigma_y_points.append( datum.sigma_val )
 
         plot_model = None
         if model is not None:
@@ -419,9 +450,48 @@ class Optimizer:
         smooth_x_for_fit = np.linspace( x_points[0], x_points[-1], 4*len(x_points))
         fit_vals = [ plot_model.eval_at(xi) for xi in smooth_x_for_fit ]
 
-        plt.errorbar( x_points, y_points, yerr=sigma_points, fmt='o')
-        plt.plot( smooth_x_for_fit, fit_vals, '-' )
+        fig = plt.figure()
+        fig.patch.set_facecolor( (112/255, 146/255, 190/255) )
+        plt.errorbar( x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color='k')
+        plt.plot( smooth_x_for_fit, fit_vals, '-', color='r')
+        plt.xlabel("x")
+        plt.ylabel("y")
+        axes = plt.gca()
+        axes.set_facecolor( (112/255, 146/255, 190/255) )
         plt.show()
+
+    def save_fit(self, filepath, x_label="x", y_label="y", model=None):
+
+        x_points = []
+        y_points = []
+        sigma_x_points = []
+        sigma_y_points = []
+
+        for datum in self._data :
+            x_points.append( datum.pos )
+            y_points.append( datum.val )
+            sigma_x_points.append( datum.sigma_pos )
+            sigma_y_points.append( datum.sigma_val )
+
+        plot_model = None
+        if model is not None:
+            plot_model = model.copy()
+        else:
+            plot_model = self._best_function
+
+        smooth_x_for_fit = np.linspace( x_points[0], x_points[-1], 4*len(x_points))
+        fit_vals = [ plot_model.eval_at(xi) for xi in smooth_x_for_fit ]
+
+        plt.close()
+        fig = plt.figure()
+        fig.patch.set_facecolor( (112/255, 146/255, 190/255) )
+        plt.errorbar( x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color='k')
+        plt.plot( smooth_x_for_fit, fit_vals, '-', color='r' )
+        plt.xlabel(x_label)
+        plt.ylabel(y_label)
+        axes = plt.gca()
+        axes.set_facecolor( (112/255, 146/255, 190/255) )
+        plt.savefig(filepath)
 
 
     def fit_many_data_sets(self):
@@ -441,6 +511,13 @@ class Optimizer:
     def load_exp_functions(self):
         self._primitive_function_list.extend( [ PrimitiveFunction.built_in("exp"),
                                                 PrimitiveFunction.built_in("log") ] )
+    def load_log_functon(self, rebuild_flag = False):
+        self._primitive_function_list.extend([PrimitiveFunction.built_in("log")])
+        if rebuild_flag:
+            self.build_composite_function_list()
+    def unload_log_functon(self):
+        self._primitive_function_list.remove([PrimitiveFunction.built_in("log")])
+        self.build_composite_function_list()
 
     # This loss function is used for an initial fit -- we minimize w.r.t function position AND function derivative
     # The uncertainties and exact fit are unnecessary for an initial guess
@@ -465,7 +542,7 @@ class Optimizer:
         data_to_smooth = []
         return_data = []
         if n <= 1 :
-            data_to_smooth = self._data
+            data_to_smooth = self._averaged_data
         else :
             data_to_smooth = self.smoothed_data(n-1)
         for idx, datum in enumerate(data_to_smooth[:-1]) :
@@ -486,7 +563,7 @@ class Optimizer:
         data_to_deriv = None
         return_deriv = []
         if n <= 0 :
-            data_to_deriv = self._data
+            data_to_deriv = self._averaged_data
         else :
             data_to_deriv = self.smoothed_data(n-1)
         for idx, datum in enumerate(data_to_deriv[:-2]) :
@@ -505,6 +582,52 @@ class Optimizer:
 
         return return_deriv
 
+
+    def average_data(self):
+
+        # get means and number of pos-instances into dict
+        sum_val_dict = defaultdict(float)
+        num_dict = defaultdict(int)
+        for datum in self._data :
+            if sum_val_dict[datum.pos] :
+                sum_val_dict[datum.pos] += datum.val
+                num_dict[datum.pos] += 1
+            else :
+                sum_val_dict[datum.pos] = datum.val
+                num_dict[datum.pos] = 1
+
+        mean_dict = {}
+        for ikey, isum in sum_val_dict.items() :
+            mean_dict[ikey] = isum / num_dict[ikey]
+
+        propagation_variance_x_dict = defaultdict(float)
+        propagation_variance_y_dict = defaultdict(float)
+        sample_variance_y_dict = defaultdict(float)
+        for datum in self._data :
+            # average the variances
+            propagation_variance_x_dict[datum.pos] += datum.sigma_pos**2
+            propagation_variance_y_dict[datum.pos] += datum.sigma_val**2
+            sample_variance_y_dict[datum.pos] += (datum.val-mean_dict[datum.pos])**2
+
+        averaged_data = []
+        for key, val in mean_dict.items() :
+
+
+            sample_uncertainty_squared = sample_variance_y_dict[key] / (num_dict[key]-1) if num_dict[key] > 1 else 0
+            propagation_uncertainty_squared = propagation_variance_y_dict[key] / num_dict[key]
+            ratio = ( sample_uncertainty_squared / (sample_uncertainty_squared + propagation_uncertainty_squared)
+                      if propagation_uncertainty_squared > 0 else 1 )
+
+            # interpolates smoothly between 0 uncertainty in data points (so all uncertainty comes from sample spread)
+            # to the usual uncertainty coming from both the data and the spread
+            effective_uncertainty_squared = ratio*sample_uncertainty_squared + (1-ratio)*propagation_uncertainty_squared
+
+            averaged_data.append( Datum1D(pos=key, val=val,
+                                          sigma_pos=math.sqrt( propagation_variance_x_dict[key] ),
+                                          sigma_val=math.sqrt( effective_uncertainty_squared )
+                                         )
+                                )
+        self._averaged_data = sorted(averaged_data)
 
 
 
