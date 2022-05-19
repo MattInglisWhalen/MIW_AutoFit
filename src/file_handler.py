@@ -192,7 +192,3 @@ class FileHandler:
         pass
 
 
-
-    def read_excel(self):
-        pass
-

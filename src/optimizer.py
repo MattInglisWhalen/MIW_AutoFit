@@ -64,7 +64,6 @@ class Optimizer:
             self.load_exp_functions()
 
         self._composite_function_list = []
-        self.build_composite_function_list()
 
 
     def __repr__(self):
@@ -307,7 +306,54 @@ class Optimizer:
     def find_function(self):
         pass
 
-    def fit_single_data_set(self):
+    def parameters_and_uncertainties_from_fitting(self, model, initial_guess = None):
+
+        print(f"{model=} {model.dof=}")
+
+        x_points = []
+        y_points = []
+        sigma_points = []
+
+        use_errors = True
+
+        for datum in self._data:
+            x_points.append(datum.pos)
+            y_points.append(datum.val)
+            if datum.sigma_val < 1e-5:
+                use_errors = False
+                sigma_points.append(1.)
+            else:
+                sigma_points.append(datum.sigma_val)
+
+        # Find an initial guess for the parameters based off scipy's genetic algorithm
+        # The loss function there also tries to fit the data's smoothed derivatives
+        if initial_guess is None :
+            initial_guess = self.find_initial_guess_genetic(model)
+            model.set_args(*initial_guess)
+
+        # Next, find a better guess by relaxing the error bars on the data
+        # Unintuitively, this helps. Tight error bars flatten the gradients away from the global minimum,
+        # and so relaxed error bars help point towards global minima
+        better_guess, _ = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points, p0=initial_guess, maxfev=5000)
+
+        # Finally, use the better guess to find the true minimum with the true error bars
+        np_pars, np_cov = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
+                                    sigma=sigma_points, absolute_sigma=use_errors,
+                                    p0=better_guess, maxfev=5000)
+
+        pars = np_pars.tolist()
+        uncertainties = np.sqrt(np.diagonal(np_cov)).tolist()
+        model.set_args(*pars)  # ignore iterable
+
+        self._best_function = model.copy()
+        self._best_args = pars  # have to do this because the model's stored parameters change for some reason
+        self._best_args_uncertainty = uncertainties
+
+        return pars, uncertainties
+
+    def find_best_model_for_dataset(self):
+
+        self.build_composite_function_list()
 
         best_LXsqr = 1e5
 
@@ -359,16 +405,23 @@ class Optimizer:
 
             pars = np_pars.tolist()
             uncertainties = np.sqrt(np.diagonal(np_cov)).tolist()
-            print(np_cov)
             model.set_args( *pars )     # ignore iterable
+
+            # goodness of fit: reduced chi_R^2 = chi^2 / (N-k) should be close to 1
+            # chi_R^2 = 0.001 is overfit, chi_R^2 = 1000 is a bad fit
+            logsqr_of_models_reduced_chisqr = ( math.log( self.reduced_chi_squared_of_fit(model) ) )**2
+
+            # alternatively, there are other information criteria which punish additional parameters differently
+            AICc = self.Akaike_criterion_corrected(model)
+            BIC = self.Bayes_criterion(model)
+            HQIC = self.HannanQuinn_criterion(model)
 
             if model.name == "pow1(my_cos(pow1)+my_sin(pow1))" :
                 print("\n <-----------> what's wrong with pow1(my_cos(pow1)+my_sin(pow1))???")
                 print(f"{pars=} {uncertainties=} red_chisqr={self.reduced_chi_squared_of_fit(model)}")
+                print(f"Other criterions: {AICc=}, {BIC=}, {HQIC=}")
                 model.print_tree()
                 self.show_fit(model=model)
-
-            logsqr_of_models_reduced_chisqr = ( math.log( self.reduced_chi_squared_of_fit(model) ) )**2
 
             if logsqr_of_models_reduced_chisqr < best_LXsqr \
                     and not numpy.isinf( uncertainties[0] ) and uncertainties[0]**2 < 1e5 :
@@ -379,6 +432,7 @@ class Optimizer:
                 # self._best_function.track_changes=True
                 print(f"New best with red_chisqr={self.reduced_chi_squared_of_fit(model)}: "
                       f"{model=} with {pars=} +- {uncertainties=}")
+                print(f"Other criterions: {AICc=}, {BIC=}, {HQIC=}")
                 self._best_function.print_tree()
 
 
@@ -460,7 +514,7 @@ class Optimizer:
         axes.set_facecolor( (112/255, 146/255, 190/255) )
         plt.show()
 
-    def save_fit(self, filepath, x_label="x", y_label="y", model=None):
+    def save_fit_image(self, filepath, x_label="x", y_label="y", model=None):
 
         x_points = []
         y_points = []
@@ -519,7 +573,8 @@ class Optimizer:
         self._primitive_function_list.remove([PrimitiveFunction.built_in("log")])
         self.build_composite_function_list()
 
-    # This loss function is used for an initial fit -- we minimize w.r.t function position AND function derivative
+    # This loss function is used for an initial fit -- we minimize residuals of both the function's position
+    # AND the function's derivative
     # The uncertainties and exact fit are unnecessary for an initial guess
     def loss_function(self, par_tuple):
         self._temp_function.set_args(*par_tuple)
@@ -530,12 +585,45 @@ class Optimizer:
             r_sqr += ( self._temp_function.eval_deriv_at(deriv.pos) - deriv.val )**2
         return r_sqr
 
-    def reduced_chi_squared_of_fit(self,model):
+    def chi_squared_of_fit(self,model):
         chisqr = 0
         for datum in self._data :
             chisqr += ( model.eval_at(datum.pos) - datum.val )**2 / (datum.sigma_val + 1e-5)**2
-        reduced_chisqr = chisqr/( max(1e-5,len(self._data)-model.dof) )
-        return reduced_chisqr
+        return chisqr
+
+    def reduced_chi_squared_of_fit(self,model):
+        k = model.dof
+        N = len(self._data)
+        return self.chi_squared_of_fit(model) / max(1e-5,N-k)
+
+    # the AIC is equivalent, for normally distributed residuals, to the least chi squared
+    def Akaike_criterion(self, model):
+        AIC = self.chi_squared_of_fit(model)
+        return AIC
+
+    # correction for small datasets, fixes overfitting
+    def Akaike_criterion_corrected(self, model):
+        k = model.dof
+        N = len(self._data)
+        AICc = self.chi_squared_of_fit(model) + 2*k*(k+1)/(N-k-1)
+        return AICc
+
+    # the same as AIC but penalizes additional parameters more heavily for larger datasets
+    def Bayes_criterion(self, model):
+        k = model.dof
+        N = len(self._data)
+        AIC = self.Akaike_criterion(model)
+        BIC = AIC + k*math.log(N) - 2*k
+        return BIC
+
+    # agrees with AIC at small datasets, but punishes less strongly than Bayes at large N
+    def HannanQuinn_criterion(self, model):
+        k = model.dof
+        N = len(self._data)
+        AIC = self.Akaike_criterion(model)
+        HQIC = AIC + 2*k*math.log( math.log(N) ) - 2*k
+        return HQIC
+
 
     def smoothed_data(self, n=1):
 

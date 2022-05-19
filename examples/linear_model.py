@@ -89,7 +89,7 @@ def test_linear_fit():
     for datum in data5 :
         print(f"{datum.pos}, {0.05}, {datum.val:.2f}, {datum.sigma_val:.2f}")
     opt = Optimizer(data = data, use_trig=False, use_exp=False, use_powers=False, max_functions=3)
-    opt.fit_single_data_set()
+    opt.find_best_model_for_dataset()
     opt.show_fit()
 
 def test_cosine_fit():
@@ -97,44 +97,44 @@ def test_cosine_fit():
     data = list_of_random_cosine_data(amplitude=7,omega=0.5,
                                         height=5.,sigma=1)
     opt = Optimizer(data = data, use_trig=True, use_exp=False, use_powers=False, max_functions=4)
-    opt.fit_single_data_set()
+    opt.find_best_model_for_dataset()
     opt.show_fit()
 
 def test_sin_cosine_fit():
 
     data = list_of_random_sin_cosine_data(amplitude=7,omega1=0.1, omega2=0.5, sigma=2)
     opt = Optimizer(data = data, use_trig=True, use_exp=False, use_powers=False, max_functions=5)
-    opt.fit_single_data_set()
+    opt.find_best_model_for_dataset()
     opt.show_fit()
 
 def test_exp_fit():
 
     data = list_of_random_exp_data(amplitude=17,decay=1/10, sigma=0.5)
     opt = Optimizer(data = data, use_trig=False, use_exp=True, use_powers=False, max_functions=3)
-    opt.fit_single_data_set()
+    opt.find_best_model_for_dataset()
     opt.show_fit()
 
 def test_log_fit():
 
     data = list_of_random_log_data(amplitude=7,x0=3., sigma=2)
     opt = Optimizer(data = data, use_trig=False, use_exp=True, use_powers=False, max_functions=3)
-    opt.fit_single_data_set()
+    opt.find_best_model_for_dataset()
     opt.show_fit()
 
 def test_logistic_fit():
 
     data = list_of_random_logistic_data(amplitude=7,width=3, x0=5, sigma=2)
     opt = Optimizer(data = data, use_trig=False, use_exp=True, use_powers=True, max_functions=5)
-    opt.fit_single_data_set()
+    opt.find_best_model_for_dataset()
     opt.show_fit()
 
 
 if __name__ == "__main__" :
 
-    test_histogram_fit()
-    test_linear_fit()
+    # test_histogram_fit()
+    # test_linear_fit()
     # test_cosine_fit()
-    # test_sin_cosine_fit()
+    test_sin_cosine_fit()
     # test_exp_fit()
     # test_log_fit()
     # test_logistic_fit()

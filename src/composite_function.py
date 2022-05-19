@@ -1,6 +1,7 @@
 
 
 # built-in libraries
+import math
 import random as rng
 from dataclasses import field
 from math import floor
@@ -46,7 +47,6 @@ class CompositeFunction:
 
     def __init__(self, children_list = None, parent = None, func: PrimitiveFunction = None, name = ""):
         self._name = name
-        self._num_dof = 0
 
         self._parent = None
         if parent is not None :
@@ -54,13 +54,14 @@ class CompositeFunction:
 
         self._func_of_this_node = func.copy()
         self._children_list = []
+        self._contraints = []  # list of (idx1, func, idx3) triplets, with the interpretation
+                               # that par[idx1] = func( par[idx2 )]
         if children_list is not None :
             for child in children_list :
                 self.add_child(child)
         if name == "" :
             self.build_name()
         self.calculate_degrees_of_freedom()
-        self._track_changes = False
 
     def __repr__(self):
         return self._name
@@ -123,6 +124,9 @@ class CompositeFunction:
         if self._parent is not None:
             self._parent.build_name()
 
+    def add_constraint(self, constraint_3tuple):
+        self._contraints.append(constraint_3tuple)
+
     def calculate_degrees_of_freedom(self):
         num_dof = 1
         for child in self._children_list:
@@ -130,10 +134,11 @@ class CompositeFunction:
 
         if self._name[0:3] == "pow" and len(self._children_list) > 0:
             # powers are special: they lose a degree of freedom if they have children
-            # e.g. A*( B*cos(x) )^2 == A*B^2*cos^2(x) == C*cos^2(x)
+            # e.g. A*( B*cos(x) )^2 == A*B^2*cos^2(x) == C*cos^2(x). We keep the outer one as free,
+            # and the first parameter in the composition is set to unity
             num_dof -= 1
 
-        return num_dof
+        return num_dof - len(self._contraints)
 
     def tree_as_string(self, buffer_chars=0):
         tree_str = f"{self._func_of_this_node.name[:10] : <10}"  # pads and truncates to ensure a length of 10
@@ -142,7 +147,7 @@ class CompositeFunction:
                 tree_str += " " * 10
                 for n in range( floor(buffer_chars/10) ) :
                     tree_str += "   " + " " * 10
-            tree_str += " - "
+            tree_str += " ~ "
             tree_str += child.tree_as_string(buffer_chars=buffer_chars+10)
             tree_str += "\n"
         return tree_str[:-2]
@@ -155,7 +160,7 @@ class CompositeFunction:
                 tree_str += " " * 18
                 for n in range( floor(buffer_chars/18) ) :
                     tree_str += "   " + " " * 18
-            tree_str += " - "
+            tree_str += " ~ "
             tree_str += child.tree_as_string_with_args(buffer_chars=buffer_chars+18)
             tree_str += "\n"
         return tree_str
@@ -230,17 +235,6 @@ class CompositeFunction:
         self._name = val
 
     @property
-    def track_changes(self):
-        return self._track_changes
-    @track_changes.setter
-    def track_changes(self, val):
-        self._track_changes = val
-        for child in self._children_list:
-            child.track_changes = val
-
-
-
-    @property
     def func(self):
         return self._func_of_this_node
 
@@ -267,27 +261,35 @@ class CompositeFunction:
 
 
     def set_args(self, *args):
-        if self._track_changes :
-            print(f"TRACK CHANGES {args=}")
+
         it = 0
-        if self._name[0:3] == "pow" and len( self._children_list ) > 0 :
-            self._func_of_this_node.arg = 1
-        else:
-            self._func_of_this_node.arg = args[it]
-            it += 1
+
+        args_as_list = list(args)
+        # insert zeroes where the constrained arguments go
+        for idx_constrained, _, _ in sorted(self._contraints, key=lambda tup: tup[0]) :
+            args_as_list.insert( idx_constrained, 0 )
+        # apply the constraints
+        for idx_constrained, func, idx_other in sorted(self._contraints, key=lambda tup: tup[0]) :
+            args_as_list[idx_constrained] = func( args_as_list[idx_other] )
+
+        self._func_of_this_node.arg = args_as_list[it]
+        it += 1
+        if self._func_of_this_node.name[0:3] == "pow" and len( self._children_list ) > 0 :
+            args_as_list.insert(it,1)
+
         for child in self._children_list :
             next_dof = child.dof
-            child.set_args( *args[it:1+it+next_dof] )
+            child.set_args( *args_as_list[it:it+next_dof] )
             it += next_dof
 
     def get_args(self):
-        all_args = []
-        if self._name[0:3] == "pow" and len( self._children_list ) > 0 :
-            pass
-        else:
-            all_args.extend( [self._func_of_this_node.arg] )
-        # print(all_args)
-        for child in self._children_list :
+        all_args = [self._func_of_this_node.arg]
+        skip_flag = 0
+        if self._func_of_this_node.name[0:3] == "pow" and len( self._children_list ) > 0 :
+            skip_flag = 1
+
+        print(self._children_list)
+        for child in self._children_list[skip_flag:] :
             all_args.extend( child.get_args() )
         return all_args
 
@@ -295,11 +297,55 @@ class CompositeFunction:
         self.set_args(*args)
         return self.eval_at(x)
 
+    @staticmethod
+    def built_in_dict():
+
+        built_ins = {}
+
+        # linear model: m, b as parameters (roughly)
+        linear = CompositeFunction(func=PrimitiveFunction.built_in("pow1"),
+                                   children_list=[PrimitiveFunction.built_in("pow1"),
+                                   PrimitiveFunction.built_in("pow0")]
+                                   )
+
+        # Gaussian: A, mu, sigma as parameters (roughly)
+        gaussian_inner_quadratic = CompositeFunction(func=PrimitiveFunction.built_in("pow2"),
+                                                     children_list=[PrimitiveFunction.built_in("pow1"),
+                                                                    PrimitiveFunction.built_in("pow0")]
+                                                    )
+        gaussian = CompositeFunction(func=PrimitiveFunction.built_in("exp"),
+                                     children_list=[gaussian_inner_quadratic],
+                                     name="Gaussian")
+
+        # Normal: mu, sigma as parameters (roughly)
+        normal = gaussian.copy()
+        normal.add_constraint( (0,gaussian_normalization_constraint,1) )
+
+        # make dict entries
+        built_ins["Linear"] = linear
+        built_ins["Gaussian"] = gaussian
+        built_ins["Normal"] = normal
+
+        return built_ins
+
+    @staticmethod
+    def built_in_list():
+        built_ins = []
+        for key, comp in CompositeFunction.built_in_dict().items():
+            built_ins.append(comp)
+        return built_ins
+
+    @staticmethod
+    def built_in(key):
+        return CompositeFunction.built_in_dict()[key]
+
+def sameness_constraint(x):
+    return x
+def gaussian_normalization_constraint(x):  # A exp[ B(x+C)^2 ] requires A=sqrt(1 / 2 pi sigma^2) and B= - 1 / 2 sigma^2
+    return math.sqrt(-x/math.pi)
+
 
 def test_composite_functions():
-
-
-
 
     test_comp = CompositeFunction(func=PrimitiveFunction.built_in("pow1"),
                                   children_list=[PrimitiveFunction.built_in("pow0"),
@@ -318,6 +364,15 @@ def test_composite_functions():
     test_comp2.print_tree()
     value2 = test_comp2.eval_at(1)
     print(value2)
+
+    constraint1 = (0,sameness_constraint,1)
+    test_comp.add_constraint(constraint1)
+    test_comp.set_args(5)
+
+    test_comp.print_tree()
+    value3=test_comp.eval_at(5)
+    print(value3)
+
 
 
 if __name__ == "__main__":
