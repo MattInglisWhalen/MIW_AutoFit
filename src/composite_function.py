@@ -271,7 +271,8 @@ class CompositeFunction:
         # apply the constraints
         for idx_constrained, func, idx_other in sorted(self._contraints, key=lambda tup: tup[0]) :
             args_as_list[idx_constrained] = func( args_as_list[idx_other] )
-
+        if self._parent is None :
+            print(args_as_list)
         self._func_of_this_node.arg = args_as_list[it]
         it += 1
         if self._func_of_this_node.name[0:3] == "pow" and len( self._children_list ) > 0 :
@@ -319,6 +320,7 @@ class CompositeFunction:
 
         # Normal: mu, sigma as parameters (roughly)
         normal = gaussian.copy()
+        normal.name = "Normal"
         normal.add_constraint( (0,gaussian_normalization_constraint,1) )
 
         # make dict entries
@@ -341,8 +343,14 @@ class CompositeFunction:
 
 def sameness_constraint(x):
     return x
-def gaussian_normalization_constraint(x):  # A exp[ B(x+C)^2 ] requires A=sqrt(1 / 2 pi sigma^2) and B= - 1 / 2 sigma^2
-    return math.sqrt(-x/math.pi)
+# Normalization of A exp[ B(x+C)^2 ] requires A=sqrt(1 / 2 pi sigma^2) and B= - 1 / 2 sigma^2
+def gaussian_normalization_constraint(x):
+    try :
+        result = math.sqrt(-x/math.pi)
+    except ValueError :
+        print(f"ValueError: {x}")
+        result = 1e5
+    return result
 
 
 def test_composite_functions():

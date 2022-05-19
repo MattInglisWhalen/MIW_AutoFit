@@ -511,6 +511,10 @@ class Optimizer:
         plt.xlabel("x")
         plt.ylabel("y")
         axes = plt.gca()
+        if axes.get_xlim()[0] > 0 :
+            axes.set_xlim( [0, axes.get_xlim()[1]] )
+        if axes.get_ylim()[0] > 0 :
+            axes.set_ylim( [0, axes.get_ylim()[1]] )
         axes.set_facecolor( (112/255, 146/255, 190/255) )
         plt.show()
 
@@ -544,6 +548,10 @@ class Optimizer:
         plt.xlabel(x_label)
         plt.ylabel(y_label)
         axes = plt.gca()
+        if axes.get_xlim()[0] > 0 :
+            axes.set_xlim( [0, axes.get_xlim()[1]] )
+        if axes.get_ylim()[0] > 0 :
+            axes.set_ylim( [0, axes.get_ylim()[1]] )
         axes.set_facecolor( (112/255, 146/255, 190/255) )
         plt.savefig(filepath)
 
