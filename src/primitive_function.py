@@ -27,6 +27,7 @@ class PrimitiveFunction:
 
     """
 
+    _built_in_prims_dict = {}
 
     def __init__(self, name="", func=None, arg=1, deriv=None):
         self._name = name
@@ -35,8 +36,6 @@ class PrimitiveFunction:
         self._func = func  # valid functions must all be of the type f(x,arg)
         self._arg = arg
         self._deriv = deriv
-
-        self._track_changes = False
 
     def __repr__(self):
         return f"Function {self._name} uses {self._func.__name__}(x,arg) with coefficient {self._arg}"
@@ -59,8 +58,6 @@ class PrimitiveFunction:
         return self._arg
     @arg.setter
     def arg(self, val):
-        if self._track_changes :
-            print(f"Changing")
         self._arg = val
 
     @property
@@ -122,6 +119,12 @@ class PrimitiveFunction:
     def pow4(x, arg):
         return arg*x*x*x*x
     @staticmethod
+    def pow_neg1_force_pos_arg(x, arg):
+        return arg/x if arg > 0 else 1e5
+    @staticmethod
+    def pow2_force_neg_arg(x, arg):
+        return arg*x*x if arg < 0 else 1e5
+    @staticmethod
     def my_sin(x, arg):
         # arg^2 is needed to break the tie between A*sin(omega*t) and -A*sin(-omega*t)
         return arg*np.sin(x)
@@ -131,7 +134,12 @@ class PrimitiveFunction:
         return arg*np.cos(x)
     @staticmethod
     def my_exp(x, arg):
-        return arg*np.exp(x)
+        try :
+            return arg*np.exp(x)
+        except RuntimeWarning :
+            print(f"my_exp: {x} is large")
+            return 1e10
+
     @staticmethod
     def my_log(x, arg):
         return arg*np.log(x)
@@ -141,52 +149,62 @@ class PrimitiveFunction:
 
 
     @staticmethod
-    def built_in_dict():
-
-        built_ins = {}
+    def build_built_in_dict():
 
         # Powers
         prim_pow_neg1 = PrimitiveFunction(func=PrimitiveFunction.pow_neg1 )
+        prim_pow_neg1_force_pos_arg = PrimitiveFunction(func=PrimitiveFunction.pow_neg1_force_pos_arg )
         prim_pow0 = PrimitiveFunction(func=PrimitiveFunction.pow0 )
         prim_pow1 = PrimitiveFunction(func=PrimitiveFunction.pow1 )
         prim_pow2 = PrimitiveFunction(func=PrimitiveFunction.pow2 )
+        prim_pow2_force_neg_arg = PrimitiveFunction(func=PrimitiveFunction.pow2_force_neg_arg )
         prim_pow3 = PrimitiveFunction(func=PrimitiveFunction.pow3 )
         prim_pow4 = PrimitiveFunction(func=PrimitiveFunction.pow4 )
 
-        built_ins["pow_neg1"] = prim_pow_neg1
-        built_ins["pow0"] = prim_pow0
-        built_ins["pow1"] = prim_pow1
-        built_ins["pow2"] = prim_pow2
-        built_ins["pow3"] = prim_pow3
-        built_ins["pow4"] = prim_pow4
+        PrimitiveFunction._built_in_prims_dict["pow_neg1"] = prim_pow_neg1
+        PrimitiveFunction._built_in_prims_dict["pow_neg1_force_pos_arg"] = prim_pow_neg1_force_pos_arg
+        PrimitiveFunction._built_in_prims_dict["pow0"] = prim_pow0
+        PrimitiveFunction._built_in_prims_dict["pow1"] = prim_pow1
+        PrimitiveFunction._built_in_prims_dict["pow2"] = prim_pow2
+        PrimitiveFunction._built_in_prims_dict["pow2_force_neg_arg"] = prim_pow2_force_neg_arg
+        PrimitiveFunction._built_in_prims_dict["pow3"] = prim_pow3
+        PrimitiveFunction._built_in_prims_dict["pow4"] = prim_pow4
 
         # Trig
         prim_sin = PrimitiveFunction(func=PrimitiveFunction.my_sin )
         prim_cos = PrimitiveFunction(func=PrimitiveFunction.my_cos )
 
-        built_ins["sin"] = prim_sin
-        built_ins["cos"] = prim_cos
+        PrimitiveFunction._built_in_prims_dict["sin"] = prim_sin
+        PrimitiveFunction._built_in_prims_dict["cos"] = prim_cos
 
         # Exponential
         prim_exp = PrimitiveFunction(func=PrimitiveFunction.my_exp )
         prim_log = PrimitiveFunction(func=PrimitiveFunction.my_log )
 
-        built_ins["exp"] = prim_exp
-        built_ins["log"] = prim_log
+        PrimitiveFunction._built_in_prims_dict["exp"] = prim_exp
+        PrimitiveFunction._built_in_prims_dict["log"] = prim_log
 
-
-        return built_ins
+        return PrimitiveFunction._built_in_prims_dict
 
     @staticmethod
     def built_in_list():
         built_ins = []
-        for key, prim in PrimitiveFunction.built_in_dict().items():
+        if not PrimitiveFunction._built_in_prims_dict :
+            PrimitiveFunction.build_built_in_dict()
+        for key, prim in PrimitiveFunction._built_in_prims_dict.items():
             built_ins.append( prim )
         return built_ins
 
     @staticmethod
+    def built_in_dict():
+        return PrimitiveFunction._built_in_prims_dict
+
+    @staticmethod
     def built_in(key):
-        return PrimitiveFunction.built_in_dict()[key]
+        if not PrimitiveFunction._built_in_prims_dict :
+            PrimitiveFunction.build_built_in_dict()
+        return PrimitiveFunction._built_in_prims_dict[key]
+
 
 
 

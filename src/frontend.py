@@ -6,8 +6,11 @@ from math import floor
 # external libraries
 import tkinter as tk
 import tkinter.filedialog as fd
+import numpy as np
+import pandas as pd
 
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 from PIL import ImageTk, Image
 import os as os
 import re as regex
@@ -35,10 +38,18 @@ class Frontend:
         self._image = None
         self._image_frame = None
         self._normalized_histogram_flags = []
+        self._showing_fit_image = False  # conjugate to showing data-only image
 
         # file handling
         self._filepaths = []
         self._data_handlers = []
+
+        # text input
+        self._popup_window = None
+        self._excel_x_range = None
+        self._excel_y_range = None
+        self._excel_sigmax_range = None
+        self._excel_sigmay_range = None
 
         # messaging
         self._num_messages_ever = 0
@@ -47,13 +58,79 @@ class Frontend:
 
         # backend connections
         self._optimizer = None   # Optimizer
-        self._model_name = None  # tk.StringVar
+        self._model_name_tkvar = None  # tk.StringVar
+        self._which5_name_tkvar = None  # tk.StringVar
+        self._current_model : CompositeFunction = None
+        self._checkbox_names_list = ["cos(x)", "sin(x)", "exp(x)", "log(x)",
+                                     "1/x", "x\U000000B2", "x\U000000B3", "x\U00002074", "custom"]
+        self._use_func_dict_name_tkVar = {}  # for checkboxes
+        for name in self._checkbox_names_list :
+            self._use_func_dict_name_tkVar[name] = tk.BooleanVar(value=False)
+        self._max_functions_tkInt = tk.IntVar(value=4)
 
-        # load in
+        # defaults config
+        self._default_fit_type = None
+        self._default_excel_x_range = None
+        self._default_excel_y_range = None
+        self._default_excel_sigmax_range = None
+        self._default_excel_sigmay_range = None
+        self._default_load_file_loc = None
+        self.load_defaults()
+        self.print_defaults()
+
+        # load in splash screen
         self.load_splash_screen()
 
-        # exist
-        self._gui.mainloop()
+    def load_defaults(self):
+        with open(f"{self.get_package_path()}/frontend.cfg") as file :
+            for line in file :
+                if "#FIT_TYPE" in line :
+                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg= "linear"
+                    self._default_fit_type = arg
+                elif "#EXCEL_RANGE_X" in line :
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "A3:A18"
+                    self._default_excel_x_range = arg
+                elif "#EXCEL_RANGE_Y" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = ""
+                    self._default_excel_y_range = arg
+                elif "#EXCEL_RANGE_SIGMA_X" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = ""
+                    self._default_excel_sigmax_range = arg
+                elif "#EXCEL_RANGE_SIGMA_Y" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = ""
+                    self._default_excel_sigmay_range = arg
+                elif "#LOAD_FILE_LOC" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = f"{self.get_package_path()}/data"
+                    self._default_load_file_loc = arg
+
+    def save_defaults(self):
+        with open(f"{self.get_package_path()}/frontend.cfg",'w') as file :
+            file.write(f"#FIT_TYPE {self._default_fit_type}\n")
+            file.write(f"#EXCEL_RANGE_X {self._default_excel_x_range}\n")
+            file.write(f"#EXCEL_RANGE_Y {self._default_excel_y_range}\n")
+            file.write(f"#EXCEL_RANGE_SIGMA_X {self._default_excel_sigmax_range}\n")
+            file.write(f"#EXCEL_RANGE_SIGMA_Y {self._default_excel_sigmay_range}\n")
+            file.write(f"#LOAD_FILE_LOC {self._default_load_file_loc}\n")
+
+    def print_defaults(self):
+        print(f">{self._default_fit_type}<")
+        print(f">{self._default_excel_x_range}<")
+        print(f">{self._default_excel_y_range}<")
+        print(f">{self._default_excel_sigmax_range}<")
+        print(f">{self._default_excel_sigmay_range}<")
+        print(f">{self._default_load_file_loc}<")
 
     # create left, right, and middle panels
     def load_splash_screen(self):
@@ -61,7 +138,7 @@ class Frontend:
         gui = self._gui
 
         # window size and title
-        gui.geometry(f"{round(self._os_width*3/4)}x{round(self._os_height*3/4)}")
+        gui.geometry(f"{round(self._os_width*5/6)}x{round(self._os_height*5/6)}")
         gui.rowconfigure(0, minsize=800, weight=1)
 
         # icon image and window title
@@ -112,8 +189,6 @@ class Frontend:
         load_data_button.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
 
     def create_fit_button(self):
-
-        # add to column 1 -- buttons
         fit_data_button = tk.Button(
             master = self._gui.children['!frame'],
             text = "Fit Data",
@@ -122,12 +197,10 @@ class Frontend:
         fit_data_button.grid(row=1, column=0, sticky="ew", padx=5)
 
     def create_fit_all_button(self):
-
-        # add to column 1 -- buttons
         load_data_button = tk.Button(
             master = self._gui.children['!frame'],
             text = "Fit All",
-            command = self.fit_every_file_command
+            command = self.fit_all_command
         )
         load_data_button.grid(row=2, column=0, sticky="ew", padx=5)
 
@@ -138,12 +211,11 @@ class Frontend:
     ##
 
     def load_data_command(self):
-        loc = Frontend.get_package_path()
 
-        new_filepaths = list( fd.askopenfilenames(initialdir=f"{loc}/data", title="Select a file to fit",
-                                                  filetypes=(("comma-separated files", "*.csv"),
-                                                            ("text files", "*.txt"),
-                                                            ("Excel files", "*.xls*"))
+        new_filepaths = list( fd.askopenfilenames(initialdir=self._default_load_file_loc, title="Select a file to fit",
+                                                  filetypes=(("All Files", "*.*"),
+                                                             ("Comma-Separated Files", "*.csv *.txt"),
+                                                             ("Spreadsheets", "*.xls *.xlsx *.ods"))
                                                  )
                             )
         # trim duplicates
@@ -153,6 +225,14 @@ class Frontend:
                 print(f"{shortpath} already loaded")
                 new_filepaths.remove(path)
         for path in new_filepaths :
+            if path[-4:] in [".xls","xlsx",".ods"] and self._new_user_stage % 23 != 0 :
+                self.dialog_box_get_excel_data_ranges()
+                if self._excel_x_range is None :
+                    # the user didn't actually want to load that file
+                    continue
+                self._new_user_stage *= 23
+                sheet_names = pd.ExcelFile(path).sheet_names
+            self._default_load_file_loc = '/'.join( regex.split( f"/", path )[:-1] )
             self._filepaths.append(path)
             self._normalized_histogram_flags.append(False)
 
@@ -169,9 +249,75 @@ class Frontend:
                 self._new_user_stage *= 3
             print(f"Loaded {len(new_filepaths)} files.")
 
-        if len(self._filepaths) > 1 and self._new_user_stage % 5 != 0:
-            self.create_left_right_buttons()
-            self._new_user_stage *= 5
+        if len(self._filepaths) > 1 :
+            if self._new_user_stage % 5 != 0:
+                self.create_left_right_buttons()
+                self._new_user_stage *= 5
+            self.update_data_select()
+
+        self.save_defaults()
+
+    def dialog_box_get_excel_data_ranges(self):
+
+        dialog_box = tk.Toplevel()
+        dialog_box.geometry(f"{round(self._os_width/4)}x{round(self._os_height/4)}")
+        dialog_box.title("Spreadsheet Input Options")
+        dialog_box.iconbitmap(f"{self.get_package_path()}/icon.ico")
+
+        x_label = tk.Label(master=dialog_box, text="Cells for x values: ")
+        x_label.grid(row=0,column=0)
+        x_data = tk.Entry(master=dialog_box)
+        x_data.insert(0,self._default_excel_x_range)
+        x_data.grid(row=0,column=1, sticky='w')
+
+        y_label = tk.Label(master=dialog_box, text="Cells for y values: ")
+        y_label.grid(row=1,column=0)
+        y_data = tk.Entry(master=dialog_box)
+        y_data.insert(0,self._default_excel_y_range)
+        y_data.grid(row=1,column=1, sticky='w')
+
+        sigmax_label = tk.Label(master=dialog_box, text="Cells for x uncertainties: ")
+        sigmax_label.grid(row=2,column=0)
+        sigmax_data = tk.Entry(master=dialog_box)
+        sigmax_data.insert(0,self._default_excel_sigmax_range)
+        sigmax_data.grid(row=2,column=1, sticky='w')
+
+        sigmay_label = tk.Label(master=dialog_box, text="Cells for y uncertainties: ")
+        sigmay_label.grid(row=3,column=0)
+        sigmay_data = tk.Entry(master=dialog_box)
+        sigmay_data.insert(0,self._default_excel_sigmay_range)
+        sigmay_data.grid(row=3,column=1, sticky='w')
+
+        close_dialog_button = tk.Button(
+            master = dialog_box,
+            text="OK",
+            command=self.close_dialog_box_command
+        )
+        close_dialog_button.grid(row=0,column=10,sticky='ns')
+        dialog_box.bind('<Return>', self.close_dialog_box_command)
+        dialog_box.focus_force()
+
+        self._popup_window = dialog_box
+        self._gui.wait_window(dialog_box)
+
+
+    def close_dialog_box_command(self, bind_command=None):
+
+        if self._popup_window is None :
+            print("Window already closed")
+        self._excel_x_range = self._popup_window.children['!entry'].get()
+        self._excel_y_range = self._popup_window.children['!entry2'].get()
+        self._excel_sigmax_range = self._popup_window.children['!entry3'].get()
+        self._excel_sigmay_range = self._popup_window.children['!entry4'].get()
+
+        self._default_excel_x_range = self._excel_x_range
+        self._default_excel_y_range = self._excel_y_range
+        self._default_excel_sigmax_range = self._excel_sigmax_range
+        self._default_excel_sigmay_range = self._excel_sigmay_range
+
+        self.save_defaults()
+        self._popup_window.destroy()
+
 
     ##
     #
@@ -181,7 +327,20 @@ class Frontend:
 
     def load_new_data(self, new_filepaths_lists):
         for path in new_filepaths_lists :
-            self._data_handlers.append(DataHandler(filepath=path))
+            if path[-4:] in [".xls","xlsx",".ods"] :
+                for idx, sheet_name in enumerate(pd.ExcelFile(path).sheet_names):
+                    self._data_handlers.append(DataHandler(filepath=path))
+                    self._data_handlers[-1].set_excel_args(x_range_str=self._excel_x_range,
+                                                           y_range_str=self._excel_y_range,
+                                                           x_error_str=self._excel_sigmax_range,
+                                                           y_error_str=self._excel_sigmay_range)
+                    self._data_handlers[-1].set_excel_sheet_name( sheet_name )
+                    break  # stand-in for additional excel options panel
+
+            else:
+                # only add one data handler
+                self._data_handlers.append(DataHandler(filepath=path))
+
 
     def reload_all_data(self):
         self._data_handlers = []
@@ -190,21 +349,17 @@ class Frontend:
 
     def show_data(self, file_num=0):
 
-        mod_file_num = file_num % len(self._data_handlers)
+        # mod_file_num = file_num % len(self._data_handlers)
 
         new_image_path = f"{Frontend.get_package_path()}/plots/front_end_current_plot.png"
         # create a scatter plot of the first file
 
-        x_points = []
-        y_points = []
-        sigma_x_points = []
-        sigma_y_points = []
+        x_points = self.data_handler.unlogged_x_data
+        y_points =  self.data_handler.unlogged_y_data
+        sigma_x_points = self.data_handler.unlogged_sigmax_data
+        sigma_y_points = self.data_handler.unlogged_sigmay_data
 
-        for datum in self.data_handler.data:
-            x_points.append(datum.pos)
-            y_points.append(datum.val)
-            sigma_x_points.append(datum.sigma_pos)
-            sigma_y_points.append(datum.sigma_val)
+        print(sigma_y_points)
 
         plt.close()
         fig = plt.figure()
@@ -213,18 +368,64 @@ class Frontend:
         plt.xlabel(self.data_handler.x_label)
         plt.ylabel(self.data_handler.y_label)
         axes = plt.gca()
-        if axes.get_xlim()[0] > 0 :
-            axes.set_xlim( [0, axes.get_xlim()[1]] )
-        if axes.get_ylim()[0] > 0 :
-            axes.set_ylim( [0, axes.get_ylim()[1]] )
-        axes.set_facecolor( (112/255, 146/255, 190/255) )
+        if axes.get_xlim()[0] > 0:
+            axes.set_xlim([0, axes.get_xlim()[1]])
+        elif axes.get_xlim()[1] < 0:
+            axes.set_xlim([axes.get_xlim()[0], 0])
+        if axes.get_ylim()[0] > 0:
+            axes.set_ylim([0, axes.get_ylim()[1]])
+        elif axes.get_ylim()[1] < 0:
+            axes.set_ylim([axes.get_ylim()[0], 0])
 
+        print(f"{self.data_handler.logx_flag} {self.data_handler.logy_flag}")
+        if self.data_handler.logx_flag:
+            print("Setting log xscale in show_data")
+            log_min, log_max = math.log(min(x_points)), math.log(max(x_points))
+            print(log_min, log_max, math.exp(log_min), math.exp(log_max))
+            axes.set_xlim([math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
+            axes.set(xscale="log")
+            axes.spines['right'].set_visible(False)
+        else:
+            axes.set(xscale="linear")
+            axes.spines['left'].set_position(('data', 0.))
+            axes.spines['right'].set_position(('data', 0.))
+            axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
+        if self.data_handler.logy_flag:
+            print("Setting log xscale in show_data")
+            axes.set(yscale="log")
+            log_min, log_max = math.log(min(y_points)), math.log(max(y_points))
+            axes.set_ylim([math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
+            axes.spines['top'].set_visible(False)
+        else:
+            axes.set(yscale="linear")
+            axes.spines['top'].set_position(('data', 0.))
+            axes.spines['bottom'].set_position(('data', 0.))
+            axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
+        axes.set_facecolor((112 / 255, 146 / 255, 190 / 255))
+
+        min_X, max_X = min(x_points), max(x_points)
+        min_Y, max_Y = min(y_points), max(y_points)
+        #  proportion between xmin and xmax where the zero lies
+        # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
+        tx = max(0,-min_X / (max_X - min_X))
+        ty = max(0,-min_Y / (max_Y - min_Y))
+        offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
+
+        axes.xaxis.set_label_coords( 1.050,offset_Y+ty)
+        axes.yaxis.set_label_coords( offset_X+tx,+0.750)
+
+        plt.tight_layout()
         plt.savefig(new_image_path)
 
         # replace the splash graphic with the plot
         self._image_path = new_image_path
         self._image = ImageTk.PhotoImage(Image.open(self._image_path))
         self._image_frame.configure( image = self._image )
+
+        # if we're showing the image, we want the optimizer to be working with this data
+        if self._showing_fit_image :
+            data = self.data_handler.data
+            self._optimizer.set_data_to(data)
 
         # add logx and logy to plot options frame
         if self._new_user_stage % 13 != 0:
@@ -239,7 +440,11 @@ class Frontend:
                 self._new_user_stage *= 17
             else:
                 # button already exists, but might be hidden
-                self.show_normalize_button()
+                if self.data_handler.logx_flag or self.data_handler.logy_flag :
+                    pass
+                else:
+                    self.show_normalize_button()
+                # for a good reason though!
         else:
             self.hide_normalize_button()
 
@@ -249,49 +454,44 @@ class Frontend:
 
         # add buttons to adjust fit options
         if self._new_user_stage % 7 != 0 :
-            print(self._new_user_stage)
             self._new_user_stage *= 7
             self.create_function_dropdown()
 
         # Find the fit for the currently displayed data
         data = self.data_handler.data
-        self._optimizer = Optimizer(data=data)
+        self._optimizer = Optimizer(data=data,
+                                    use_functions_dict = self.use_functions_dict(),
+                                    max_functions=self.max_functions() )
         plot_model = None
-        if self._model_name.get() == "Linear" :
+        if self._model_name_tkvar.get() == "Linear" :
             print("Fitting to linear model")
             plot_model = CompositeFunction.built_in("Linear")
             self._optimizer.parameters_and_uncertainties_from_fitting(plot_model)
-        elif self._model_name.get() == "Gaussian" and self.normalized_histogram_flag:
+        elif self._model_name_tkvar.get() == "Gaussian" and self.normalized_histogram_flag:
             print("Fitting to Normal distribution")
             plot_model = CompositeFunction.built_in("Normal")
-            init_guess_mean = ( max( [datum.pos for datum in data] ) + min( [datum.pos for datum in data] ) ) / 2
-            init_guess_sigma = ( max( [datum.pos for datum in data] ) - min( [datum.pos for datum in data] ) ) / 4
-            initial_guess = [ -1/(2*init_guess_sigma**2),-init_guess_mean]
+            initial_guess = self._optimizer.find_initial_guess_scaling(plot_model)
             self._optimizer.parameters_and_uncertainties_from_fitting(plot_model,initial_guess=initial_guess)
-        elif self._model_name.get() == "Gaussian" :
+        elif self._model_name_tkvar.get() == "Gaussian" :
             print("Fitting to Gaussian model")
             plot_model = CompositeFunction.built_in("Gaussian")
-            init_guess_amplitude = max( [datum.val for datum in data] )
-            init_guess_mean = ( max( [datum.pos for datum in data] ) + min( [datum.pos for datum in data] ) ) / 2
-            init_guess_sigma = ( max( [datum.pos for datum in data] ) - min( [datum.pos for datum in data] ) ) / 4
-            initial_guess = [ init_guess_amplitude, -1/(2*init_guess_sigma**2),-init_guess_mean]
+            initial_guess = self._optimizer.find_initial_guess_scaling(plot_model)
             self._optimizer.parameters_and_uncertainties_from_fitting(plot_model,initial_guess=initial_guess)
-        elif self._model_name.get() == "Procedural":
+        elif self._model_name_tkvar.get() == "Sigmoid" :
+            print("Fitting to Sigmoid model")
+            plot_model = CompositeFunction.built_in("Sigmoid")
+            initial_guess = self._optimizer.find_initial_guess_scaling(plot_model)
+            self._optimizer.parameters_and_uncertainties_from_fitting(plot_model,initial_guess=initial_guess)
+        elif self._model_name_tkvar.get() == "Procedural":
             print("Fitting to procedural model")
             # find fit button should now be find model
             self._optimizer.find_best_model_for_dataset()
             plot_model = self._optimizer.best_model
         else:
             pass
-        self._optimizer.save_fit_image(self._image_path,
-                                       x_label=self.data_handler.x_label,
-                                       y_label=self.data_handler.y_label,
-                                       model=plot_model)
+        self._current_model = plot_model
+        self.save_show_fit_image()
 
-
-        # change the view to show the fit as well
-        self._image = ImageTk.PhotoImage(Image.open(self._image_path))
-        self._image_frame.configure(image=self._image)
 
         # add fit all button if there's more than one file
         if self._new_user_stage % 11 != 0 and len(self._data_handlers) > 1 :
@@ -300,52 +500,166 @@ class Frontend:
 
         # print out the parameters on the right
         shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
-        print_string = f"\n \n> For {shortpath} \n"
-        if self._model_name.get() == "Linear" :
-            print_string += f"  Linear fit is y = m x + b with\n"
+        self.add_message(f"\n \n> For {shortpath} \n")
+        self.print_results_to_console()
+        self._default_fit_type = self._model_name_tkvar.get()
+        self.save_defaults()
+
+        if self._new_user_stage % 29 == 0 and self._model_name_tkvar.get() == "Procedural":
+            self.update_top5_dropdown()
+
+        # add a dropdown list for procedural-type fits
+        if self._model_name_tkvar.get() == "Procedural" and self._new_user_stage % 29 != 0:
+            self.create_top5_dropdown()
+            self.create_default_checkboxes()
+            self.create_depth_up_down_buttons()
+            self._new_user_stage *= 29
+
+
+    def print_results_to_console(self):
+        print_string = ""
+        if self._model_name_tkvar.get() == "Linear" :
+            if self.data_handler.logy_flag :
+                print_string += f"  Linear fit is LY ="
+            else :
+                print_string += f"  Linear fit is y ="
+            if self.data_handler.logx_flag :
+                print_string += f" m LX + b with\n"
+            else :
+                print_string += f" m x + b with\n"
             m, sigmam = self._optimizer.parameters[0], self._optimizer.uncertainties[0]
             b = self._optimizer.parameters[0]*self._optimizer.parameters[1]
             sigmab = math.sqrt( self._optimizer.uncertainties[0]**2 * self._optimizer.parameters[1]**2 +
                                 self._optimizer.uncertainties[1]**2 * self._optimizer.parameters[0]**2   )
-            print_string += f"   m = {m:.2E}  +-  {sigmam:.2E}\n"
-            print_string += f"   b = {b:.2E}  +-  {sigmab:.2E}\n"
-        elif self._model_name.get() == "Gaussian" and self.normalized_histogram_flag:
-            print_string += f"  Normal fit is y = 1/sqrt(2pi sigma^2) exp( -(x-mu)^2 / 2 sigma^2 ) with\n"
+            print_string += f"   m = {m:+.2E}  \u00B1  {sigmam:.2E}\n"
+            print_string += f"   b = {b:+.2E}  \u00B1  {sigmab:.2E}\n"
+            print_string += f"Goodness of fit: R\U000000B2 = {self._optimizer.r_squared(self._optimizer.best_model):.2F}"
+        elif self._model_name_tkvar.get() == "Gaussian" and self.normalized_histogram_flag:
+            if self.data_handler.logy_flag :
+                print_string += f"  Normal fit is LY ="
+            else :
+                print_string += f"  Normal fit is y ="
+            if self.data_handler.logx_flag :
+                print_string += f" 1/\u221A(2\u03C0\u03C3\U000000B2) exp[-(LX-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
+            else :
+                print_string += f" 1/\u221A(2\u03C0\u03C3\U000000B2) exp[-(x-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
             mu, sigmamu = -self._optimizer.parameters[1], self._optimizer.uncertainties[1]
-            sigma = math.sqrt( -1 / (2*self._optimizer.parameters[0]) )
-            sigmasigma = math.sqrt( 1/(4*self._optimizer.parameters[0]**2 * sigma) ) * self._optimizer.uncertainties[0]
-            print_string += f"   mu    = {mu:.2E}  +-  {sigmamu:.2E}\n"
-            print_string += f"   sigma = {sigma:.2E}  +-  {sigmasigma:.2E}\n"
-        elif self._model_name.get() == "Gaussian" :
-            print_string += f"  Gaussian fit is y = A exp( -(x-mu)^2 / 2 sigma^2 ) with\n"
+            sigma = math.sqrt( 1 / (2*math.pi*self._optimizer.parameters[0]**2) )
+            sigmasigma = 1/(2*math.pi*self._optimizer.parameters[0]**2) * self._optimizer.uncertainties[0]
+            print_string += f"   \u03BC = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
+            print_string += f"   \u03C3 =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
+        elif self._model_name_tkvar.get() == "Gaussian" :
+            if self.data_handler.logy_flag :
+                print_string += f"  Gaussian fit is LY ="
+            else :
+                print_string += f"  Gaussian fit is y ="
+            if self.data_handler.logx_flag :
+                print_string += f" A exp[-(LX-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
+            else :
+                print_string += f" A exp[-(x-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
             A, sigmaA = self._optimizer.parameters[0], self._optimizer.uncertainties[0]
             mu, sigmamu = -self._optimizer.parameters[2], self._optimizer.uncertainties[2]
             sigma = math.sqrt( -1 / (2*self._optimizer.parameters[1]) )
             sigmasigma = math.sqrt( 1/(4*self._optimizer.parameters[1]**2 * sigma) ) * self._optimizer.uncertainties[1]
-            print_string += f"   A     = {A:.2E}  +-  {sigmaA:.2E}\n"
-            print_string += f"   mu    = {mu:.2E}  +-  {sigmamu:.2E}\n"
-            print_string += f"   sigma = {sigma:.2E}  +-  {sigmasigma:.2E}\n"
-        elif self._model_name.get() == "Procedural":
-            print_string += f"Optimal model is {self._optimizer.best_model} with\n"
+            print_string += f"   A = {A:+.2E}  \u00B1  {sigmaA:.2E}\n"
+            print_string += f"   \u03BC = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
+            print_string += f"   \u03C3 =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
+        elif self._model_name_tkvar.get() == "Sigmoid" :
+            # print_string += f"  Sigmoid fit is y = F + H/(1 + exp[-(x-x0)/w] )\n"
+            if self.data_handler.logy_flag :
+                print_string += f"  Sigmoid fit is LY ="
+            else :
+                print_string += f"  Sigmoid fit is y ="
+            if self.data_handler.logx_flag :
+                print_string += f" F + H/(1 + exp[-(LX-x0)/w] ) with\n"
+            else :
+                print_string += f" F + H/(1 + exp[-(x-x0)/w] ) with\n"
+            F, sigmaF = self._optimizer.parameters[0], self._optimizer.uncertainties[0]
+            H = self._optimizer.parameters[0]*self._optimizer.parameters[1]
+            sigmaH = math.sqrt( self._optimizer.uncertainties[0]**2 * self._optimizer.parameters[1]**2 +
+                                self._optimizer.uncertainties[1]**2 * self._optimizer.parameters[0]**2   )
+            w = -1/self._optimizer.parameters[3]
+            sigmaW = self._optimizer.uncertainties[3]/self._optimizer.parameters[3]**2
+            try :
+                x0 = w*math.log(self._optimizer.parameters[2])
+            except ValueError :
+                print(f"Can't take the log of {self._optimizer.parameters[2]}")
+                raise ValueError
+            sigmax0 = math.sqrt( sigmaW**2 * (x0/w)**2 +
+                                 w**2 * self._optimizer.uncertainties[2]**2 / self._optimizer.parameters[2]**2  )
+
+            print_string += f"   F  = {F:+.2E}  \u00B1  {sigmaF:.2E}\n"
+            print_string += f"   H  =  {H:.2E}  \u00B1  {sigmaH:.2E}\n"
+            print_string += f"   w  =  {w:.2E}  \u00B1  {sigmaW:.2E}\n"
+            print_string += f"   x0 = {x0:+.2E}  \u00B1  {sigmax0:.2E}\n"
+        elif self._model_name_tkvar.get() == "Procedural":
+            if self.data_handler.logy_flag :
+                print_string += f"  Optimal model is LY = {self._optimizer.best_model.name}"
+            else :
+                print_string += f"  Optimal model is y = {self._optimizer.best_model.name}"
+            if self.data_handler.logx_flag :
+                print_string += f"(LX) w/ {self._optimizer.best_model.dof} dof and where\n"
+            else :
+                print_string += f"(x) w/ {self._optimizer.best_model.dof} dof and where\n"
             for idx, (par, unc) in enumerate(zip(self._optimizer.parameters, self._optimizer.uncertainties)):
-                print_string += f"  c{idx} = {par:.2E}  +-  {unc:.2E}\n"
-            print_string += "\n>  As a tree, this is \n"
+                print_string += f"  c{idx} =  {par:+.2E}  \u00B1  {unc:.2E}\n"
+            print_string += "\n> As a tree, this is \n"
             print_string += self._optimizer.best_model.tree_as_string_with_args()
         else:
             pass
-
+        if self.data_handler.logy_flag and self.data_handler.logx_flag:
+            print_string += f"Keep in mind that LY = log(y/{self.data_handler.Y0:.2E}) and LX = log(x/{self.data_handler.X0:.2E})\n"
+        elif self.data_handler.logy_flag :
+            print_string += f"Keep in mind that LY = log(y/{self.data_handler.Y0:.2E})\n"
+        elif self.data_handler.logx_flag :
+            print_string += f"Keep in mind that LX = log(x/{self.data_handler.X0:.2E})\n"
         self.add_message(print_string)
 
-            # use trig/exp/powers checkmarks
-            # add-custom-primitive textbox
-            # search depth
+    def fit_all_command(self):
 
-            # top 5 fits quick list
-            # sliders for initial parameter guesses
-            # own model input as textbox
+        self.add_message("\n \n> Fitting all datasets\n")
 
-    def fit_every_file_command(self):
-        pass
+        # if self._optimizer is None :
+        #     # have to first find an optimal model
+        #     self.add_message("> Finding optimal model for current dataset\n")
+        #     self.fit_data_command()
+
+        # fit every loaded dataset with the current model and return the average parameters
+        list_of_args = []
+        list_of_uncertainties = []
+        for handler in self._data_handlers :
+            data = handler.data
+            self._optimizer.set_data_to(data)
+            pars, uncertainties = self._optimizer.parameters_and_uncertainties_from_fitting(initial_guess=self._optimizer.best_model.get_args())
+            list_of_args.append(pars)
+            list_of_uncertainties.append(uncertainties)
+
+        self.add_message("> Average parameters from fitting all datasets:\n")
+        means = []
+        uncs = []
+        for idx, _ in enumerate(list_of_args[0]) :
+            N = len(list_of_args)
+            sum_args = 0
+            for par_list in list_of_args :
+                sum_args += par_list[idx]
+            mean = sum_args/N
+
+            sum_uncertainty_sqr = 0
+            sum_variance = 0
+            for par_list, unc_list in zip(list_of_args,list_of_uncertainties) :
+                sum_uncertainty_sqr += unc_list[idx]**2 / N
+                sum_variance += (par_list[idx]-mean)**2 / (N-1) if N > 1 else 0
+
+            ratio = sum_variance / (sum_variance + sum_uncertainty_sqr )
+            effective_variance = ratio * sum_variance + (1-ratio) * sum_uncertainty_sqr
+
+            means.append(mean)
+            uncs.append(math.sqrt(effective_variance))
+
+        self._optimizer.parameters = means
+        self._optimizer.uncertainties = uncs
+
+        self.print_results_to_console()
 
 
     """
@@ -355,13 +669,14 @@ class Frontend:
     """
 
     def create_middle_panel(self):
-        self._gui.columnconfigure(1, minsize=720, weight=1)  # image panel
+        self._gui.columnconfigure(1, minsize=720)  # image panel
         middle_panel_frame = tk.Frame(master=self._gui, relief=tk.RIDGE)
         middle_panel_frame.grid(row=0, column=1, sticky='news')
         self.create_image_frame()
         self.create_data_perusal_frame()
         self.create_fit_options_frame()
         self.create_plot_options_frame()
+        self.create_depth_frame()
 
     ##
     #
@@ -369,31 +684,37 @@ class Frontend:
     #
     ##
 
-    def create_image_frame(self):
+    def create_image_frame(self):  # !frame : image only
+        self._gui.children['!frame2'].columnconfigure(1,minsize=50)
         image_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
         image_frame.grid(row=0, column=0, sticky='w')
         self.load_splash_image()
 
-    def create_data_perusal_frame(self):
+    def create_data_perusal_frame(self):  # !frame2 : inspect, left<>right buttons
         data_perusal_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
         data_perusal_frame.grid(row=1, column=0, sticky='w')
 
-    def create_fit_options_frame(self):
+    def create_fit_options_frame(self):  # !frame3 : fit type, procedural top5, procedural checkboxes
         fit_options_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
         fit_options_frame.grid(row = 3, column=0, sticky='w')
 
-    def create_plot_options_frame(self):
-        self._gui.children['!frame2'].columnconfigure(1,minsize=50)
+    def create_plot_options_frame(self):  # !frame4 : logx, logy, normalize
         plot_options_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
         plot_options_frame.grid(row = 0, column=1, sticky='ns')
+
+    def create_depth_frame(self):  # !frame5 : depth of procedural fits
+        depth_frame = tk.Frame(
+            master=self._gui.children['!frame2']
+        )
+        depth_frame.grid(row = 4, column=0, sticky = 'w')
 
 
     ##
@@ -438,7 +759,7 @@ class Frontend:
 
     def create_function_dropdown(self):
 
-        print("Creating function dropdown")
+        # black line above frame 3
         self._gui.children['!frame2'].rowconfigure(2, minsize=1)
         black_line_as_frame = tk.Frame(
             master=self._gui.children['!frame2'],
@@ -446,20 +767,65 @@ class Frontend:
         )
         black_line_as_frame.grid(row = 2, column=0, sticky='ew')
 
-        func_list = ["Linear", "Gaussian", "Procedural"]
+        func_list = ["Linear", "Gaussian", "Sigmoid", "Procedural"]
 
-        self._model_name = tk.StringVar(self._gui.children['!frame2'].children['!frame2'])
-        self._model_name.set( func_list[0] )
+        self._model_name_tkvar = tk.StringVar(self._gui.children['!frame2'].children['!frame3'])
+        self._model_name_tkvar.set(self._default_fit_type)
 
         function_dropdown = tk.OptionMenu(
             self._gui.children['!frame2'].children['!frame3'],
-            self._model_name,
+            self._model_name_tkvar,
             *func_list
         )
         function_dropdown.configure(width=9)
         function_dropdown.grid(row=0, column=0)
 
-        self._model_name.trace('w', self.function_dropdown_trace)
+        self._model_name_tkvar.trace('w', self.function_dropdown_trace)
+
+    def create_top5_dropdown(self):
+
+        # top 5 fits quick list
+
+        print("Creating", self._gui.children['!frame2'].children['!frame3'].children)
+
+        top5_list = [ f"{rx_sqr:.2F}: {name}" for rx_sqr, name
+                      in zip(self._optimizer.top5_rx_sqrs, self._optimizer.top5_names)]
+
+        self._which5_name_tkvar = tk.StringVar(self._gui.children['!frame2'].children['!frame3'])
+        self._which5_name_tkvar.set("Top 5")
+
+        top5_dropdown = tk.OptionMenu(
+            self._gui.children['!frame2'].children['!frame3'],
+            self._which5_name_tkvar,
+            *top5_list
+        )
+        top5_dropdown.configure(width=45)
+        top5_dropdown.grid(row=0, column=1)
+
+        self._which5_name_tkvar.trace('w', self.which5_dropdown_trace)
+
+    def update_top5_dropdown(self):
+        print("Updating", self._gui.children['!frame2'].children['!frame3'].children)
+        top5_dropdown : tk.OptionMenu = self._gui.children['!frame2'].children['!frame3'].children['!optionmenu2']
+
+        top5_dropdown['menu'].delete(0,tk.END)
+        top5_list = [f"{rx_sqr:.2F}: {name}" for rx_sqr, name
+                     in zip(self._optimizer.top5_rx_sqrs, self._optimizer.top5_names)]
+        for label in top5_list :
+            top5_dropdown['menu'].add_command(label=label, command=tk._setit(self._which5_name_tkvar, label))
+
+
+    def hide_top5_dropdown(self):
+        print("Hiding",self._gui.children['!frame2'].children['!frame3'].children)
+        if self._new_user_stage % 29 != 0 :
+            # the button hasn't been created yet, no need to hide it
+            return
+        top5_dropdown = self._gui.children['!frame2'].children['!frame3'].children['!optionmenu2']
+        top5_dropdown.grid_forget()
+    def show_top5_dropdown(self):
+        print("Showing",self._gui.children['!frame2'].children['!frame3'].children)
+        top5_dropdown = self._gui.children['!frame2'].children['!frame3'].children['!optionmenu2']
+        top5_dropdown.grid(row=0, column=1)
 
     def create_logx_button(self):
         log_x_button = tk.Button(
@@ -528,13 +894,67 @@ class Frontend:
     def normalize_command(self):
         self.data_handler.normalize_histogram_data()
         self.normalized_histogram_flag = True
-        self.show_data(self._curr_image_num)
+        if self._showing_fit_image :
+            self.fit_data_command()
+        else:
+            self.show_current_data()
+
 
     def logx_command(self):
-        pass
+        print(f"In logx_command, {self._gui.children['!frame2'].children['!frame4'].children}")
+        button : tk.Button = self._gui.children['!frame2'].children['!frame4'].children['!button']
+        if self.data_handler.logx_flag :
+            self.data_handler.logx_flag = False
+        else:
+            self.data_handler.logx_flag = True
+
+        # do these separately in case the logging fails
+        if self.data_handler.logx_flag :
+            button.configure(relief=tk.SUNKEN)
+            self.hide_normalize_button()
+        else:
+            button.configure(relief=tk.RAISED)
+            if not self.data_handler.logy_flag and self.data_handler.histogram_flag :
+                self.show_normalize_button()
+        if self._optimizer is not None:
+            self._optimizer.set_data_to(self.data_handler.data)
+        if self._showing_fit_image :
+            pars, _ = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+            print(f"After logx commands {pars=} {self._optimizer.reduced_chi_squared_of_fit(self._current_model)}")
+            # self.fit_data_command()
+            self.save_show_fit_image()
+        else:
+            self.show_current_data()
+
+        # TODO: clear the top5 models list, since the top5 stored models fit "different" data
+
 
     def logy_command(self):
-        pass
+
+        button : tk.Button = self._gui.children['!frame2'].children['!frame4'].children['!button2']
+        if self.data_handler.logy_flag :
+            self.data_handler.logy_flag = False
+        else:
+            self.data_handler.logy_flag = True
+        # do these separately in case the logging fails
+        if self.data_handler.logy_flag :
+            button.configure(relief=tk.SUNKEN)
+            self.hide_normalize_button()
+        else:
+            button.configure(relief=tk.RAISED)
+            if not self.data_handler.logx_flag and self.data_handler.histogram_flag :
+                self.show_normalize_button()
+        if self._optimizer is not None:
+            self._optimizer.set_data_to(self.data_handler.data)
+        if self._showing_fit_image:
+            pars, _ = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+            print(f"After logy commands {pars=}")
+            self.save_show_fit_image()
+            # self.fit_data_command()
+        else:
+            self.show_current_data()
+
+        # TODO: clear the top5 models list, since the top5 stored models fit "different" data
 
 
     ##
@@ -552,14 +972,218 @@ class Frontend:
         self._image_frame.grid(row=0, column=0)
 
     def update_data_select(self):
-        inspection_frame = self._gui.children['!frame2'].children['!frame2']
-        text_label = inspection_frame.children['!label']
-
+        text_label = self._gui.children['!frame2'].children['!frame2'].children['!label']
         text_label.configure(text=f"{(self._curr_image_num % len(self._data_handlers)) + 1 }/{len(self._data_handlers)}")
 
     def function_dropdown_trace(self,*args):
-        model_choice = self._model_name.get()
-        return model_choice
+        model_choice = self._model_name_tkvar.get()
+
+        self.fit_data_command()
+
+        if model_choice == "Procedural" :
+            if self._new_user_stage % 29 != 0 :
+                self.create_top5_dropdown()
+                self.create_default_checkboxes()
+                self.create_depth_up_down_buttons()
+                self._new_user_stage *= 29
+            self.show_top5_dropdown()
+            self.show_default_checkboxes()
+            self.show_depth_buttons()
+            self.update_top5_dropdown()
+        else:
+            self.hide_top5_dropdown()
+            self.hide_default_checkboxes()
+            self.hide_depth_buttons()
+
+
+        # return model_choice
+
+    def save_show_fit_image(self, model = None):
+
+        if model is not None:
+            plot_model = model.copy()
+        else:
+            plot_model = self._current_model
+
+        x_points = self.data_handler.unlogged_x_data
+        y_points = self.data_handler.unlogged_y_data
+        sigma_x_points = self.data_handler.unlogged_sigmax_data
+        sigma_y_points = self.data_handler.unlogged_sigmay_data
+
+        smooth_x_for_fit = np.linspace( x_points[0], x_points[-1], 4*len(x_points))
+        if self.data_handler.logx_flag and self.data_handler.logy_flag :
+            fit_vals = [ plot_model.eval_at(xi, X0 = self.data_handler.X0, Y0 = self.data_handler.Y0)
+                         for xi in smooth_x_for_fit ]
+        elif self.data_handler.logx_flag :
+            fit_vals = [ plot_model.eval_at(xi, X0 = self.data_handler.X0) for xi in smooth_x_for_fit ]
+        elif self.data_handler.logy_flag :
+            fit_vals = [ plot_model.eval_at(xi, Y0 = self.data_handler.Y0) for xi in smooth_x_for_fit ]
+        else:
+            fit_vals = [plot_model.eval_at(xi) for xi in smooth_x_for_fit]
+
+        plt.close()
+        fig = plt.figure()
+        fig.patch.set_facecolor((112 / 255, 146 / 255, 190 / 255))
+        plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color='k')
+        plt.plot(smooth_x_for_fit, fit_vals, '-', color='r')
+        plt.xlabel(self.data_handler.x_label)
+        plt.ylabel(self.data_handler.y_label)
+        axes : plt.axes = plt.gca()
+        if axes.get_xlim()[0] > 0:
+            axes.set_xlim([0, axes.get_xlim()[1]])
+        elif axes.get_xlim()[1] < 0:
+            axes.set_xlim([axes.get_xlim()[0], 0])
+        if axes.get_ylim()[0] > 0:
+            axes.set_ylim([0, axes.get_ylim()[1]])
+        elif axes.get_ylim()[1] < 0:
+            axes.set_ylim([axes.get_ylim()[0], 0])
+
+        if self.data_handler.logx_flag:
+            log_min, log_max = math.log(min(x_points)), math.log(max(x_points))
+            axes.set_xlim([math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min)/10)])
+            axes.set(xscale="log")
+            axes.spines['right'].set_visible(False)
+        else:
+            axes.set(xscale="linear")
+            axes.spines['left'].set_position(  ('data', 0.) )
+            axes.spines['right'].set_position( ('data', 0.) )
+            axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
+        if self.data_handler.logy_flag:
+            axes.set(yscale="log")
+            log_min, log_max = math.log(min( y_points )), math.log(max(y_points))
+            axes.set_ylim([math.exp(log_min - (log_max-log_min)/10), math.exp(log_max + (log_max-log_min)/10)])
+            axes.spines['top'].set_visible(False)
+        else:
+            axes.set(yscale="linear")
+            axes.spines['top'].set_position(    ('data', 0.) )
+            axes.spines['bottom'].set_position( ('data', 0.) )
+            axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
+        axes.set_facecolor((112 / 255, 146 / 255, 190 / 255))
+
+        # print( np.array(axes.spines['top'].get_spine_transform()) )
+
+        min_X, max_X = min(x_points), max(x_points)
+        min_Y, max_Y = min(y_points), max(y_points)
+        #  tx is the proportion between xmin and xmax where the zero lies
+        # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
+        tx = max(0,-min_X / (max_X - min_X))
+        ty = max(0,-min_Y / (max_Y - min_Y))
+        offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
+
+        axes.xaxis.set_label_coords( 1.050,offset_Y+ty)
+        axes.yaxis.set_label_coords( offset_X+tx,+0.750)
+
+        plt.tight_layout()
+        plt.savefig(self._image_path)
+
+        # change the view to show the fit as well
+        self._image = ImageTk.PhotoImage(Image.open(self._image_path))
+        self._image_frame.configure(image=self._image)
+        self._showing_fit_image = True
+
+    def which5_dropdown_trace(self,*args):
+        # TODO: problems with interaction of logx and updating of top5 dropdown model args
+        which5_choice = self._which5_name_tkvar.get()
+        print(f"Changed top5_dropdown to {which5_choice}")
+        # show the fit of the selected model
+        rx_sqr, model_name = regex.split(f" ", which5_choice)
+        selected_model_idx = self._optimizer.top5_names.index(model_name)
+        selected_model = self._optimizer.top5_models[selected_model_idx]
+        try :
+            assert selected_model.get_args() == self._optimizer.top5_args[selected_model_idx]
+        except AssertionError:
+            print( selected_model.get_args() )
+            print( self._optimizer.top5_args[selected_model_idx] )
+            raise AssertionError
+        print(selected_model.get_args())
+        self._current_model = selected_model
+        self.save_show_fit_image()
+
+    def create_default_checkboxes(self):
+        # use trig/exp/powers checkmarks
+        # add-custom-primitive textbox
+        # search depth
+        # fit data / vs / search models on Procedural
+        # sliders for initial parameter guesses
+        # own model input as textbox
+
+
+        # sliders for initial parameter guesses
+        # own model input as textbox
+
+
+        for idx, name in enumerate(self._checkbox_names_list) :
+
+            checkbox = tk.Checkbutton(
+                master=self._gui.children['!frame2'].children['!frame3'],
+                text=name,
+                variable=self._use_func_dict_name_tkVar[name],
+                onvalue=True,
+                offvalue=False,
+                command=self.checkbox_on_off_command
+            )
+            checkbox.grid(row=idx+1, column=0, sticky='w')
+
+    def hide_default_checkboxes(self):
+        if self._new_user_stage % 29 != 0 :
+            # the checkboxes haven't been created yet, no need to hide them
+            return
+        checkbox0 = self._gui.children['!frame2'].children['!frame3'].children['!checkbutton']
+        checkbox0.grid_forget()
+        for idx in range(len(self._use_func_dict_name_tkVar)-1):
+            checkbox_n = self._gui.children['!frame2'].children['!frame3'].children[f"!checkbutton{idx+2}"]
+            checkbox_n.grid_forget()
+
+    def show_default_checkboxes(self):
+        checkbox0 = self._gui.children['!frame2'].children['!frame3'].children['!checkbutton']
+        checkbox0.grid(row=1, column=0, sticky='w')
+        for idx in range(len(self._use_func_dict_name_tkVar)-1):
+            checkbox_n = self._gui.children['!frame2'].children['!frame3'].children[f"!checkbutton{idx+2}"]
+            checkbox_n.grid(row=idx+2, column=0, sticky='w')
+
+    def checkbox_on_off_command(self):
+        pass
+
+    def create_depth_up_down_buttons(self):
+
+        depth_text = tk.Label(
+            master = self._gui.children['!frame2'].children['!frame5'],
+            text = f"Depth: {self._max_functions_tkInt.get()}"
+        )
+        down_button = tk.Button( self._gui.children['!frame2'].children['!frame5'],
+                                 text = "\U0001F847",
+                                 command = self.depth_down_command
+                               )
+        up_button = tk.Button( self._gui.children['!frame2'].children['!frame5'],
+                                  text = "\U0001F845",
+                                  command = self.depth_up_command
+                                )
+
+        depth_text.grid(row=0, column=0, sticky='w')
+        down_button.grid(row=0, column=1, padx=(5,0), pady=5, sticky='w')
+        up_button.grid(row=0, column=2, sticky='w')
+
+    def hide_depth_buttons(self):
+        pass
+    def show_depth_buttons(self):
+        pass
+
+    def depth_down_command(self) :
+        if self._max_functions_tkInt.get() > 1 :
+            self._max_functions_tkInt.set( self._max_functions_tkInt.get() - 1 )
+        else :
+            self.add_message( f"> Must have a depth of at least 1\n" )
+        depth_label = self._gui.children['!frame2'].children['!frame5'].children['!label']
+        depth_label.configure(text=f"Depth: {self._max_functions_tkInt.get()}")
+
+    def depth_up_command(self):
+        if self._max_functions_tkInt.get() < 7 :
+            self._max_functions_tkInt.set( self._max_functions_tkInt.get() + 1 )
+        else :
+            self.add_message( f"> Cannot exceed a depth of 7\n" )
+        depth_label = self._gui.children['!frame2'].children['!frame5'].children['!label']
+        depth_label.configure(text=f"Depth: {self._max_functions_tkInt.get()}")
+
 
     """
 
@@ -568,7 +1192,7 @@ class Frontend:
     """
 
     def create_right_panel(self):
-        self._gui.columnconfigure(2, minsize=700)  # image panel
+        self._gui.columnconfigure(2, minsize=700, weight=1)  # image panel
         column3_frame = tk.Frame(master=self._gui, bg='black')
         column3_frame.grid(row=0, column=2, sticky='news')
         self.add_message("> Welcome to MIW's AutoFit!")
@@ -606,7 +1230,7 @@ class Frontend:
         for line in regex.split( f"\n", message_string) :
             if line == "" :
                 continue
-            new_message_label = tk.Label(master=text_frame, text=line, bg="black", fg="green", font="consolas")
+            new_message_label = tk.Label(master=text_frame, text=line, bg="black", fg="green", font=("consolas",12))
             new_message_label.grid(row=self._num_messages_ever, column=0, sticky=tk.W)
             self._num_messages += 1
             self._num_messages_ever += 1
@@ -664,6 +1288,12 @@ class Frontend:
         return self._data_handlers[self._curr_image_num]
     def show_current_data(self):
         self.show_data(self._curr_image_num)
+        self._showing_fit_image = False
+
+    def use_functions_dict(self):
+        return { key : tkBoolVar.get() for key, tkBoolVar in self._use_func_dict_name_tkVar.items() }
+    def max_functions(self):
+        return self._max_functions_tkInt.get()
 
     def exist(self):
         self._gui.mainloop()
