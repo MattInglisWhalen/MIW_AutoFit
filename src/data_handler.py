@@ -45,6 +45,10 @@ class DataHandler:
         self._logy_flag = False
         self._Y0 = 1.
 
+        # TODO:
+        # consider adding an optimizer instance to the DataHandler class, so that each file's optimization can only
+        # be accessed through the file handler
+
         if filepath[-4:] in [".csv",".txt"] :
             self.read_csv()
         elif filepath[-4:] in [".xls","xlsx",".ods"] :
@@ -63,8 +67,14 @@ class DataHandler:
     def histogram_flag(self):
         return self._histogram_flag
     @property
+    def normalized(self):
+        return self._normalized_histogram_flag
+    @property
     def X0(self):
         return self._X0
+    @X0.setter
+    def X0(self, val):
+        self._X0 = val
     @property
     def logx_flag(self):
         return self._logx_flag
@@ -88,7 +98,7 @@ class DataHandler:
             if min_X < 0 :
                 print("You can't log the x-data if there are negative numbers!")
                 return
-            self._X0 = math.sqrt(min_X*max_X)
+            self._X0 = math.sqrt(min_X*max_X) if self.X0 > 0 else -self._X0
             for datum in self._data :
                 if self._histogram_flag :
                     sigma_lower, sigma_upper = datum.assym_sigma_pos[0]/datum.pos, datum.assym_sigma_pos[1]/datum.pos
@@ -114,10 +124,13 @@ class DataHandler:
                     else:
                         datum.sigma_pos = datum.sigma_pos * datum.pos
         self._logx_flag = new_flag
-        print("Finished logging x")
+        print(f"Finished logging x with {self._X0=}")
     @property
     def Y0(self):
         return self._Y0
+    @Y0.setter
+    def Y0(self, val):
+        self._Y0 = val
     @property
     def logy_flag(self):
         return self._logy_flag
@@ -129,7 +142,7 @@ class DataHandler:
             if min_Y <= 0 :
                 print("You can't log the y-data if there are zeroes or negative numbers!")
                 return
-            self._Y0 = math.sqrt(min_Y*max_Y)
+            self._Y0 = math.sqrt(min_Y*max_Y) if self._Y0 > 0 else -self._Y0
             for datum in self._data :
                 datum.sigma_val = datum.sigma_val/datum.val
                 datum.val = math.log( datum.val / self._Y0 )
@@ -139,6 +152,7 @@ class DataHandler:
                 datum.val = self._Y0 * math.exp( datum.val )
                 datum.sigma_val = datum.sigma_val*datum.val
         self._logy_flag = new_flag
+        print(f"Finished logging y with {self._Y0=}")
 
     @property
     def unlogged_x_data(self):

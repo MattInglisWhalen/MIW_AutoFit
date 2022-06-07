@@ -153,11 +153,7 @@ class Optimizer:
         for comp in CompositeFunction.built_in_list():
             self._composite_function_list.append(comp.copy())
 
-        # print(f"Pre-trimmed list: (len={len(self._composite_function_list)})")
-        # for icomp in self._composite_function_list:
-        #     # print(icomp)
-        #     pass
-        # print("|----------------\n")
+        # prepend the current top 5 models
 
         self.trim_composite_function_list()
         print(f"After trimming list: (len={len(self._composite_function_list)})")
@@ -395,6 +391,7 @@ class Optimizer:
         uncertainties = np.sqrt(np.diagonal(np_cov)).tolist()
         model.set_args(*pars)  # ignore iterable
 
+        # TODO: best_function is either outdated or nees a name change
         self._best_function = model.copy()
         self._best_args = pars  # have to do this because the model's stored parameters change for some reason
         self._best_args_uncertainty = uncertainties
@@ -498,6 +495,38 @@ class Optimizer:
         self._best_function.set_args( *self._best_args )  # ignore iterable
         self._best_function.print_tree()
 
+    def async_find_best_model_for_dataset(self, start=False):
+
+        batch_size = 10
+
+        x_points = []
+        y_points = []
+        sigma_points = []
+
+        use_errors = True
+
+        for datum in self._data :
+            x_points.append( datum.pos )
+            y_points.append( datum.val )
+            if datum.sigma_val < 1e-5 :
+                use_errors = False
+                sigma_points.append( 1. )
+                datum.sigma_val = 1
+            else:
+                sigma_points.append( datum.sigma_val )
+
+        if start :
+            # generate the models_to_test list
+            self.build_composite_function_list()
+            self.create_cos_sin_frequency_lists()
+
+        else :
+            for model in self._composite_function_list[:batch_size] :
+
+
+
+                self._composite_function_list = self._composite_function_list[batch_size:]
+
     def create_cos_sin_frequency_lists(self):
 
         self._all_freq_list = []
@@ -583,7 +612,7 @@ class Optimizer:
 
     def find_initial_guess_scaling(self, model):
 
-        print(f"In find_initial_guess_scaling with {model.name=}")
+        # print(f"In find_initial_guess_scaling with {model.name=}")
 
         scaling_args_no_sign = self.find_set_initial_guess_scaling(model)
 
@@ -603,8 +632,6 @@ class Optimizer:
         for point in scaling_args_sign_list:
             model.set_args( *point )
             temp_rchisqr = self.reduced_chi_squared_of_fit(model)
-            if model.name in ["pow2(pow0+pow1)"] :
-                print(f"{point=} {temp_rchisqr=}")
             if temp_rchisqr < best_rchisqr :
                 best_rchisqr = temp_rchisqr
                 best_grid_point = point
@@ -643,8 +670,6 @@ class Optimizer:
         for child in composite.children_list :
             self.find_set_initial_guess_scaling(child)
 
-        if composite.parent is None :
-            print(f"Hiya! In find-set scaling: {composite.get_args()}")
         return composite.get_args()
 
     def show_fit(self, model=None):

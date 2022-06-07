@@ -44,6 +44,14 @@ def list_of_random_sin_cosine_data(n=50, amplitude=13, omega1=0.1, omega2=0.5, s
         print(f"{datum.pos}, {datum.val}, {datum.sigma_val}")
     return data
 
+def list_of_random_expsin_data(n=50, amplitude=13, compression = 0.5, omega1=0.1, sigma=1., x_low=1, x_high=50):
+    positions = list_of_uniformly_spaced_positions_in_range(n=n, x_low=x_low, x_high=x_high)
+    values = [ rng.normalvariate( mu=amplitude*math.exp( compression*math.sin(omega1*positions[i]) ), sigma=sigma) for i in range(n) ]
+    data = [ Datum1D(pos=positions[i], val=values[i], sigma_val=sigma) for i in range(n) ]
+    for datum in data :
+        print(f"{datum.pos}, {datum.val}, {datum.sigma_val}")
+    return data
+
 def list_of_random_exp_data(n=50, amplitude=13,  decay=3., sigma=1., x_low=1, x_high=50):
     positions = list_of_uniformly_spaced_positions_in_range(n=n, x_low=x_low, x_high=x_high)
     values = [ rng.normalvariate( mu=amplitude*math.exp(-decay*positions[i]), sigma=sigma) for i in range(n) ]
@@ -143,7 +151,8 @@ def create_power_law_data(n=50, amplitude=0.5, power=1.5, sigma=1, x_low=1, x_hi
 
 if __name__ == "__main__" :
 
-    list_of_random_sin_cosine_data()
+    list_of_random_expsin_data()
+    #list_of_random_sin_cosine_data()
     # create_power_law_data()
     # test_histogram_fit()
     # test_linear_fit()

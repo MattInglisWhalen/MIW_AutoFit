@@ -39,6 +39,7 @@ class Frontend:
         self._image_frame = None
         self._normalized_histogram_flags = []
         self._showing_fit_image = False  # conjugate to showing data-only image
+        self._showing_fit_all_image = False
 
         # file handling
         self._filepaths = []
@@ -75,6 +76,7 @@ class Frontend:
         self._default_excel_sigmax_range = None
         self._default_excel_sigmay_range = None
         self._default_load_file_loc = None
+        # checkboxes default
         self.load_defaults()
         self.print_defaults()
 
@@ -87,7 +89,7 @@ class Frontend:
                 if "#FIT_TYPE" in line :
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
-                        arg= "linear"
+                        arg = "linear"
                     self._default_fit_type = arg
                 elif "#EXCEL_RANGE_X" in line :
                     arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
@@ -255,6 +257,8 @@ class Frontend:
                 self._new_user_stage *= 5
             self.update_data_select()
 
+        self.update_logx_relief()
+        self.update_logy_relief()
         self.save_defaults()
 
     def dialog_box_get_excel_data_ranges(self):
@@ -487,6 +491,12 @@ class Frontend:
             # find fit button should now be find model
             self._optimizer.find_best_model_for_dataset()
             plot_model = self._optimizer.best_model
+        elif self._model_name_tkvar.get() == "Brute Force":
+            print("Brute forcing a procedural model")
+            # find fit button should now be find model
+            self._optimizer.async_find_best_model_for_dataset(start=True)
+            self._brute_forcing = True
+            plot_model = self._optimizer.best_model
         else:
             pass
         self._current_model = plot_model
@@ -515,6 +525,11 @@ class Frontend:
             self.create_depth_up_down_buttons()
             self._new_user_stage *= 29
 
+        # add status updates for brute-force fits
+        if self._model_name_tkvar.get() == "Brute Force" and self._new_user_stage % 31 != 0 :
+            self.create_top5_dropdown()
+            self._new_user_stage *= 29
+
 
     def print_results_to_console(self):
         print_string = ""
@@ -533,7 +548,7 @@ class Frontend:
                                 self._optimizer.uncertainties[1]**2 * self._optimizer.parameters[0]**2   )
             print_string += f"   m = {m:+.2E}  \u00B1  {sigmam:.2E}\n"
             print_string += f"   b = {b:+.2E}  \u00B1  {sigmab:.2E}\n"
-            print_string += f"Goodness of fit: R\U000000B2 = {self._optimizer.r_squared(self._optimizer.best_model):.2F}"
+            print_string += f"Goodness of fit: R\U000000B2 = {self._optimizer.r_squared(self._optimizer.best_model):.2F}\n"
         elif self._model_name_tkvar.get() == "Gaussian" and self.normalized_histogram_flag:
             if self.data_handler.logy_flag :
                 print_string += f"  Normal fit is LY ="
@@ -605,6 +620,19 @@ class Frontend:
                 print_string += f"  c{idx} =  {par:+.2E}  \u00B1  {unc:.2E}\n"
             print_string += "\n> As a tree, this is \n"
             print_string += self._optimizer.best_model.tree_as_string_with_args()
+        elif self._model_name_tkvar.get() == "Brute Force":
+            if self.data_handler.logy_flag :
+                print_string += f"  Best model so far is LY = {self._optimizer.best_model.name}"
+            else :
+                print_string += f"  Best model so far is y = {self._optimizer.best_model.name}"
+            if self.data_handler.logx_flag :
+                print_string += f"(LX) w/ {self._optimizer.best_model.dof} dof and where\n"
+            else :
+                print_string += f"(x) w/ {self._optimizer.best_model.dof} dof and where\n"
+            for idx, (par, unc) in enumerate(zip(self._optimizer.parameters, self._optimizer.uncertainties)):
+                print_string += f"  c{idx} =  {par:+.2E}  \u00B1  {unc:.2E}\n"
+            print_string += "\n> As a tree, this is \n"
+            print_string += self._optimizer.best_model.tree_as_string_with_args()
         else:
             pass
         if self.data_handler.logy_flag and self.data_handler.logx_flag:
@@ -624,15 +652,54 @@ class Frontend:
         #     self.add_message("> Finding optimal model for current dataset\n")
         #     self.fit_data_command()
 
+        # need to log all datasets if the current one is logged, and unlog if they ARE logged
+        for handler in self._data_handlers :
+            if handler == self.data_handler :
+                continue
+            if self.data_handler.logx_flag :
+                if handler.logx_flag :
+                    # unlog then relog
+                    handler.logx_flag = False
+                handler.X0 = -self.data_handler.X0  # links the two X0 values
+                handler.logx_flag = True
+            elif not self.data_handler.logx_flag and handler.logx_flag :
+                handler.logx_flag = False
+
+            if self.data_handler.logy_flag :
+                if handler.logy_flag :
+                    # unlog then relog
+                    handler.logy_flag = False
+                handler.Y0 = -self.data_handler.Y0  # links the two Y0 values
+                handler.logy_flag = True
+            elif not self.data_handler.logy_flag and handler.logy_flag :
+                handler.logy_flag = False
+            # TODO: test that this works
+            # it's a little complicated because the X0 and Y0 values are different
+
+
+        # need to normalize all datasets if the current one is normalized
+        if any([handler.normalized for handler in self._data_handlers]) :
+            self.data_handler.normalize_histogram_data()
+        for handler in self._data_handlers :
+            if self.data_handler.normalized and not handler.normalized :
+                handler.normalize_histogram_data()
+
         # fit every loaded dataset with the current model and return the average parameters
         list_of_args = []
         list_of_uncertainties = []
         for handler in self._data_handlers :
             data = handler.data
             self._optimizer.set_data_to(data)
-            pars, uncertainties = self._optimizer.parameters_and_uncertainties_from_fitting(initial_guess=self._optimizer.best_model.get_args())
+            # does the following line actually use the chosen model?
+            pars, uncertainties = self._optimizer.parameters_and_uncertainties_from_fitting(model=self._current_model,
+                                                                                            initial_guess=self._optimizer.best_model.get_args())
             list_of_args.append(pars)
             list_of_uncertainties.append(uncertainties)
+            print(f"Fit pars = {pars}")
+            # self._current_model.set_args(*pars)
+            # self.save_show_fit_image(model=self._current_model)
+
+        # TODO: show all datasets overlayed with their respective fits, and finally with the overlayed average fit
 
         self.add_message("> Average parameters from fitting all datasets:\n")
         means = []
@@ -658,8 +725,14 @@ class Frontend:
 
         self._optimizer.parameters = means
         self._optimizer.uncertainties = uncs
+        self._current_model.set_args(*means)
+
+        self.save_show_fit_all(model=self._current_model, args_list = list_of_args)
+
+        # TODO: figure out what to do with the left/right arrows and the numbers
 
         self.print_results_to_console()
+        self.update_data_select()
 
 
     """
@@ -724,6 +797,9 @@ class Frontend:
     ##
 
     def create_inspect_button(self):
+
+        # TODO: also make a save figure button
+
         data_perusal_button = tk.Button(
             master = self._gui.children['!frame2'].children['!frame2'],
             text = "Inspect",
@@ -868,27 +944,61 @@ class Frontend:
     ##
 
     def inspect_command(self):
+
         plt.show()
+
+        # TODO: find a way to show() again without rerunning fits
+
+        if self._showing_fit_all_image :
+            self.save_show_fit_all()
+        elif self._showing_fit_image :
+            self.save_show_fit_image()
+        else:
+            self.show_data()
 
     def image_left_command(self):
         self._curr_image_num = (self._curr_image_num - 1) % len(self._data_handlers)
-        self.show_current_data()
+        self._showing_fit_all_image = False
+
+        if self._showing_fit_image :
+            self._optimizer.set_data_to(self.data_handler.data)
+            self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+            self.save_show_fit_image()
+        else:
+            self.show_current_data()
+
         self.update_data_select()
+
         if self.data_handler.histogram_flag :
             self.show_normalize_button()
         else :
             self.hide_normalize_button()
+        self.update_logx_relief()
+        self.update_logy_relief()
+
 
     def image_right_command(self):
         self._curr_image_num  = (self._curr_image_num + 1) % len(self._data_handlers)
-        self.show_current_data()
+        self._showing_fit_all_image = False
+        
+        if self._showing_fit_image :
+            self._optimizer.set_data_to(self.data_handler.data)
+            self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+            self.save_show_fit_image()
+        else:
+            self.show_current_data()
+
         self.update_data_select()
+
         if self.data_handler.histogram_flag :
             self.show_normalize_button()
         else :
             self.hide_normalize_button()
+        self.update_logx_relief()
+        self.update_logy_relief()
 
     def show_residuals_command(self):
+        # TODO: this would be cool
         pass
 
     def normalize_command(self):
@@ -899,16 +1009,8 @@ class Frontend:
         else:
             self.show_current_data()
 
-
-    def logx_command(self):
-        print(f"In logx_command, {self._gui.children['!frame2'].children['!frame4'].children}")
-        button : tk.Button = self._gui.children['!frame2'].children['!frame4'].children['!button']
-        if self.data_handler.logx_flag :
-            self.data_handler.logx_flag = False
-        else:
-            self.data_handler.logx_flag = True
-
-        # do these separately in case the logging fails
+    def update_logx_relief(self):
+        button: tk.Button = self._gui.children['!frame2'].children['!frame4'].children['!button']
         if self.data_handler.logx_flag :
             button.configure(relief=tk.SUNKEN)
             self.hide_normalize_button()
@@ -916,18 +1018,39 @@ class Frontend:
             button.configure(relief=tk.RAISED)
             if not self.data_handler.logy_flag and self.data_handler.histogram_flag :
                 self.show_normalize_button()
+
+    # TODO: if loading new file, or using left/right buttons, need to update the logx and logy buttons
+    def logx_command(self):
+        button : tk.Button = self._gui.children['!frame2'].children['!frame4'].children['!button']
+
+        # flip-flop
+        if self.data_handler.logx_flag :
+            self.data_handler.logx_flag = False
+        else:
+            self.data_handler.logx_flag = True
+
+        self.update_logx_relief()
+
         if self._optimizer is not None:
             self._optimizer.set_data_to(self.data_handler.data)
         if self._showing_fit_image :
-            pars, _ = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
-            print(f"After logx commands {pars=} {self._optimizer.reduced_chi_squared_of_fit(self._current_model)}")
-            # self.fit_data_command()
+            self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
             self.save_show_fit_image()
         else:
             self.show_current_data()
 
         # TODO: clear the top5 models list, since the top5 stored models fit "different" data
 
+
+    def update_logy_relief(self):
+        button: tk.Button = self._gui.children['!frame2'].children['!frame4'].children['!button2']
+        if self.data_handler.logy_flag :
+            button.configure(relief=tk.SUNKEN)
+            self.hide_normalize_button()
+        else:
+            button.configure(relief=tk.RAISED)
+            if not self.data_handler.logx_flag and self.data_handler.histogram_flag :
+                self.show_normalize_button()
 
     def logy_command(self):
 
@@ -936,21 +1059,14 @@ class Frontend:
             self.data_handler.logy_flag = False
         else:
             self.data_handler.logy_flag = True
-        # do these separately in case the logging fails
-        if self.data_handler.logy_flag :
-            button.configure(relief=tk.SUNKEN)
-            self.hide_normalize_button()
-        else:
-            button.configure(relief=tk.RAISED)
-            if not self.data_handler.logx_flag and self.data_handler.histogram_flag :
-                self.show_normalize_button()
+
+        self.update_logy_relief()
+
         if self._optimizer is not None:
             self._optimizer.set_data_to(self.data_handler.data)
         if self._showing_fit_image:
-            pars, _ = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
-            print(f"After logy commands {pars=}")
+            self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
             self.save_show_fit_image()
-            # self.fit_data_command()
         else:
             self.show_current_data()
 
@@ -973,7 +1089,12 @@ class Frontend:
 
     def update_data_select(self):
         text_label = self._gui.children['!frame2'].children['!frame2'].children['!label']
-        text_label.configure(text=f"{(self._curr_image_num % len(self._data_handlers)) + 1 }/{len(self._data_handlers)}")
+        if self._showing_fit_all_image :
+            text_label.configure(text=f"-/{len(self._data_handlers)}")
+        else:
+            text_label.configure(
+                text=f"{(self._curr_image_num % len(self._data_handlers)) + 1 }/{len(self._data_handlers)}"
+            )
 
     def function_dropdown_trace(self,*args):
         model_choice = self._model_name_tkvar.get()
@@ -1005,18 +1126,20 @@ class Frontend:
         else:
             plot_model = self._current_model
 
-        x_points = self.data_handler.unlogged_x_data
-        y_points = self.data_handler.unlogged_y_data
-        sigma_x_points = self.data_handler.unlogged_sigmax_data
-        sigma_y_points = self.data_handler.unlogged_sigmay_data
+        handler = self.data_handler
+
+        x_points = handler.unlogged_x_data
+        y_points = handler.unlogged_y_data
+        sigma_x_points = handler.unlogged_sigmax_data
+        sigma_y_points = handler.unlogged_sigmay_data
 
         smooth_x_for_fit = np.linspace( x_points[0], x_points[-1], 4*len(x_points))
-        if self.data_handler.logx_flag and self.data_handler.logy_flag :
+        if handler.logx_flag and handler.logy_flag :
             fit_vals = [ plot_model.eval_at(xi, X0 = self.data_handler.X0, Y0 = self.data_handler.Y0)
                          for xi in smooth_x_for_fit ]
-        elif self.data_handler.logx_flag :
+        elif handler.logx_flag :
             fit_vals = [ plot_model.eval_at(xi, X0 = self.data_handler.X0) for xi in smooth_x_for_fit ]
-        elif self.data_handler.logy_flag :
+        elif handler.logy_flag :
             fit_vals = [ plot_model.eval_at(xi, Y0 = self.data_handler.Y0) for xi in smooth_x_for_fit ]
         else:
             fit_vals = [plot_model.eval_at(xi) for xi in smooth_x_for_fit]
@@ -1026,8 +1149,8 @@ class Frontend:
         fig.patch.set_facecolor((112 / 255, 146 / 255, 190 / 255))
         plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color='k')
         plt.plot(smooth_x_for_fit, fit_vals, '-', color='r')
-        plt.xlabel(self.data_handler.x_label)
-        plt.ylabel(self.data_handler.y_label)
+        plt.xlabel(handler.x_label)
+        plt.ylabel(handler.y_label)
         axes : plt.axes = plt.gca()
         if axes.get_xlim()[0] > 0:
             axes.set_xlim([0, axes.get_xlim()[1]])
@@ -1038,7 +1161,7 @@ class Frontend:
         elif axes.get_ylim()[1] < 0:
             axes.set_ylim([axes.get_ylim()[0], 0])
 
-        if self.data_handler.logx_flag:
+        if handler.logx_flag:
             log_min, log_max = math.log(min(x_points)), math.log(max(x_points))
             axes.set_xlim([math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min)/10)])
             axes.set(xscale="log")
@@ -1048,7 +1171,7 @@ class Frontend:
             axes.spines['left'].set_position(  ('data', 0.) )
             axes.spines['right'].set_position( ('data', 0.) )
             axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
-        if self.data_handler.logy_flag:
+        if handler.logy_flag:
             axes.set(yscale="log")
             log_min, log_max = math.log(min( y_points )), math.log(max(y_points))
             axes.set_ylim([math.exp(log_min - (log_max-log_min)/10), math.exp(log_max + (log_max-log_min)/10)])
@@ -1081,8 +1204,141 @@ class Frontend:
         self._image_frame.configure(image=self._image)
         self._showing_fit_image = True
 
+    def save_show_fit_all(self, model, args_list):
+
+        plt.close()
+        avg_pars = model.get_args()
+
+        if model is not None:
+            plot_model = model.copy()
+        else:
+            plot_model = self._current_model
+
+        num_sets = len(self._data_handlers)
+        abs_minX, abs_minY = 1e5, 1e5
+        abs_maxX, abs_maxY = -1e5, -1e5
+
+        sum_len = 0
+
+        fig = plt.figure()
+        axes : plt.axes = plt.gca()
+
+        print(self._data_handlers, args_list)
+
+        for idx, (handler, args) in enumerate(zip(self._data_handlers, args_list)) :
+
+            x_points = handler.unlogged_x_data
+            y_points = handler.unlogged_y_data
+            sigma_x_points = handler.unlogged_sigmax_data
+            sigma_y_points = handler.unlogged_sigmay_data
+
+            sum_len += len(x_points)
+            smooth_x_for_fit = np.linspace( x_points[0], x_points[-1], 4*len(x_points))
+            plot_model.set_args(*args)
+            if handler.logx_flag and handler.logy_flag :
+                fit_vals = [ plot_model.eval_at(xi, X0 = handler.X0, Y0 = handler.Y0)
+                             for xi in smooth_x_for_fit ]
+            elif handler.logx_flag :
+                fit_vals = [ plot_model.eval_at(xi, X0 = handler.X0) for xi in smooth_x_for_fit ]
+            elif handler.logy_flag :
+                fit_vals = [ plot_model.eval_at(xi, Y0 = handler.Y0) for xi in smooth_x_for_fit ]
+            else:
+                fit_vals = [plot_model.eval_at(xi) for xi in smooth_x_for_fit]
+
+            # col = 255 ** (idx/num_sets) / 255
+            # col = math.sqrt(idx / num_sets)
+            col = idx / num_sets
+            print(f"{col=}")
+            set_color = (col,col,col)
+            axes.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color=set_color)
+            plt.plot(smooth_x_for_fit, fit_vals, '-', color=set_color)
+
+            min_X, max_X = min(x_points), max(x_points)
+            min_Y, max_Y = min(y_points), max(y_points)
+
+            if min_X < abs_minX :
+                abs_minX = min_X
+            if min_Y < abs_minY :
+                abs_minY = min_Y
+            if max_X > abs_maxX :
+                abs_maxX = max_X
+            if max_Y > abs_maxY :
+                abs_maxY = max_Y
+
+            plt.draw()
+
+        # also add average fit
+        plot_model.set_args(*avg_pars)
+        smooth_x_for_fit = np.linspace(abs_minX, abs_maxX, sum_len)
+        if self.data_handler.logx_flag and self.data_handler.logy_flag:
+            fit_vals = [plot_model.eval_at(xi, X0=self.data_handler.X0, Y0=self.data_handler.Y0)
+                        for xi in smooth_x_for_fit]
+        elif self.data_handler.logx_flag:
+            fit_vals = [plot_model.eval_at(xi, X0=self.data_handler.X0) for xi in smooth_x_for_fit]
+        elif self.data_handler.logy_flag:
+            fit_vals = [plot_model.eval_at(xi, Y0=self.data_handler.Y0) for xi in smooth_x_for_fit]
+        else:
+            fit_vals = [plot_model.eval_at(xi) for xi in smooth_x_for_fit]
+        plt.plot(smooth_x_for_fit, fit_vals, '-', color='r')
+
+        fig.patch.set_facecolor((112 / 255, 146 / 255, 190 / 255))
+
+        plt.xlabel(self.data_handler.x_label)
+        plt.ylabel(self.data_handler.y_label)
+
+        if axes.get_xlim()[0] > 0:
+            axes.set_xlim([0, axes.get_xlim()[1]])
+        elif axes.get_xlim()[1] < 0:
+            axes.set_xlim([axes.get_xlim()[0], 0])
+        if axes.get_ylim()[0] > 0:
+            axes.set_ylim([0, axes.get_ylim()[1]])
+        elif axes.get_ylim()[1] < 0:
+            axes.set_ylim([axes.get_ylim()[0], 0])
+
+        if self.data_handler.logx_flag:
+            log_min, log_max = math.log(abs_minX), math.log(abs_maxX)
+            axes.set_xlim([math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min)/10)])
+            axes.set(xscale="log")
+            axes.spines['right'].set_visible(False)
+        else:
+            axes.set(xscale="linear")
+            axes.spines['left'].set_position(  ('data', 0.) )
+            axes.spines['right'].set_position( ('data', 0.) )
+            axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
+        if self.data_handler.logy_flag:
+            axes.set(yscale="log")
+            log_min, log_max = math.log(abs_minY), math.log(abs_maxY)
+            axes.set_ylim([math.exp(log_min - (log_max-log_min)/10), math.exp(log_max + (log_max-log_min)/10)])
+            axes.spines['top'].set_visible(False)
+        else:
+            axes.set(yscale="linear")
+            axes.spines['top'].set_position(    ('data', 0.) )
+            axes.spines['bottom'].set_position( ('data', 0.) )
+            axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
+        axes.set_facecolor((112 / 255, 146 / 255, 190 / 255))
+
+
+        #  tx is the proportion between xmin and xmax where the zero lies
+        # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
+        tx = max(0,-abs_minX / (abs_maxX - abs_minX))
+        ty = max(0,-abs_minY / (abs_maxY - abs_minY))
+        offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
+
+        axes.xaxis.set_label_coords( 1.050,offset_Y+ty)
+        axes.yaxis.set_label_coords( offset_X+tx,+0.750)
+
+        plt.tight_layout()
+        plt.savefig(self._image_path)
+
+        # change the view to show the fit as well
+        self._image = ImageTk.PhotoImage(Image.open(self._image_path))
+        self._image_frame.configure(image=self._image)
+        self._showing_fit_image = True
+        self._showing_fit_all_image = True
+
+
     def which5_dropdown_trace(self,*args):
-        # TODO: problems with interaction of logx and updating of top5 dropdown model args
+        # TODO : should print out the model tree when you change to a different top5 model
         which5_choice = self._which5_name_tkvar.get()
         print(f"Changed top5_dropdown to {which5_choice}")
         # show the fit of the selected model
@@ -1100,17 +1356,12 @@ class Frontend:
         self.save_show_fit_image()
 
     def create_default_checkboxes(self):
-        # use trig/exp/powers checkmarks
+
+        # still to add:
         # add-custom-primitive textbox
-        # search depth
         # fit data / vs / search models on Procedural
         # sliders for initial parameter guesses
         # own model input as textbox
-
-
-        # sliders for initial parameter guesses
-        # own model input as textbox
-
 
         for idx, name in enumerate(self._checkbox_names_list) :
 
@@ -1164,9 +1415,9 @@ class Frontend:
         up_button.grid(row=0, column=2, sticky='w')
 
     def hide_depth_buttons(self):
-        pass
+        self._gui.children['!frame2'].children['!frame5'].grid_forget()
     def show_depth_buttons(self):
-        pass
+        self._gui.children['!frame2'].children['!frame5'].grid(row = 4, column=0, sticky = 'w')
 
     def depth_down_command(self) :
         if self._max_functions_tkInt.get() > 1 :
@@ -1222,6 +1473,8 @@ class Frontend:
     ##
 
     def add_message(self, message_string):
+
+        # TODO: consider also printing to a log file
 
         text_frame = self._gui.children['!frame3']
         text_frame.update()
@@ -1289,6 +1542,7 @@ class Frontend:
     def show_current_data(self):
         self.show_data(self._curr_image_num)
         self._showing_fit_image = False
+        self._showing_fit_all_image = False
 
     def use_functions_dict(self):
         return { key : tkBoolVar.get() for key, tkBoolVar in self._use_func_dict_name_tkVar.items() }
