@@ -374,7 +374,7 @@ class DataHandler:
         self._y_column_endpoints = y_range_str
         self._sigmax_column_endpoints = x_error_str
         self._sigmay_column_endpoints = y_error_str
-        print(self._x_column_endpoints, self._y_column_endpoints)
+        # print(self._x_column_endpoints, self._y_column_endpoints)
         self.read_excel()
 
     def set_excel_sheet_name(self, name):
@@ -389,18 +389,18 @@ class DataHandler:
             return []
         left, right = regex.split(f"\:", excel_vec)
 
-        print(f"{left=} {right=}")
+        # print(f"{left=} {right=}")
         left_chars = regex.split( f"[0-9]", left)[0]
         left_ints = regex.split( f"[A-Z]", left)[-1]
 
         right_chars = regex.split( f"[0-9]", right)[0]
         right_ints = regex.split( f"[A-Z]", right)[-1]
 
-        print(f"{left_chars=} {left_ints=} {right_chars=} {right_ints=}")
+        # print(f"{left_chars=} {left_ints=} {right_chars=} {right_ints=}")
 
-        print([idx for idx in
-               range(DataHandler.excel_chars_as_idx(left_chars), DataHandler.excel_chars_as_idx(right_chars) + 1)])
-        print( [ idx for idx in range(DataHandler.excel_ints_as_idx(left_ints),DataHandler.excel_ints_as_idx(right_ints)+1) ] )
+        # print([idx for idx in
+        #        range(DataHandler.excel_chars_as_idx(left_chars), DataHandler.excel_chars_as_idx(right_chars) + 1)])
+        # print( [ idx for idx in range(DataHandler.excel_ints_as_idx(left_ints),DataHandler.excel_ints_as_idx(right_ints)+1) ] )
         if left_chars == right_chars :
             # A1 denotes ColRow so transpose the two
             return [ (idx,DataHandler.excel_chars_as_idx(left_chars))

@@ -62,12 +62,16 @@ class Frontend:
         self._model_name_tkvar = None  # tk.StringVar
         self._which5_name_tkvar = None  # tk.StringVar
         self._current_model : CompositeFunction = None
+        self._current_args = None
+        self._current_uncs = None
+        self._curr_best_red_chi_sqr = 1e5
         self._checkbox_names_list = ["cos(x)", "sin(x)", "exp(x)", "log(x)",
                                      "1/x", "x\U000000B2", "x\U000000B3", "x\U00002074", "custom"]
         self._use_func_dict_name_tkVar = {}  # for checkboxes
         for name in self._checkbox_names_list :
             self._use_func_dict_name_tkVar[name] = tk.BooleanVar(value=False)
         self._max_functions_tkInt = tk.IntVar(value=4)
+        self._brute_forcing = tk.BooleanVar(value=False)
 
         # defaults config
         self._default_fit_type = None
@@ -245,7 +249,18 @@ class Frontend:
         if len(new_filepaths) > 0 :
             self._curr_image_num = len(self._data_handlers)
             self.load_new_data(new_filepaths)
-            self.show_current_data()
+            if self._showing_fit_image :
+                self._optimizer.set_data_to(self.data_handler.data)
+                pars, uncs = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+                self._current_args = pars
+                self._current_uncs = uncs
+                shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
+                self.add_message(f"\n \n> For {shortpath} \n")
+                self.print_results_to_console()
+                self.save_show_fit_image()
+                # TODO: load new file after already obtained a fit -- the fit all button goes away when it shouldn't
+            else:
+                self.show_current_data()
             if self._new_user_stage % 3 != 0 :
                 self.create_inspect_button()
                 self._new_user_stage *= 3
@@ -363,8 +378,6 @@ class Frontend:
         sigma_x_points = self.data_handler.unlogged_sigmax_data
         sigma_y_points = self.data_handler.unlogged_sigmay_data
 
-        print(sigma_y_points)
-
         plt.close()
         fig = plt.figure()
         fig.patch.set_facecolor( (112/255, 146/255, 190/255) )
@@ -381,7 +394,7 @@ class Frontend:
         elif axes.get_ylim()[1] < 0:
             axes.set_ylim([axes.get_ylim()[0], 0])
 
-        print(f"{self.data_handler.logx_flag} {self.data_handler.logy_flag}")
+        # print(f"Log flags : {self.data_handler.logx_flag} {self.data_handler.logy_flag}")
         if self.data_handler.logx_flag:
             print("Setting log xscale in show_data")
             log_min, log_max = math.log(min(x_points)), math.log(max(x_points))
@@ -491,17 +504,23 @@ class Frontend:
             # find fit button should now be find model
             self._optimizer.find_best_model_for_dataset()
             plot_model = self._optimizer.best_model
-        elif self._model_name_tkvar.get() == "Brute Force":
+        elif self._model_name_tkvar.get() == "Brute-Force":
             print("Brute forcing a procedural model")
             # find fit button should now be find model
+            self.brute_forcing = True
+            for name in self._checkbox_names_list:
+                self._use_func_dict_name_tkVar[name].set(value=True)
+                # pass
+            self._optimizer.load_non_defaults_from(self.use_functions_dict())
             self._optimizer.async_find_best_model_for_dataset(start=True)
-            self._brute_forcing = True
             plot_model = self._optimizer.best_model
         else:
+            print(f"Invalid model name {self._model_name_tkvar.get()}")
             pass
         self._current_model = plot_model
+        self._current_args = self._optimizer.parameters
+        self._current_uncs = self._optimizer.uncertainties
         self.save_show_fit_image()
-
 
         # add fit all button if there's more than one file
         if self._new_user_stage % 11 != 0 and len(self._data_handlers) > 1 :
@@ -519,25 +538,50 @@ class Frontend:
             self.update_top5_dropdown()
 
         # add a dropdown list for procedural-type fits
-        if self._model_name_tkvar.get() == "Procedural" and self._new_user_stage % 29 != 0:
+        if self._model_name_tkvar.get() in ["Procedural","Brute-Force"] and self._new_user_stage % 29 != 0:
             self.create_top5_dropdown()
-            self.create_default_checkboxes()
-            self.create_depth_up_down_buttons()
             self._new_user_stage *= 29
 
         # add status updates for brute-force fits
-        if self._model_name_tkvar.get() == "Brute Force" and self._new_user_stage % 31 != 0 :
-            self.create_top5_dropdown()
-            self._new_user_stage *= 29
+        if self._model_name_tkvar.get() == "Procedural" and self._new_user_stage % 31 != 0 :
+            self.create_default_checkboxes()
+            self.create_depth_up_down_buttons()
+            self._new_user_stage *= 31
 
+        if self._model_name_tkvar.get() == "Brute-Force" and self._new_user_stage % 37 != 0 :
+            self.create_pause_button()
+            self._new_user_stage *= 37
+
+        if self.brute_forcing :
+            self.begin_brute_loop()
+
+    def begin_brute_loop(self):
+        self._gui.update_idletasks()
+        self._gui.after_idle(self.maintain_brute_loop)
+
+    def maintain_brute_loop(self):
+        if self.brute_forcing :
+            status = self._optimizer.async_find_best_model_for_dataset()
+            if status == "Done" :
+                self.brute_forcing = False
+                print("End of brute-forcing reached")
+            self._current_model = self._optimizer.best_model
+            self._current_args = self._optimizer.parameters
+            self._current_uncs = self._optimizer.uncertainties
+            self.update_top5_dropdown()
+            if self._curr_best_red_chi_sqr != self._optimizer.top5_rx_sqrs[0] :
+                self.save_show_fit_image()
+                self._curr_best_red_chi_sqr = self._optimizer.top5_rx_sqrs[0]
+            self._gui.after(1, self.maintain_brute_loop)
+        self.update_pause_button()
 
     def print_results_to_console(self):
         print_string = ""
         if self._model_name_tkvar.get() == "Linear" :
             if self.data_handler.logy_flag :
-                print_string += f"  Linear fit is LY ="
+                print_string += f"\n>  Linear fit is LY ="
             else :
-                print_string += f"  Linear fit is y ="
+                print_string += f"\n>  Linear fit is y ="
             if self.data_handler.logx_flag :
                 print_string += f" m LX + b with\n"
             else :
@@ -551,9 +595,9 @@ class Frontend:
             print_string += f"Goodness of fit: R\U000000B2 = {self._optimizer.r_squared(self._optimizer.best_model):.2F}\n"
         elif self._model_name_tkvar.get() == "Gaussian" and self.normalized_histogram_flag:
             if self.data_handler.logy_flag :
-                print_string += f"  Normal fit is LY ="
+                print_string += f"\n>  Normal fit is LY ="
             else :
-                print_string += f"  Normal fit is y ="
+                print_string += f"\n>  Normal fit is y ="
             if self.data_handler.logx_flag :
                 print_string += f" 1/\u221A(2\u03C0\u03C3\U000000B2) exp[-(LX-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
             else :
@@ -565,9 +609,9 @@ class Frontend:
             print_string += f"   \u03C3 =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
         elif self._model_name_tkvar.get() == "Gaussian" :
             if self.data_handler.logy_flag :
-                print_string += f"  Gaussian fit is LY ="
+                print_string += f"\n>  Gaussian fit is LY ="
             else :
-                print_string += f"  Gaussian fit is y ="
+                print_string += f"\n>  Gaussian fit is y ="
             if self.data_handler.logx_flag :
                 print_string += f" A exp[-(LX-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
             else :
@@ -582,9 +626,9 @@ class Frontend:
         elif self._model_name_tkvar.get() == "Sigmoid" :
             # print_string += f"  Sigmoid fit is y = F + H/(1 + exp[-(x-x0)/w] )\n"
             if self.data_handler.logy_flag :
-                print_string += f"  Sigmoid fit is LY ="
+                print_string += f"\n>  Sigmoid fit is LY ="
             else :
-                print_string += f"  Sigmoid fit is y ="
+                print_string += f"\n>  Sigmoid fit is y ="
             if self.data_handler.logx_flag :
                 print_string += f" F + H/(1 + exp[-(LX-x0)/w] ) with\n"
             else :
@@ -609,30 +653,30 @@ class Frontend:
             print_string += f"   x0 = {x0:+.2E}  \u00B1  {sigmax0:.2E}\n"
         elif self._model_name_tkvar.get() == "Procedural":
             if self.data_handler.logy_flag :
-                print_string += f"  Optimal model is LY = {self._optimizer.best_model.name}"
+                print_string += f"\n> Selected model is LY = {self._current_model.name}"
             else :
-                print_string += f"  Optimal model is y = {self._optimizer.best_model.name}"
+                print_string += f"\n> Selected model is y = {self._current_model.name}"
             if self.data_handler.logx_flag :
-                print_string += f"(LX) w/ {self._optimizer.best_model.dof} dof and where\n"
+                print_string += f"(LX) w/ {self._current_model.dof} dof and where\n"
             else :
-                print_string += f"(x) w/ {self._optimizer.best_model.dof} dof and where\n"
-            for idx, (par, unc) in enumerate(zip(self._optimizer.parameters, self._optimizer.uncertainties)):
+                print_string += f"(x) w/ {self._current_model.dof} dof and where\n"
+            for idx, (par, unc) in enumerate(zip(self._current_args, self._current_uncs)):
                 print_string += f"  c{idx} =  {par:+.2E}  \u00B1  {unc:.2E}\n"
             print_string += "\n> As a tree, this is \n"
-            print_string += self._optimizer.best_model.tree_as_string_with_args()
-        elif self._model_name_tkvar.get() == "Brute Force":
+            print_string += self._current_model.tree_as_string_with_args()
+        elif self._model_name_tkvar.get() == "Brute-Force":
             if self.data_handler.logy_flag :
-                print_string += f"  Best model so far is LY = {self._optimizer.best_model.name}"
+                print_string += f"\n> Model is LY = {self._current_model.name}"
             else :
-                print_string += f"  Best model so far is y = {self._optimizer.best_model.name}"
+                print_string += f"\n> Model is y = {self._current_model.name}"
             if self.data_handler.logx_flag :
-                print_string += f"(LX) w/ {self._optimizer.best_model.dof} dof and where\n"
+                print_string += f"(LX) w/ {self._current_model.dof} dof and where\n"
             else :
-                print_string += f"(x) w/ {self._optimizer.best_model.dof} dof and where\n"
-            for idx, (par, unc) in enumerate(zip(self._optimizer.parameters, self._optimizer.uncertainties)):
+                print_string += f"(x) w/ {self._current_model.dof} dof and where\n"
+            for idx, (par, unc) in enumerate(zip(self._current_args, self._current_uncs)):
                 print_string += f"  c{idx} =  {par:+.2E}  \u00B1  {unc:.2E}\n"
             print_string += "\n> As a tree, this is \n"
-            print_string += self._optimizer.best_model.tree_as_string_with_args()
+            print_string += self._current_model.tree_as_string_with_args()
         else:
             pass
         if self.data_handler.logy_flag and self.data_handler.logx_flag:
@@ -699,8 +743,6 @@ class Frontend:
             # self._current_model.set_args(*pars)
             # self.save_show_fit_image(model=self._current_model)
 
-        # TODO: show all datasets overlayed with their respective fits, and finally with the overlayed average fit
-
         self.add_message("> Average parameters from fitting all datasets:\n")
         means = []
         uncs = []
@@ -723,8 +765,8 @@ class Frontend:
             means.append(mean)
             uncs.append(math.sqrt(effective_variance))
 
-        self._optimizer.parameters = means
-        self._optimizer.uncertainties = uncs
+        self._current_args = means
+        self._current_uncs = uncs
         self._current_model.set_args(*means)
 
         self.save_show_fit_all(model=self._current_model, args_list = list_of_args)
@@ -843,7 +885,7 @@ class Frontend:
         )
         black_line_as_frame.grid(row = 2, column=0, sticky='ew')
 
-        func_list = ["Linear", "Gaussian", "Sigmoid", "Procedural"]
+        func_list = ["Linear", "Gaussian", "Sigmoid", "Procedural", "Brute-Force"]
 
         self._model_name_tkvar = tk.StringVar(self._gui.children['!frame2'].children['!frame3'])
         self._model_name_tkvar.set(self._default_fit_type)
@@ -862,7 +904,7 @@ class Frontend:
 
         # top 5 fits quick list
 
-        print("Creating", self._gui.children['!frame2'].children['!frame3'].children)
+        # print("Creating", self._gui.children['!frame2'].children['!frame3'].children)
 
         top5_list = [ f"{rx_sqr:.2F}: {name}" for rx_sqr, name
                       in zip(self._optimizer.top5_rx_sqrs, self._optimizer.top5_names)]
@@ -881,7 +923,7 @@ class Frontend:
         self._which5_name_tkvar.trace('w', self.which5_dropdown_trace)
 
     def update_top5_dropdown(self):
-        print("Updating", self._gui.children['!frame2'].children['!frame3'].children)
+        # print("Updating", self._gui.children['!frame2'].children['!frame3'].children)
         top5_dropdown : tk.OptionMenu = self._gui.children['!frame2'].children['!frame3'].children['!optionmenu2']
 
         top5_dropdown['menu'].delete(0,tk.END)
@@ -892,14 +934,14 @@ class Frontend:
 
 
     def hide_top5_dropdown(self):
-        print("Hiding",self._gui.children['!frame2'].children['!frame3'].children)
+        # print("Hiding",self._gui.children['!frame2'].children['!frame3'].children)
         if self._new_user_stage % 29 != 0 :
-            # the button hasn't been created yet, no need to hide it
+            # the dropdown hasn't been created yet, no need to hide it
             return
         top5_dropdown = self._gui.children['!frame2'].children['!frame3'].children['!optionmenu2']
         top5_dropdown.grid_forget()
     def show_top5_dropdown(self):
-        print("Showing",self._gui.children['!frame2'].children['!frame3'].children)
+        # print("Showing",self._gui.children['!frame2'].children['!frame3'].children)
         top5_dropdown = self._gui.children['!frame2'].children['!frame3'].children['!optionmenu2']
         top5_dropdown.grid(row=0, column=1)
 
@@ -962,7 +1004,12 @@ class Frontend:
 
         if self._showing_fit_image :
             self._optimizer.set_data_to(self.data_handler.data)
-            self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+            pars, uncs = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+            self._current_args = pars
+            self._current_uncs = uncs
+            shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
+            self.add_message(f"\n \n> For {shortpath} \n")
+            self.print_results_to_console()
             self.save_show_fit_image()
         else:
             self.show_current_data()
@@ -979,11 +1026,17 @@ class Frontend:
 
     def image_right_command(self):
         self._curr_image_num  = (self._curr_image_num + 1) % len(self._data_handlers)
+        # change pars and uncs to current
         self._showing_fit_all_image = False
-        
+
         if self._showing_fit_image :
             self._optimizer.set_data_to(self.data_handler.data)
-            self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+            pars, uncs = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+            self._current_args = pars
+            self._current_uncs = uncs
+            shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
+            self.add_message(f"\n \n> For {shortpath} \n")
+            self.print_results_to_console()
             self.save_show_fit_image()
         else:
             self.show_current_data()
@@ -1021,7 +1074,6 @@ class Frontend:
 
     # TODO: if loading new file, or using left/right buttons, need to update the logx and logy buttons
     def logx_command(self):
-        button : tk.Button = self._gui.children['!frame2'].children['!frame4'].children['!button']
 
         # flip-flop
         if self.data_handler.logx_flag :
@@ -1054,7 +1106,6 @@ class Frontend:
 
     def logy_command(self):
 
-        button : tk.Button = self._gui.children['!frame2'].children['!frame4'].children['!button2']
         if self.data_handler.logy_flag :
             self.data_handler.logy_flag = False
         else:
@@ -1101,23 +1152,31 @@ class Frontend:
 
         self.fit_data_command()
 
-        if model_choice == "Procedural" :
+        if model_choice in ["Procedural", "Brute-Force"] :
             if self._new_user_stage % 29 != 0 :
                 self.create_top5_dropdown()
-                self.create_default_checkboxes()
-                self.create_depth_up_down_buttons()
                 self._new_user_stage *= 29
-            self.show_top5_dropdown()
-            self.show_default_checkboxes()
-            self.show_depth_buttons()
-            self.update_top5_dropdown()
+            else :
+                self.show_top5_dropdown()
+                self.update_top5_dropdown()
         else:
             self.hide_top5_dropdown()
+
+        if model_choice == "Procedural" :
+            if self._new_user_stage % 31 != 0 :
+                self.create_default_checkboxes()
+                self.create_depth_up_down_buttons()
+                self._new_user_stage *= 31
+            else :
+                self.show_default_checkboxes()
+                self.show_depth_buttons()
+        else:
             self.hide_default_checkboxes()
             self.hide_depth_buttons()
 
-
-        # return model_choice
+        if model_choice != "Brute-Force" :
+            self.brute_forcing = False
+            self.hide_pause_button()
 
     def save_show_fit_image(self, model = None):
 
@@ -1343,17 +1402,16 @@ class Frontend:
         print(f"Changed top5_dropdown to {which5_choice}")
         # show the fit of the selected model
         rx_sqr, model_name = regex.split(f" ", which5_choice)
-        selected_model_idx = self._optimizer.top5_names.index(model_name)
-        selected_model = self._optimizer.top5_models[selected_model_idx]
         try :
-            assert selected_model.get_args() == self._optimizer.top5_args[selected_model_idx]
-        except AssertionError:
-            print( selected_model.get_args() )
-            print( self._optimizer.top5_args[selected_model_idx] )
-            raise AssertionError
-        print(selected_model.get_args())
-        self._current_model = selected_model
+            selected_model_idx = self._optimizer.top5_names.index(model_name)
+        except ValueError :
+            print(f"{model_name=} is not in {self._optimizer.top5_names}")
+            selected_model_idx = 0
+        self._current_model = self._optimizer.top5_models[selected_model_idx]
+        self._current_args = self._optimizer.top5_args[selected_model_idx]
+        self._current_uncs = self._optimizer.top5_uncertainties[selected_model_idx]
         self.save_show_fit_image()
+        self.print_results_to_console()
 
     def create_default_checkboxes(self):
 
@@ -1376,7 +1434,7 @@ class Frontend:
             checkbox.grid(row=idx+1, column=0, sticky='w')
 
     def hide_default_checkboxes(self):
-        if self._new_user_stage % 29 != 0 :
+        if self._new_user_stage % 31 != 0 :
             # the checkboxes haven't been created yet, no need to hide them
             return
         checkbox0 = self._gui.children['!frame2'].children['!frame3'].children['!checkbutton']
@@ -1414,7 +1472,11 @@ class Frontend:
         down_button.grid(row=0, column=1, padx=(5,0), pady=5, sticky='w')
         up_button.grid(row=0, column=2, sticky='w')
 
+    # hides their frame, but same idea
     def hide_depth_buttons(self):
+        if self._new_user_stage % 31 != 0 :
+            # the depth buttons haven't been created yet, no need to hide them
+            return
         self._gui.children['!frame2'].children['!frame5'].grid_forget()
     def show_depth_buttons(self):
         self._gui.children['!frame2'].children['!frame5'].grid(row = 4, column=0, sticky = 'w')
@@ -1432,8 +1494,43 @@ class Frontend:
             self._max_functions_tkInt.set( self._max_functions_tkInt.get() + 1 )
         else :
             self.add_message( f"> Cannot exceed a depth of 7\n" )
-        depth_label = self._gui.children['!frame2'].children['!frame5'].children['!label']
+        depth_label : tk.Label = self._gui.children['!frame2'].children['!frame5'].children['!label']
         depth_label.configure(text=f"Depth: {self._max_functions_tkInt.get()}")
+
+    def create_pause_button(self):
+        pause_button = tk.Button( self._gui.children['!frame2'].children['!frame3'],
+                                  text = "GO!",
+                                  command = self.pause_command
+                               )
+        pause_button.grid(row=0, column=2, padx=(5,0), sticky='w')
+    def hide_pause_button(self):
+        if self._new_user_stage % 37 != 0 :
+            # the pause button hasn't been created yet, no need to hide it
+            return
+        print(f"Hide pause button: {self._gui.children['!frame2'].children['!frame3'].children}")
+        pause_button = self._gui.children['!frame2'].children['!frame3'].children['!button']
+        pause_button.grid_forget()
+    def show_pause_button(self):
+        pause_button = self._gui.children['!frame2'].children['!frame3'].children['!button']
+        pause_button.grid(row=0, column=2, padx=(5,0), pady=5, sticky='w')
+    def update_pause_button(self):
+        pause_button : tk.Button = self._gui.children['!frame2'].children['!frame3'].children['!button']
+        if self.brute_forcing :
+            pause_button.configure(text="Pause")
+        else :
+            pause_button.configure(text="Go")
+    def pause_command(self):
+        if self.brute_forcing :
+            self.brute_forcing = False
+            shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
+            self.add_message(f"\n \n> For {shortpath} \n")
+            self.print_results_to_console()
+        else:
+            self.brute_forcing = True
+            # it's actually a go button
+            self.begin_brute_loop()
+
+
 
 
     """
@@ -1543,6 +1640,12 @@ class Frontend:
         self.show_data(self._curr_image_num)
         self._showing_fit_image = False
         self._showing_fit_all_image = False
+    @property
+    def brute_forcing(self):
+        return self._brute_forcing.get()
+    @brute_forcing.setter
+    def brute_forcing(self, val):
+        self._brute_forcing.set(val)
 
     def use_functions_dict(self):
         return { key : tkBoolVar.get() for key, tkBoolVar in self._use_func_dict_name_tkVar.items() }

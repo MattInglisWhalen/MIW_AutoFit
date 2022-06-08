@@ -55,6 +55,7 @@ class Optimizer:
         # function construction parameters
         self._max_functions = max_functions
         self._primitive_function_list = []
+        self._primitive_names_list = []
 
         # useful auxiliary varibles
         self._temp_function = None      # a CompositeFunction
@@ -73,6 +74,8 @@ class Optimizer:
         self.load_non_defaults_from(use_functions_dict)
 
         self._composite_function_list = []
+        self._composite_generator = None
+        self._gen_idx = -1
 
 
     def __repr__(self):
@@ -101,6 +104,9 @@ class Optimizer:
     def top5_args(self):
         return self._top_5_args
     @property
+    def top5_uncertainties(self):
+        return self._top_5_uncertainties
+    @property
     def top5_names(self):
         return self._top_5_names
     @property
@@ -108,6 +114,8 @@ class Optimizer:
         return self._top_5_red_chi_squareds
     def query_add_to_top5(self, model, pars, uncertainties, red_chi_squared):
         if len(self._top_5_models) > 5 and red_chi_squared > self._top_5_red_chi_squareds[-1] :
+            return
+        if model.name in self.top5_names :
             return
         for idx, chi_sqr in enumerate(self._top_5_red_chi_squareds) :
             if self.reduced_chi_squared_of_fit(model) < self._top_5_red_chi_squareds[idx] :
@@ -127,7 +135,42 @@ class Optimizer:
                 model.print_tree()
                 return
 
+    def models_left(self):
+        return len(self._composite_function_list)
 
+    def composite_function_generator(self, depth):
+
+        self._primitive_names_list = [iprim.name for iprim in self._primitive_function_list]
+
+        if depth <= 1 :
+            for iprim in self._primitive_function_list:
+                new_comp = CompositeFunction(func=iprim)
+                yield new_comp
+
+        else :
+            head_gen = self.composite_function_generator( depth = depth-1 )
+            for icomp in head_gen :
+                for idescendent in range(icomp.num_nodes()):
+                    for iprim in self._primitive_function_list:
+                        new_comp = icomp.copy()
+                        new_comp.get_node_with_index(idescendent).add_child(iprim)
+                        new_comp.build_name()
+                        yield new_comp
+
+    def valid_composite_function_generator(self, depth):
+
+        all_comps_at_depth = self.composite_function_generator(depth)
+        for icomp in all_comps_at_depth :
+            if self.passes_rules(icomp):
+                yield icomp
+
+    def all_valid_composites_generator(self):
+        for idepth in range(7):
+            for icomp in self.valid_composite_function_generator(depth=idepth):
+                self._gen_idx += 1
+                yield icomp
+
+    # TODO: make a generator version of this e.g. [] -> ()
     def build_composite_function_list(self):
 
         # self.add_primitive_to_list(name="my_tanh",functional_form="np.tanh(x)")
@@ -170,12 +213,8 @@ class Optimizer:
         # Only run this at the end of the tree generation: if you run this in intermediate steps,
         # you will miss out on some functions possibilities
 
-        # need to know which names we're working with
-        prim_names_list = []
-        for prim in self._primitive_function_list :
-            prim_names_list.append(prim.name)
-
         num_comps = len(self._composite_function_list[:])
+        self._primitive_names_list = [iprim.name for iprim in self._primitive_function_list]
 
         # use regex to trim based on rules applied to composite names
         for idx, icomp in enumerate(self._composite_function_list[:]) :
@@ -183,126 +222,139 @@ class Optimizer:
             if idx % 50 == 0 :
                 print(f"{idx}/{num_comps}")
 
-            remove_flag = 0
-            name = icomp.name
-
-            # composition of a constant function is wrong
-            if regex.search( f"pow0\(" , name):
-                remove_flag = 2
-            if regex.search( f"\(pow0\)" , name):
-                remove_flag = 3
-
-            # composition of powers with no sum is wrong
-            if regex.search( f"pow[0-9]\(pow[a-z0-9_]*\)" , name):
-                remove_flag = 5
-
-            # repeated reciprocal is wrong
-            if regex.search( f"pow_neg1\(pow_neg1\)" , name):
-                remove_flag = 7
-
-            # trivial reciprocal is wrong
-            if regex.search( f"pow_neg1\(pow1\)" , name):
-                remove_flag = 11
-
-            # composition of pow1 with no sum is wrong
-            for prim_name in prim_names_list :
-                if regex.search( f"pow1\({prim_name}\)" , name):
-                    remove_flag = 13
-
-            # deeper composition of pow1 with no sum is wrong
-            for prim_name1 in prim_names_list :
-                for prim_name2 in prim_names_list:
-                    if regex.search( f"pow1\({prim_name1}\({prim_name2}\)\)" , name):
-                        remove_flag = 17
-
-            # sum of pow1 with composition following is wrong
-            if regex.search( f"\+pow1\(" , name):
-                remove_flag = 19
-
-            # sum of the same function is wrong
-            for prim_name in prim_names_list :
-                if regex.search( f"{prim_name}[a-z+]*{prim_name}" , name):
-                    remove_flag = 23
-
-            # trig inside trig is too complex, and very (very) rarely occurs in applications
-            if icomp.has_double_trigness() :
-                remove_flag = 29
-            if icomp.has_double_expness() :
-                remove_flag = 29
-            if icomp.has_double_logness() :
-                remove_flag = 29
-
-            if name[0:4] == "pow1" and icomp.num_children() == 1:
-                remove_flag = 31
-
-
-
-            # pow0+log(...) is a duplicate since A + Blog( Cf(x) ) = B log( exp(A/B) Cf(x) ) = log(f)
-            if regex.search( f"pow0\+my_log\([a-z0-9_]*\)" , name) \
-                    or regex.search( f"my_log\([a-z0-9_]*\)\+pow0" , name):
-                remove_flag = 37
-
-            # sins and cosines and logs and exp never have angular frequency or decay parameters exactly 1
-            # I'd like to do the same with log but that conflicts with rule 37
-            # if regex.search( f"my_[a-z]*\)" , name) :  # all unitless-argument functions start with my_
-                # remove_flag = 41
-            if regex.search( f"my_[a-z]*\+" , name) :
-                remove_flag = 43
-
-            # trivial composition should just be straight sums
-            if regex.search( f"\(pow1\(", name ) or regex.search( f"\+pow1\(", name ):
-                remove_flag = 47
-
-            # more more exp algebra: Alog( Bexp(Cx) ) = AlogB + ACx = pow0+pow1
-            if regex.search( f"my_log\(my_exp\(pow1\)\)", name ):
-                remove_flag = 53
-
-            # reciprocal exponent is already an exponent pow_neg1(exp) == my_exp(pow1)
-            if regex.search( f"pow_neg1\(my_exp\)", name ):
-                remove_flag = 61
-            # and again but deeper
-            for prim_name in prim_names_list :
-                if regex.search(f"pow_neg1\(my_exp\({prim_name}\)\)", name):
-                    remove_flag = 61
-
-            # log of "higher" powers \is the same as log(pow1)
-            if regex.search( f"my_log\(pow[a-z2-9_]*\)", name ):
-                remove_flag = 67
-
-            # exp(pow0+...) is just exp(...)
-            if regex.search( f"my_exp\(pow0", name ) or regex.search( f"my_exp\([a-z0-9_+]*pow0", name ):
-                remove_flag = 71
-
-            # log(1/f+g) is the same as log(f+g)
-            for prim_name1 in prim_names_list :
-                if regex.search(f"my_log\(pow_neg1\([a-z0-9_+]*\)\)", name):
-                    remove_flag = 73
-
-            # repeated pow_neg1 is dumb
-            for prim_name1 in prim_names_list :
-                if regex.search(f"pow_neg1\(pow_neg1\([a-z0-9_+]*]\)\)", name):
-                    remove_flag = 79
-
-            if name == "my_exp(my_log)" :
-                if remove_flag :
-                    print(f"Why did we remove {name=} at {remove_flag=}")
-                    raise SystemExit
-
-            if name == "pow1(my_cos(pow1)+my_sin(pow1))" :
-                if remove_flag :
-                    print(f"Why did we remove {name=} at {remove_flag=}")
-                    raise SystemExit
-
-            if name == "pow_neg1" :
-                if remove_flag :
-                    print(f"Why did we remove {name=} with {remove_flag=}")
-                    raise SystemExit
-
-            if remove_flag :
+            if not self.passes_rules(icomp) :
                 self._composite_function_list.remove(icomp)
 
         # remove duplicates using a dict{}
-        self._composite_function_list = list({ icomp.__repr__() : icomp for icomp in self._composite_function_list[:] }.values())
+        self._composite_function_list = list(
+            { icomp.__repr__() : icomp for icomp in self._composite_function_list[:] }.values()
+        )
+
+    def passes_rules(self, icomp):
+
+        remove_flag = 0
+        name = icomp.name
+
+        # composition of a constant function is wrong
+        if regex.search(f"pow0\(", name):
+            remove_flag = 2
+        if regex.search(f"\(pow0\)", name):
+            remove_flag = 3
+
+        # composition of powers with no sum is wrong
+        if regex.search(f"pow[0-9]\(pow[a-z0-9_]*\)", name):
+            remove_flag = 5
+
+        # repeated reciprocal is wrong
+        if regex.search(f"pow_neg1\(pow_neg1\)", name):
+            remove_flag = 7
+            # and deeper
+        if regex.search(f"pow_neg1\(pow_neg1\([a-z0-9_+]*]\)\)", name):
+            remove_flag = 7
+
+        # trivial reciprocal is wrong
+        if regex.search(f"pow_neg1\(pow1\)", name):
+            remove_flag = 11
+
+        # composition of pow1 with no sum is wrong
+        if regex.search(f"pow1\([a-z0-9_]*\)", name):
+            remove_flag = 13
+
+        # deeper composition of pow1 with no sum is wrong
+        for prim_name1 in self._primitive_names_list:
+            for prim_name2 in self._primitive_names_list:
+                if regex.search(f"pow1\({prim_name1}\({prim_name2}\)\)", name):
+                    remove_flag = 17
+
+        # sum of pow1 with composition following is wrong
+        if regex.search(f"\+pow1\(", name):
+            remove_flag = 19
+
+        # sum of the same function is wrong
+        for prim_name in self._primitive_names_list:
+            if regex.search(f"{prim_name}[a-z0-9_+]*{prim_name}", name):
+                remove_flag = 23
+
+        # trig inside trig is too complex, and very (very) rarely occurs in applications
+        if icomp.has_double_trigness():
+            remove_flag = 29
+        if icomp.has_double_expness():
+            remove_flag = 29
+        if icomp.has_double_logness():
+            remove_flag = 29
+
+        if name[0:4] == "pow1" and icomp.num_children() == 1:
+            remove_flag = 31
+
+        # pow0+log(...) is a duplicate since A + Blog( Cf(x) ) = B log( exp(A/B) Cf(x) ) = log(f)
+        if regex.search(f"pow0\+my_log\([a-z0-9_]*\)", name) \
+                or regex.search(f"my_log\([a-z0-9_]*\)\+pow0", name):
+            remove_flag = 37
+
+        # sins and cosines and exps and logs never have angular frequency or decay parameters exactly 1
+        # all unitless-argument functions start with my_
+        if regex.search(f"my_[a-z]*\+", name) or regex.search(f"my_[a-z]*\)", name):
+            if regex.search(f"my_exp\(my_log\)", name):
+                # the one exception in order to get power laws
+                pass
+            else:
+                remove_flag = 43
+
+        # trivial composition should just be straight sums
+        if regex.search(f"\(pow1\(", name) or regex.search(f"\+pow1\(", name):
+            remove_flag = 47
+
+        # more more exp algebra: Alog( Bexp(Cx) ) = AlogB + ACx = pow0+pow1
+        if regex.search(f"my_log\(my_exp\(pow1\)\)", name):
+            remove_flag = 53
+
+        # reciprocal exponent is already an exponent pow_neg1(exp) == my_exp(pow1)
+        if regex.search(f"pow_neg1\(my_exp\)", name):
+            remove_flag = 61
+        # and again but deeper
+        if regex.search(f"pow_neg1\(my_exp\([a-z0-9_+]*\)\)", name):
+            remove_flag = 61
+
+        # log of "higher" powers is the same as log(pow1)
+        if regex.search(f"my_log\(pow[a-z2-9_]*\)", name) or regex.search(f"my_log\(pow_neg1\)", name):
+            remove_flag = 67
+
+        # exp(pow0+...) is just exp(...)
+        if regex.search(f"my_exp\(pow0", name) or regex.search(f"my_exp\([a-z0-9_+]*pow0", name):
+            remove_flag = 71
+
+        # log(1/f+g) of log( (f+g)^n )is the same as log(f+g)
+        if regex.search(f"my_log\(pow[a-z0-9_]*\([a-z0-9_+]*\)\)", name):
+            remove_flag = 73
+
+        # pow3(exp(...)) is just exp(3...)
+        if regex.search(f"pow[a-z0-9_]*\(my_exp\([a-z0-9_+]*\)\)", name):
+            remove_flag = 83
+
+        if name == "my_exp(my_log)":
+            if remove_flag:
+                print(f"\n\n>>> Why did we remove {name=} at {remove_flag=} <<<\n\n")
+                raise SystemExit
+
+        if name == "pow1(my_cos(pow1)+my_sin(pow1))":
+            if remove_flag:
+                print(f"Why did we remove {name=} at {remove_flag=}")
+                raise SystemExit
+
+        if name == "pow_neg1":
+            if remove_flag:
+                print(f"Why did we remove {name=} with {remove_flag=}")
+                raise SystemExit
+
+        if name == "pow1(pow0+pow0)":
+            if not remove_flag:
+                print(f"Why didn't we remove {name=} with {remove_flag=}")
+                raise SystemExit
+
+        if remove_flag :
+            return False
+        # else :
+        return True
 
     def add_primitive_to_list(self, name, functional_form):
         # For adding one's own Primitive Functions to the built-in list
@@ -419,19 +471,16 @@ class Optimizer:
                 datum.sigma_val = 1
             else:
                 sigma_points.append( datum.sigma_val )
-            # print(f"data: {datum.pos} {datum.val} +- {datum.sigma_val} ")
-
 
         num_models = len(self._composite_function_list)
         for idx, model in enumerate(self._composite_function_list) :
 
-            np_pars, np_cov = None, None    # to be found
             print(f"\nFitting {model=}")
             print(model.tree_as_string_with_dimensions())
 
-            # TODO : maybe do an FFT if there's a sin/cosine ?
-            # should zero-out the average height of the data to remove the 0-frequency mode as a contribution
-            # then figure out how to pass in the dominant frequencies as arguments to the curve fit
+            # do an FFT if there's a sin/cosine --
+            # we zero-out the average height of the data to remove the 0-frequency mode as a contribution
+            # then to pass in the dominant frequencies as arguments to the initial guess
             if model.num_trig() > 0 :
                 self._all_freq_list_dup = self._all_freq_list.copy()
                 self._cos_freq_list_dup = self._cos_freq_list.copy()
@@ -441,11 +490,6 @@ class Optimizer:
             initial_guess = self.find_initial_guess_scaling(model)
             model.set_args(*initial_guess)
             print(f"{idx+1}/{num_models} Scaling guess: {initial_guess}")
-            # if model.name in ["pow1(my_cos(pow1)+my_sin(pow1))"] :
-            #     print(model.get_args())
-            #     self.show_fit(model=model)
-
-
 
             # Next, find a better guess by relaxing the error bars on the data
             # Unintuitively, this helps. Tight error bars flatten the gradients away from the global minimum,
@@ -477,9 +521,6 @@ class Optimizer:
             red_chisqr = self.reduced_chi_squared_of_fit(model, use_errors)
 
             self.query_add_to_top5(model=model, pars=pars, uncertainties=uncertainties, red_chi_squared=red_chisqr)
-            # if model.name in ["pow1(my_cos(pow1)+my_sin(pow1))"] :
-            #     print(model.get_args())
-            #     self.show_fit(model=model)
 
 
         print(self._top_5_models)
@@ -497,13 +538,12 @@ class Optimizer:
 
     def async_find_best_model_for_dataset(self, start=False):
 
-        batch_size = 10
-
         x_points = []
         y_points = []
         sigma_points = []
 
         use_errors = True
+        done_flag = 0
 
         for datum in self._data :
             x_points.append( datum.pos )
@@ -516,16 +556,79 @@ class Optimizer:
                 sigma_points.append( datum.sigma_val )
 
         if start :
-            # generate the models_to_test list
-            self.build_composite_function_list()
+            self._composite_generator = self.all_valid_composites_generator()
             self.create_cos_sin_frequency_lists()
 
-        else :
-            for model in self._composite_function_list[:batch_size] :
+        batch_size = 10
 
+        for idx in range(batch_size) :
 
+            try:
+                model = next(self._composite_generator)
+            except StopIteration :
+                done_flag = 1
+                break
 
-                self._composite_function_list = self._composite_function_list[batch_size:]
+            print(f"\nFitting {model=}")
+            print(model.tree_as_string_with_dimensions())
+
+            # do an FFT if there's a sin/cosine --
+            # we zero-out the average height of the data to remove the 0-frequency mode as a contribution
+            # then to pass in the dominant frequencies as arguments to the initial guess
+            if model.num_trig() > 0:
+                self._all_freq_list_dup = self._all_freq_list.copy()
+                self._cos_freq_list_dup = self._cos_freq_list.copy()
+                self._sin_freq_list_dup = self._sin_freq_list.copy()
+
+            # Find an initial guess for the parameters based off of scaling arguments
+            initial_guess = self.find_initial_guess_scaling(model)
+            model.set_args(*initial_guess)
+            print(f"Async {self._gen_idx+1} -- Scaling guess: {initial_guess}")
+
+            # Next, find a better guess by relaxing the error bars on the data
+            # Unintuitively, this helps. Tight error bars flatten the gradients away from the global minimum,
+            # and so relaxed error bars help point towards global minima
+            try:
+                better_guess, _ = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
+                                            p0=initial_guess, maxfev=5000, method='lm')
+            except RuntimeError:
+                print("Couldn't find optimal parameters. Continuing on...")
+                continue
+            print(f"Async {self._gen_idx+1} -- Better guess: {better_guess}")
+
+            # Finally, use the better guess to find the true minimum with the true error bars
+            try:
+                np_pars, np_cov = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
+                                            sigma=sigma_points, absolute_sigma=use_errors,
+                                            p0=better_guess, maxfev=5000)
+            except RuntimeError:
+                print("Couldn't find optimal parameters. Continuing on...")
+                continue
+            print(f"Async {self._gen_idx+1} -- Final guess: {np_pars}")
+
+            pars = np_pars.tolist()
+            uncertainties = np.sqrt(np.diagonal(np_cov)).tolist()
+            model.set_args(*pars)  # ignore iterable
+            # could also try setting uncertainties, and you'd get a relatively simple way to find error bands
+
+            # goodness of fit: reduced chi_R^2 = chi^2 / (N-k) should be close to 1
+            red_chisqr = self.reduced_chi_squared_of_fit(model, use_errors)
+
+            self.query_add_to_top5(model=model, pars=pars, uncertainties=uncertainties, red_chi_squared=red_chisqr)
+
+        self._best_function = self._top_5_models[0]
+        self._best_args = self._top_5_args[0]
+        self._best_args_uncertainty = self._top_5_uncertainties[0]
+        self._best_red_chi_sqr = self._top_5_red_chi_squareds[0]
+        print(f"\nBest model is {self._best_function} "
+              f"\n with args {self._best_args} += {self._best_args_uncertainty} "
+              f"\n and reduced chi-sqr {self._best_red_chi_sqr}")
+        self._best_function.set_args(*self._best_args)  # ignore iterable
+        self._best_function.print_tree()
+
+        if done_flag :
+            return "Done"
+
 
     def create_cos_sin_frequency_lists(self):
 
@@ -665,6 +768,7 @@ class Optimizer:
             else :  # misassigned sine frequency
                 self._cos_freq_list_dup.remove( self._all_freq_list_dup[0] )
                 charX = 1 / (2 * math.pi * self._all_freq_list_dup.pop(0))
+
         composite.func.arg *= charX ** composite.dimension_arg
 
         for child in composite.children_list :

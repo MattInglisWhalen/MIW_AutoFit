@@ -102,7 +102,10 @@ class PrimitiveFunction:
 
     @staticmethod
     def pow_neg1(x, arg):
-        return arg/x
+        try:
+            return arg/x
+        except ZeroDivisionError :
+            return 1e5
     @staticmethod
     def pow0(x, arg):
         return arg*x**0
