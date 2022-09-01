@@ -50,7 +50,7 @@ class Optimizer:
         self._top_5_args = []
         self._top_5_uncertainties = []
         self._top_5_names = [""]
-        self._top_5_red_chi_squareds = [1e5 for _ in range(5)]
+        self._top_5_red_chi_squareds = [1e5]  # [1e5  for _ in range(5)]
 
         # function construction parameters
         self._max_functions = max_functions
@@ -61,16 +61,16 @@ class Optimizer:
         self._temp_function = None      # a CompositeFunction
         self._cos_freq_list = None
         self._sin_freq_list = None
-        self._all_freq_list = None
         self._cos_freq_list_dup = None
         self._sin_freq_list_dup = None
-        self._all_freq_list_dup = None
 
         if data is not None :
             self._data = sorted(data)  # list of Datum1D. Sort makes the data monotone increasing in x-value
             self.average_data()
 
         self.load_default_functions()
+        if use_functions_dict is None:
+            use_functions_dict = {}
         self.load_non_defaults_from(use_functions_dict)
 
         self._composite_function_list = []
@@ -112,7 +112,31 @@ class Optimizer:
     @property
     def top5_rx_sqrs(self):
         return self._top_5_red_chi_squareds
-    def query_add_to_top5(self, model, pars, uncertainties, red_chi_squared):
+    @property
+    def top5_ACC(self):
+        Akaikes = []
+        for model in self._top_5_models :
+            Akaikes.append( self.Akaike_criterion(model) )
+        return Akaikes
+    @property
+    def top5_ACCc(self):
+        CorrectedAkaikes = []
+        for model in self._top_5_models :
+            CorrectedAkaikes.append( self.Akaike_criterion_corrected(model) )
+        return CorrectedAkaikes
+    @property
+    def top5_BCC(self):
+        bayeses = []
+        for model in self._top_5_models :
+            bayeses.append( self.Bayes_criterion(model) )
+        return bayeses
+    @property
+    def top5_HQC(self):
+        HannanQuinns = []
+        for model in self._top_5_models :
+            HannanQuinns.append( self.HannanQuinn_criterion(model) )
+        return HannanQuinns
+    def query_add_to_top5(self, model : CompositeFunction, pars, uncertainties, red_chi_squared):
         if len(self._top_5_models) > 5 and red_chi_squared > self._top_5_red_chi_squareds[-1] :
             return
         if model.name in self.top5_names :
@@ -131,8 +155,36 @@ class Optimizer:
                 self._top_5_names = self._top_5_names[:5]
                 self._top_5_red_chi_squareds = self._top_5_red_chi_squareds[:5]
 
-                print(f"New top {idx} with red_chisqr={red_chi_squared:.2F}: {model=} with pars={pars} \u00B1 {uncertainties}")
+                print(f"New top {idx} with red_chisqr={red_chi_squared:.2F}: "
+                      f"{model=} with pars={pars} \u00B1 {uncertainties}")
                 model.print_tree()
+
+                # also check any parameters for being "equivalent" to zero. If so, remove the d.o.f.
+                # and add the new function to the top5 list
+                for ndx, (arg, unc) in enumerate( zip(pars,uncertainties) ) :
+                    if abs(arg) < 2*unc :  # 95% confidence level arg is not different from zero
+                        print("Zero arg detected: new trimmed model is")
+                        reduced_model = model.submodel_without_node_idx(n=ndx)
+                        if reduced_model != -1 :
+                            reduced_model.print_tree()
+
+                            pars, uncs = self.parameters_and_uncertainties_from_fitting(
+                                model=reduced_model,initial_guess=reduced_model.get_args()
+                            )
+                            reduced_model.set_args(*pars)
+                            new_red_chi_squared = self.reduced_chi_squared_of_fit(model=reduced_model)
+                            self.query_add_to_top5(model=reduced_model,
+                                                   pars=pars,
+                                                   uncertainties=uncs,
+                                                   red_chi_squared=new_red_chi_squared
+                                                   )
+                        else:
+                            print("Can't reduce the model")
+                        break
+
+                if self._top_5_red_chi_squareds[-1] > 9e4 and self._top_5_red_chi_squareds[0] < 9e4 :
+                    self._top_5_red_chi_squareds.pop(-1)
+                    self.top5_names.pop(-1)
                 return
 
     def models_left(self):
@@ -401,14 +453,17 @@ class Optimizer:
             x_points.append(datum.pos)
             y_points.append(datum.val)
             if datum.sigma_val < 1e-5:
-                print(" >>> NO ERROR <<< ")
+                print(" >>> NO UNCERTAINTY <<< ")
                 use_errors = False
                 sigma_points.append(1.)
             else:
                 sigma_points.append(datum.sigma_val)
 
-        if model.num_trig() > 0:
+        if model.num_trig() > 0 and initial_guess is None:
             self.create_cos_sin_frequency_lists()
+
+            self._cos_freq_list_dup = self._cos_freq_list.copy()
+            self._sin_freq_list_dup = self._sin_freq_list.copy()
 
         # Find an initial guess for the parameters based off scaling arguments
         # The loss function there also tries to fit the data's smoothed derivatives
@@ -443,18 +498,18 @@ class Optimizer:
         uncertainties = np.sqrt(np.diagonal(np_cov)).tolist()
         model.set_args(*pars)  # ignore iterable
 
-        # TODO: best_function is either outdated or nees a name change
+        # TODO: best_function is either outdated or needs a name change
         self._best_function = model.copy()
         self._best_args = pars  # have to do this because the model's stored parameters change for some reason
         self._best_args_uncertainty = uncertainties
 
         return pars, uncertainties
 
-    def find_best_model_for_dataset(self):
+    def find_best_model_for_dataset(self, halved=False):
 
-        self.build_composite_function_list()
+        if not halved :
+            self.build_composite_function_list()
         self.create_cos_sin_frequency_lists()
-        # self._top_5_red_chi_squareds = [1e5 for _ in range(5)]
 
         x_points = []
         y_points = []
@@ -482,14 +537,18 @@ class Optimizer:
             # we zero-out the average height of the data to remove the 0-frequency mode as a contribution
             # then to pass in the dominant frequencies as arguments to the initial guess
             if model.num_trig() > 0 :
-                self._all_freq_list_dup = self._all_freq_list.copy()
                 self._cos_freq_list_dup = self._cos_freq_list.copy()
                 self._sin_freq_list_dup = self._sin_freq_list.copy()
 
             # Find an initial guess for the parameters based off of scaling arguments
             initial_guess = self.find_initial_guess_scaling(model)
+            # if model.name == "my_sin(my_exp(pow1))" :
+            #     initial_guess = (13,0.51,0.11)
+
             model.set_args(*initial_guess)
             print(f"{idx+1}/{num_models} Scaling guess: {initial_guess}")
+
+
 
             # Next, find a better guess by relaxing the error bars on the data
             # Unintuitively, this helps. Tight error bars flatten the gradients away from the global minimum,
@@ -523,8 +582,8 @@ class Optimizer:
             self.query_add_to_top5(model=model, pars=pars, uncertainties=uncertainties, red_chi_squared=red_chisqr)
 
 
-        print(self._top_5_models)
-        print(self._top_5_red_chi_squareds)
+        print(f"\nBest models are {self._top_5_models} with "
+              f"associated reduced chi-squareds {self._top_5_red_chi_squareds}")
 
         self._best_function = self._top_5_models[0]
         self._best_args = self._top_5_args[0]
@@ -535,6 +594,17 @@ class Optimizer:
               f"\n and reduced chi-sqr {self._best_red_chi_sqr}")
         self._best_function.set_args( *self._best_args )  # ignore iterable
         self._best_function.print_tree()
+
+        if self._best_red_chi_sqr > 10 and len(self._data) > 20:
+            print("It is unlikely that we have found the correct model... halving the dataset")
+            tmp_data = self._data.copy()
+            lower_data = self._data[:math.floor(len(self._data)/2)]
+            upper_data = self._data[math.floor(len(self._data)/2):]
+            self._data = lower_data
+            self.find_best_model_for_dataset()
+            self._data = upper_data
+            self.find_best_model_for_dataset()
+            self._data = tmp_data
 
     def async_find_best_model_for_dataset(self, start=False):
 
@@ -576,7 +646,6 @@ class Optimizer:
             # we zero-out the average height of the data to remove the 0-frequency mode as a contribution
             # then to pass in the dominant frequencies as arguments to the initial guess
             if model.num_trig() > 0:
-                self._all_freq_list_dup = self._all_freq_list.copy()
                 self._cos_freq_list_dup = self._cos_freq_list.copy()
                 self._sin_freq_list_dup = self._sin_freq_list.copy()
 
@@ -632,7 +701,6 @@ class Optimizer:
 
     def create_cos_sin_frequency_lists(self):
 
-        self._all_freq_list = []
         self._cos_freq_list = []
         self._sin_freq_list = []
 
@@ -656,6 +724,26 @@ class Optimizer:
                     y_points.append( ( y_low*(x_high-target) + y_high*(target-x_low) ) / (x_high - x_low)  )
                     break
 
+        # TODO :
+        #  the phase information from the FFT often gets the nature of sin/cosine wrong.
+        #  Is there a way to do better?
+
+        # create an ultra-sample of these equally-spaced data points. This is so we can pick out phase information
+        # more readily, which is important for determining whether an oscillator is sin-like or cosine-like
+        # this only adds higher frequencies, not lower ones :'(
+        # new_xpoints = []
+        # new_ypoints = []
+        # for idx, (x, y) in enumerate( zip(x_points[:-1],y_points[:-1]) ) :
+        #     deltax =  x_points[idx+1] - x
+        #     deltay = y_points[idx+1] - y
+        #     slope = deltay / deltax
+        #     for i in range(5) :
+        #         new_xpoints.append( x + deltax*i/5 )
+        #         new_ypoints.append( y + slope*(deltax*i/5) )
+        #
+        # x_points = new_xpoints
+        # y_points = new_ypoints
+
         avg_y = sum(y_points) / len(y_points)
         zeroed_y_points = [val - avg_y for val in y_points]
 
@@ -663,18 +751,109 @@ class Optimizer:
         fft_Ynu = fftshift(fft(zeroed_y_points)) / len(zeroed_y_points)
         fft_nu = fftshift(fftfreq(len(zeroed_y_points), x_points[1] - x_points[0]))
 
+        # mid_idx = math.floor(len(fft_Ynu)/2)
+        # for shift in range(9) :
+        #     fft_phi = math.atan2(np.imag(fft_Ynu[mid_idx-4+shift]) ,
+        #                          np.real(fft_Ynu[mid_idx-4+shift])   )
+        #     fft_quarter_turns = fft_phi / (math.pi/2)
+        #     print(f"{fft_nu[mid_idx-4+shift]} {fft_Ynu[mid_idx-4+shift]} {fft_phi=} {fft_quarter_turns=}")
+        #
+        # plt.close()
+        # plt.plot(fft_nu,np.abs(fft_Ynu))
+        # plt.show()
+
+
+
         pos_Ynu = fft_Ynu[ math.floor(len(fft_Ynu)/2) : ]  # the positive frequency values
         pos_nu = fft_nu[ math.floor(len(fft_Ynu)/2) : ]    # the positive frequencies
 
-        for n in range( len(pos_nu) ):
+        delta_nu = pos_nu[1] - pos_nu[0]
+
+        # one entry for each positive frequency, either going into sin or cosine
+        for n in range( min(len(pos_nu),10) ):
             argmax = np.argmax([np.abs(Ynu) for Ynu in pos_Ynu])
-            if np.abs(np.real(pos_Ynu[argmax])) > np.abs(np.imag(pos_Ynu[argmax])) :
-                self._cos_freq_list.append( pos_nu[argmax] )
+
+            best_rchisqr = 1e50
+            best_freq = None
+            is_sin = True
+
+            # try nearby frequencies, explicitly with the data, to see whether sin or cosine is better
+            # make this an option in procedural settings
+            # note that tested frequencies can overlap from one argmax to the next
+
+            # first with sine
+            test_func = CompositeFunction(func=PrimitiveFunction.built_in("sin"),
+                                          children_list=[PrimitiveFunction.built_in("pow1")])
+            sin_rchisqr_list = []
+            for i in range(7) :
+                test_func.set_args(2*np.abs(pos_Ynu[argmax]), 2*math.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) )
+                sin_rchisqr_list.append( self.reduced_chi_squared_of_fit(model=test_func) )
+                print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={sin_rchisqr_list[-1]}")
+
+            # should only do this if we find a minimum
+            min_idx, min_val = np.argmin(sin_rchisqr_list[1:-1]), min(sin_rchisqr_list[1:-1])  # don't look at endpoints
+            if min_val < best_rchisqr :
+                list_idx = min_idx + 1
+                if min_val < sin_rchisqr_list[list_idx-1] and min_val < sin_rchisqr_list[list_idx+1] :
+                    # we found a minimum
+                    best_freq = pos_nu[argmax]+delta_nu*(list_idx-3)/3
+                    best_rchisqr = min_val
+                    print(f"Found sin minimum with {best_freq*2*math.pi} {best_rchisqr=}")
+                else :
+                    best_freq = pos_nu[argmax]
+                    best_rchisqr = min_val
+                    print(f"NO  SIN  MINIMUM   so {best_freq=} {best_rchisqr=}")
+                print(f"Best sin omega is {2*math.pi*best_freq} with {best_rchisqr=} at idx {list_idx}")
+
+            # now with cosine
+            test_func = CompositeFunction(func=PrimitiveFunction.built_in("cos"),
+                                          children_list=[PrimitiveFunction.built_in("pow1")])
+            cos_rchisqr_list = []
+            for i in range(7):
+                test_func.set_args( 2*np.abs(pos_Ynu[argmax]), 2*math.pi*(pos_nu[argmax] + delta_nu*(i-3) / 3) )
+                cos_rchisqr_list.append(self.reduced_chi_squared_of_fit(model=test_func))
+                print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={cos_rchisqr_list[-1]}")
+
+            # should only do this if we find a minimum
+            min_idx, min_val = np.argmin(cos_rchisqr_list[1:-1]), min(cos_rchisqr_list[1:-1])  # don't look at endpoints
+            if min_val < best_rchisqr:
+                is_sin = False
+                list_idx = min_idx + 1
+                if min_val < cos_rchisqr_list[list_idx - 1] and min_val < cos_rchisqr_list[list_idx + 1]:
+                    # we found a minimum
+                    best_freq = pos_nu[argmax] + delta_nu*(list_idx-3)/3
+                    best_rchisqr = min_val
+                    print(f"Found cos minimum with {best_freq*2*math.pi} {best_rchisqr=}")
+                else:
+                    best_freq = pos_nu[argmax]
+                    best_rchisqr = min_val
+                    print(f"NO  COS  MINIMUM   so {best_freq=} {best_rchisqr=}")
+                print(f"So better fit is cos where omega is {2*math.pi*best_freq} with {best_rchisqr=}")
+            else :
+                print("Nothing better in cosine")
+            print(" ")
+
+            if is_sin :
+                # print(f"Adding {best_freq} to sin")
+                self._sin_freq_list.append(best_freq)
             else:
-                self._sin_freq_list.append(pos_nu[argmax])
-            self._all_freq_list.append( pos_nu[argmax] )
+                # print(f"Adding {best_freq} to cos")
+                self._cos_freq_list.append(best_freq)
             pos_Ynu = np.delete(pos_Ynu, argmax)
             pos_nu = np.delete(pos_nu, argmax)
+
+        print("Done fourier decomp")
+
+
+            # previous logic, based on relative size of real and imaginary components
+            # if np.abs(np.real(pos_Ynu[argmax])) > np.abs(np.imag(pos_Ynu[argmax])) :
+            #     print(f"Adding {pos_nu[argmax]} to cos because {pos_Ynu[argmax]=}")
+            #     self._cos_freq_list.append( pos_nu[argmax] )
+            # else:
+            #     print(f"Adding {pos_nu[argmax]} to sin because {pos_Ynu[argmax]=}")
+            #     self._sin_freq_list.append(pos_nu[argmax])
+            # pos_Ynu = np.delete(pos_Ynu, argmax)
+            # pos_nu = np.delete(pos_nu, argmax)
 
 
     # def find_initial_guess(self, model: CompositeFunction, width = 10., num_each=10):
@@ -744,6 +923,10 @@ class Optimizer:
         return best_grid_point
 
     def find_set_initial_guess_scaling(self, composite: CompositeFunction):
+
+        for child in composite.children_list :
+            self.find_set_initial_guess_scaling(child)
+
         # use knowledge of scaling to guess parameter sizes from the characteristic sizes in the data
         charY = (max([datum.val for datum in self._data]) - min([datum.val for datum in self._data])) / 2
         if composite.func.name == "pow0" :
@@ -752,27 +935,39 @@ class Optimizer:
         else :
             charX = (max([datum.pos for datum in self._data]) - min([datum.pos for datum in self._data])) / 2
 
-        composite.func.arg = 1
+        # defaults
+        xmul = charX ** composite.dimension_arg
+        ymul = 1
+
+        # overrides
         if composite.parent is None :
             # function of this node A*func(x) should scale like y
-            composite.func.arg *= charY
-        elif composite.parent.func.name == "my_cos" and composite.func.name == "pow1" :
-            if len(self._cos_freq_list_dup) > 0 :
-                charX = 1 / ( 2*math.pi*self._cos_freq_list_dup.pop(0) )
-            else :  # misassigned cosine frequency
-                self._sin_freq_list_dup.remove( self._all_freq_list_dup[0] )
-                charX = 1 / (2 * math.pi * self._all_freq_list_dup.pop(0))
-        elif composite.parent.func.name == "my_sin" and composite.func.name == "pow1" :
-            if len(self._sin_freq_list_dup) > 0 :
-                charX = 1 / ( 2*math.pi*self._cos_freq_list_dup.pop(0) )
-            else :  # misassigned sine frequency
-                self._cos_freq_list_dup.remove( self._all_freq_list_dup[0] )
-                charX = 1 / (2 * math.pi * self._all_freq_list_dup.pop(0))
+            ymul = charY
+        elif composite.parent.func.name == "my_cos" :
+            slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / 1e-5
+            if abs(slope_at_zero) > 1e-5 :
+                if len(self._cos_freq_list_dup) > 0 :
+                    print(f"Using cosine frequency {2*math.pi*self._cos_freq_list_dup[0]}")
+                    xmul = ( 2*math.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
+                else:  # misassigned cosine frequency
+                    try:
+                        xmul = ( 2*math.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
+                    except TypeError :
+                        print(self._sin_freq_list_dup)
+                        print(self._sin_freq_list)
+                        print(self._cos_freq_list_dup)
+                        print(self._cos_freq_list)
+                        raise SystemExit
+        elif composite.parent.func.name == "my_sin" :
+            slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / 1e-5
+            if abs(slope_at_zero) > 1e-5 :
+                if len(self._sin_freq_list_dup) > 0 :
+                    print(f"Using sine frequency {2*math.pi*self._sin_freq_list_dup[0]}")
+                    xmul = ( 2*math.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
+                else:  # misassigned cosine frequency
+                    xmul = ( 2*math.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
 
-        composite.func.arg *= charX ** composite.dimension_arg
-
-        for child in composite.children_list :
-            self.find_set_initial_guess_scaling(child)
+        composite.func.arg = xmul * ymul
 
         return composite.get_args()
 
@@ -789,20 +984,19 @@ class Optimizer:
             sigma_x_points.append( datum.sigma_pos )
             sigma_y_points.append( datum.sigma_val )
 
-        plot_model = None
         if model is not None:
             plot_model = model.copy()
         else:
             plot_model = self._best_function
 
-        smooth_x_for_fit = np.linspace( x_points[0], x_points[-1], 4*len(x_points))
-        fit_vals = [ plot_model.eval_at(xi) for xi in smooth_x_for_fit ]
-
         plt.close()
         fig = plt.figure()
         fig.patch.set_facecolor( (112/255, 146/255, 190/255) )
         plt.errorbar( x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color='k')
-        plt.plot( smooth_x_for_fit, fit_vals, '-', color='r')
+        if plot_model is not None :
+            smooth_x_for_fit = np.linspace( x_points[0], x_points[-1], 4*len(x_points))
+            fit_vals = [ plot_model.eval_at(xi) for xi in smooth_x_for_fit ]
+            plt.plot( smooth_x_for_fit, fit_vals, '-', color='r')
         plt.xlabel("x")
         plt.ylabel("y")
         axes = plt.gca()
@@ -811,8 +1005,8 @@ class Optimizer:
         if axes.get_ylim()[0] > 0 :
             axes.set_ylim( [0, axes.get_ylim()[1]] )
         axes.set_facecolor( (112/255, 146/255, 190/255) )
-        print("Here once")
-        plt.show()
+        # print("Optimizer show fit: here once")
+        plt.show(block=False)
 
     # def save_fit_image(self, filepath, x_label="x", y_label="y", model=None):
     #
@@ -852,6 +1046,164 @@ class Optimizer:
 
     # def fit_many_data_sets(self):
     #     pass
+
+
+    # This loss function is used for an initial fit -- we minimize residuals of both the function's position
+    # AND the function's derivative
+    # The uncertainties and exact fit are unnecessary for an initial guess
+    def loss_function(self, par_tuple):
+        self._temp_function.set_args(*par_tuple)
+        r_sqr = 0
+        for datum in self.smoothed_data(n=1) :
+            r_sqr += ( self._temp_function.eval_at(datum.pos) - datum.val )**2
+        for deriv in self.deriv_on_n_smoothed(n=3) :
+            r_sqr += ( self._temp_function.eval_deriv_at(deriv.pos) - deriv.val )**2
+        return r_sqr
+
+    def chi_squared_of_fit(self,model):
+        chisqr = 0
+        for datum in self._data :
+            chisqr += ( model.eval_at(datum.pos) - datum.val )**2 / (datum.sigma_val + 1e-5)**2
+        return chisqr
+
+    def reduced_chi_squared_of_fit(self,model, use_errors=True):
+        k = model.dof
+        N = len(self._data)
+        return self.chi_squared_of_fit(model) / (N-k) if N > k else 1e5
+
+    def r_squared(self, model):
+        mean = sum( [datum.val for datum in self._data] )/len(self._data)
+        variance_data = sum( [ (datum.val-mean)**2 for datum in self._data ] )/len(self._data)
+        variance_fit = sum( [ (datum.val-model.eval_at(datum.pos))**2 for datum in self._data ] )/len(self._data)
+        return 1 - variance_fit/variance_data
+
+    # the AIC is equivalent, for normally distributed residuals, to the least chi squared
+    def Akaike_criterion(self, model):
+        AIC = self.chi_squared_of_fit(model)
+        return AIC
+
+    # correction for small datasets, fixes overfitting
+    def Akaike_criterion_corrected(self, model):
+        k = model.dof
+        N = len(self._data)
+        AICc = self.chi_squared_of_fit(model) + 2*k*(k+1)/(N-k-1) if N > k + 1 else 1e5
+        return AICc
+
+    # the same as AIC but penalizes additional parameters more heavily for larger datasets
+    def Bayes_criterion(self, model):
+        k = model.dof
+        N = len(self._data)
+        AIC = self.Akaike_criterion(model)
+        BIC = AIC + k*math.log(N) - 2*k
+        return BIC
+
+    # agrees with AIC at small datasets, but punishes less strongly than Bayes at large N
+    def HannanQuinn_criterion(self, model):
+        k = model.dof
+        N = len(self._data)
+        AIC = self.Akaike_criterion(model)
+        HQIC = AIC + 2*k*math.log( math.log(N) ) - 2*k
+        return HQIC
+
+
+    def smoothed_data(self, n=1):
+
+        print("Using smoothed data")
+        raise RuntimeError
+
+        data_to_smooth = []
+        return_data = []
+        if n <= 1 :
+            data_to_smooth = self._averaged_data
+        else :
+            data_to_smooth = self.smoothed_data(n-1)
+        for idx, datum in enumerate(data_to_smooth[:-1]) :
+            new_pos = (data_to_smooth[idx+1].pos + data_to_smooth[idx].pos) / 2
+            new_val = (data_to_smooth[idx+1].val + data_to_smooth[idx].val) / 2
+            # propagation of uncertainty
+            new_sigma_pos = math.sqrt( (data_to_smooth[idx+1].sigma_pos/2)**2
+                                       + (data_to_smooth[idx].sigma_pos/2)**2 )
+            new_sigma_val = math.sqrt( (data_to_smooth[idx+1].sigma_val/2)**2
+                                       + (data_to_smooth[idx].sigma_val/2)**2 )
+            return_data.append( Datum1D(pos= new_pos, val=new_val, sigma_pos=new_sigma_pos, sigma_val=new_sigma_val) )
+        return return_data
+
+    def deriv_on_n_smoothed(self, n=1):
+
+        # this assumes that data is sequential, i.e. that there are no repeated measurements for each x position
+
+        data_to_deriv = None
+        return_deriv = []
+        if n <= 0 :
+            data_to_deriv = self._averaged_data
+        else :
+            data_to_deriv = self.smoothed_data(n-1)
+        for idx, datum in enumerate(data_to_deriv[:-2]) :
+            new_deriv = ( (data_to_deriv[idx+2].val - data_to_deriv[idx].val)
+                             / (data_to_deriv[idx+2].pos - data_to_deriv[idx].pos) )
+            new_pos = (data_to_deriv[idx+2].val - data_to_deriv[idx].val) / 2
+
+            # propagation of uncertainty
+            new_sigma_pos = math.sqrt( (data_to_deriv[idx+2].sigma_pos/2)**2
+                                       + (data_to_deriv[idx].sigma_pos/2)**2 )
+            new_sigma_deriv = ( (1/(data_to_deriv[idx+2].pos-data_to_deriv[idx].pos) ) *
+                                math.sqrt( data_to_deriv[idx+2].sigma_val**2 + data_to_deriv[idx].sigma_val**2 )
+                                + new_deriv**2 * ( data_to_deriv[idx+2].sigma_pos**2 + data_to_deriv[idx].sigma_pos**2 )
+                            )
+            return_deriv.append(Datum1D(pos=new_pos, val=new_deriv, sigma_pos=new_sigma_pos, sigma_val=new_sigma_deriv))
+
+        return return_deriv
+
+    # this is only used to find an initial guess for the data, and so more sophisticated techniques like
+    # weighted means is not reqired
+    def average_data(self):
+
+        # get means and number of pos-instances into dict
+        sum_val_dict = defaultdict(float)
+        num_dict = defaultdict(int)
+        for datum in self._data :
+            if sum_val_dict[datum.pos] :
+                sum_val_dict[datum.pos] += datum.val
+                num_dict[datum.pos] += 1
+            else :
+                sum_val_dict[datum.pos] = datum.val
+                num_dict[datum.pos] = 1
+
+        mean_dict = {}
+        for ikey, isum in sum_val_dict.items() :
+            mean_dict[ikey] = isum / num_dict[ikey]
+
+        propagation_variance_x_dict = defaultdict(float)
+        propagation_variance_y_dict = defaultdict(float)
+        sample_variance_y_dict = defaultdict(float)
+        for datum in self._data :
+            # average the variances
+            propagation_variance_x_dict[datum.pos] += datum.sigma_pos**2
+            propagation_variance_y_dict[datum.pos] += datum.sigma_val**2
+            sample_variance_y_dict[datum.pos] += (datum.val-mean_dict[datum.pos])**2
+
+        averaged_data = []
+        for key, val in mean_dict.items() :
+
+
+            sample_uncertainty_squared = sample_variance_y_dict[key] / (num_dict[key]-1) if num_dict[key] > 1 else 0
+            propagation_uncertainty_squared = propagation_variance_y_dict[key] / num_dict[key]
+            ratio = ( sample_uncertainty_squared / (sample_uncertainty_squared + propagation_uncertainty_squared)
+                      if propagation_uncertainty_squared > 0 else 1 )
+
+            # interpolates smoothly between 0 uncertainty in data points (so all uncertainty comes from sample spread)
+            # to the usual uncertainty coming from both the data and the spread
+            # TODO: see
+            #  https://stats.stackexchange.com/questions/454120/how-can-i-calculate-uncertainty-of-the-mean-of-a-set-of-samples-with-different-u
+            # for a more rigorous treatment
+            effective_uncertainty_squared = ratio*sample_uncertainty_squared + (1-ratio)*propagation_uncertainty_squared
+
+            averaged_data.append( Datum1D(pos=key, val=val,
+                                          sigma_pos=math.sqrt( propagation_variance_x_dict[key] ),
+                                          sigma_val=math.sqrt( effective_uncertainty_squared )
+                                         )
+                                )
+        self._averaged_data = sorted(averaged_data)
 
     def load_default_functions(self):
         self._primitive_function_list.extend( [ PrimitiveFunction.built_in("pow0"),
@@ -917,156 +1269,3 @@ class Optimizer:
         pass
     def unload_custom_functions(self):
         pass
-
-
-    # This loss function is used for an initial fit -- we minimize residuals of both the function's position
-    # AND the function's derivative
-    # The uncertainties and exact fit are unnecessary for an initial guess
-    def loss_function(self, par_tuple):
-        self._temp_function.set_args(*par_tuple)
-        r_sqr = 0
-        for datum in self.smoothed_data(n=1) :
-            r_sqr += ( self._temp_function.eval_at(datum.pos) - datum.val )**2
-        for deriv in self.deriv_on_n_smoothed(n=3) :
-            r_sqr += ( self._temp_function.eval_deriv_at(deriv.pos) - deriv.val )**2
-        return r_sqr
-
-    def chi_squared_of_fit(self,model):
-        chisqr = 0
-        for datum in self._data :
-            chisqr += ( model.eval_at(datum.pos) - datum.val )**2 / (datum.sigma_val + 1e-5)**2
-        return chisqr
-
-    def reduced_chi_squared_of_fit(self,model, use_errors=True):
-        k = model.dof
-        N = len(self._data)
-        return self.chi_squared_of_fit(model) / (N-k) if N > k else 1e5
-
-    def r_squared(self, model):
-        mean = sum( [datum.val for datum in self._data] )/len(self._data)
-        variance_data = sum( [ (datum.val-mean)**2 for datum in self._data ] )/len(self._data)
-        variance_fit = sum( [ (datum.val-model.eval_at(datum.pos))**2 for datum in self._data ] )/len(self._data)
-        return 1 - variance_fit/variance_data
-
-    # the AIC is equivalent, for normally distributed residuals, to the least chi squared
-    def Akaike_criterion(self, model):
-        AIC = self.chi_squared_of_fit(model)
-        return AIC
-
-    # correction for small datasets, fixes overfitting
-    def Akaike_criterion_corrected(self, model):
-        k = model.dof
-        N = len(self._data)
-        AICc = self.chi_squared_of_fit(model) + 2*k*(k+1)/(N-k-1) if N > k + 1 else 1e5
-        return AICc
-
-    # the same as AIC but penalizes additional parameters more heavily for larger datasets
-    def Bayes_criterion(self, model):
-        k = model.dof
-        N = len(self._data)
-        AIC = self.Akaike_criterion(model)
-        BIC = AIC + k*math.log(N) - 2*k
-        return BIC
-
-    # agrees with AIC at small datasets, but punishes less strongly than Bayes at large N
-    def HannanQuinn_criterion(self, model):
-        k = model.dof
-        N = len(self._data)
-        AIC = self.Akaike_criterion(model)
-        HQIC = AIC + 2*k*math.log( math.log(N) ) - 2*k
-        return HQIC
-
-
-    def smoothed_data(self, n=1):
-
-        data_to_smooth = []
-        return_data = []
-        if n <= 1 :
-            data_to_smooth = self._averaged_data
-        else :
-            data_to_smooth = self.smoothed_data(n-1)
-        for idx, datum in enumerate(data_to_smooth[:-1]) :
-            new_pos = (data_to_smooth[idx+1].pos + data_to_smooth[idx].pos) / 2
-            new_val = (data_to_smooth[idx+1].val + data_to_smooth[idx].val) / 2
-            # propagation of uncertainty
-            new_sigma_pos = math.sqrt( (data_to_smooth[idx+1].sigma_pos/2)**2
-                                       + (data_to_smooth[idx].sigma_pos/2)**2 )
-            new_sigma_val = math.sqrt( (data_to_smooth[idx+1].sigma_val/2)**2
-                                       + (data_to_smooth[idx].sigma_val/2)**2 )
-            return_data.append( Datum1D(pos= new_pos, val=new_val, sigma_pos=new_sigma_pos, sigma_val=new_sigma_val) )
-        return return_data
-
-    def deriv_on_n_smoothed(self, n=1):
-
-        # this assumes that data is sequential, i.e. that there are no repeated measurements for each x position
-
-        data_to_deriv = None
-        return_deriv = []
-        if n <= 0 :
-            data_to_deriv = self._averaged_data
-        else :
-            data_to_deriv = self.smoothed_data(n-1)
-        for idx, datum in enumerate(data_to_deriv[:-2]) :
-            new_deriv = ( (data_to_deriv[idx+2].val - data_to_deriv[idx].val)
-                             / (data_to_deriv[idx+2].pos - data_to_deriv[idx].pos) )
-            new_pos = (data_to_deriv[idx+2].val - data_to_deriv[idx].val) / 2
-
-            # propagation of uncertainty
-            new_sigma_pos = math.sqrt( (data_to_deriv[idx+2].sigma_pos/2)**2
-                                       + (data_to_deriv[idx].sigma_pos/2)**2 )
-            new_sigma_deriv = ( (1/(data_to_deriv[idx+2].pos-data_to_deriv[idx].pos) ) *
-                                math.sqrt( data_to_deriv[idx+2].sigma_val**2 + data_to_deriv[idx].sigma_val**2 )
-                                + new_deriv**2 * ( data_to_deriv[idx+2].sigma_pos**2 + data_to_deriv[idx].sigma_pos**2 )
-                            )
-            return_deriv.append(Datum1D(pos=new_pos, val=new_deriv, sigma_pos=new_sigma_pos, sigma_val=new_sigma_deriv))
-
-        return return_deriv
-
-
-    def average_data(self):
-
-        # get means and number of pos-instances into dict
-        sum_val_dict = defaultdict(float)
-        num_dict = defaultdict(int)
-        for datum in self._data :
-            if sum_val_dict[datum.pos] :
-                sum_val_dict[datum.pos] += datum.val
-                num_dict[datum.pos] += 1
-            else :
-                sum_val_dict[datum.pos] = datum.val
-                num_dict[datum.pos] = 1
-
-        mean_dict = {}
-        for ikey, isum in sum_val_dict.items() :
-            mean_dict[ikey] = isum / num_dict[ikey]
-
-        propagation_variance_x_dict = defaultdict(float)
-        propagation_variance_y_dict = defaultdict(float)
-        sample_variance_y_dict = defaultdict(float)
-        for datum in self._data :
-            # average the variances
-            propagation_variance_x_dict[datum.pos] += datum.sigma_pos**2
-            propagation_variance_y_dict[datum.pos] += datum.sigma_val**2
-            sample_variance_y_dict[datum.pos] += (datum.val-mean_dict[datum.pos])**2
-
-        averaged_data = []
-        for key, val in mean_dict.items() :
-
-
-            sample_uncertainty_squared = sample_variance_y_dict[key] / (num_dict[key]-1) if num_dict[key] > 1 else 0
-            propagation_uncertainty_squared = propagation_variance_y_dict[key] / num_dict[key]
-            ratio = ( sample_uncertainty_squared / (sample_uncertainty_squared + propagation_uncertainty_squared)
-                      if propagation_uncertainty_squared > 0 else 1 )
-
-            # interpolates smoothly between 0 uncertainty in data points (so all uncertainty comes from sample spread)
-            # to the usual uncertainty coming from both the data and the spread
-            effective_uncertainty_squared = ratio*sample_uncertainty_squared + (1-ratio)*propagation_uncertainty_squared
-
-            averaged_data.append( Datum1D(pos=key, val=val,
-                                          sigma_pos=math.sqrt( propagation_variance_x_dict[key] ),
-                                          sigma_val=math.sqrt( effective_uncertainty_squared )
-                                         )
-                                )
-        self._averaged_data = sorted(averaged_data)
-
-

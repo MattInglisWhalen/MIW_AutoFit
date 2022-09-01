@@ -280,9 +280,12 @@ class DataHandler:
             print(f"Can't x-log histogram when {minval=}<0")
             self._logx_flag = False
 
-        if minval - math.floor(minval) < 2/count or math.ceil(maxval) - maxval < 2/count :
+        if minval - math.floor(minval) < 2/count :
+            # print("Integer bolting min")
             # if it looks like the min and max vals are bolted to an integer, use the integers as a bin boundary
             minval = math.floor(minval)
+        if math.ceil(maxval) - maxval < 2/count :
+            # print("Integer bolting max")
             maxval = math.floor(maxval)
 
         num_bins = math.floor( math.sqrt(count) )
@@ -296,21 +299,23 @@ class DataHandler:
         if not self.logx_flag :
             hist_counts, hist_bounds = np.histogram(vals,  bins=np.linspace(minval, maxval, num=num_bins+1) )
         print(f"Made histogram with bin counts {hist_counts}")
+        if 0 in hist_counts :
+            print(f"Histogram creation error with {hist_bounds=}")
         if self._logx_flag :
             for idx, count in enumerate(hist_counts) :
                 geom_mean = math.sqrt(hist_bounds[idx+1]*hist_bounds[idx])
                 self._data.append( Datum1D( pos = geom_mean,
                                             val = count,
                                             assym_sigma_pos = (geom_mean-hist_bounds[idx],hist_bounds[idx+1]-geom_mean),
-                                            sigma_val = math.sqrt(count)
-                                          )
+                                            sigma_val = max(math.sqrt(count),1)
+                                          )  # check that this fixing the zero-bin error not allowing fit
                                  )
         else:
             for idx, count in enumerate(hist_counts) :
                 self._data.append( Datum1D( pos = ( hist_bounds[idx+1]+hist_bounds[idx] )/2,
                                             val = count,
                                             sigma_pos = ( hist_bounds[idx+1]-hist_bounds[idx] )/2,
-                                            sigma_val = math.sqrt(count)
+                                            sigma_val = max(math.sqrt(count),1)
                                           )
                                  )
         if self._logy_flag :

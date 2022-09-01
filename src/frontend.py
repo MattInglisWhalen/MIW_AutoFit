@@ -6,11 +6,15 @@ from math import floor
 # external libraries
 import tkinter as tk
 import tkinter.filedialog as fd
+import tkinter.ttk as ttk
+
+import matplotlib.colors
 import numpy as np
 import pandas as pd
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import scipy.stats
 from PIL import ImageTk, Image
 import os as os
 import re as regex
@@ -19,6 +23,9 @@ import re as regex
 from autofit.src.composite_function import CompositeFunction
 from autofit.src.data_handler import DataHandler
 from autofit.src.optimizer import Optimizer
+
+import sys
+
 
 class Frontend:
 
@@ -37,9 +44,13 @@ class Frontend:
         self._image_path = None
         self._image = None
         self._image_frame = None
-        self._normalized_histogram_flags = []
+        # self._normalized_histogram_flags = []
         self._showing_fit_image = False  # conjugate to showing data-only image
         self._showing_fit_all_image = False
+        self._bg_color = (112 / 255, 146 / 255, 190 / 255)
+        self._fit_color = (1., 0., 0.)
+        self._dataaxes_color = (1., 1., 1.)
+        self._color_name_tkVar = tk.StringVar(value="Colour")
 
         # file handling
         self._filepaths = []
@@ -80,12 +91,28 @@ class Frontend:
         self._default_excel_sigmax_range = None
         self._default_excel_sigmay_range = None
         self._default_load_file_loc = None
+        self._default_bg_colour = None
+        self._default_dataaxes_colour = None
+        self._default_fit_colour = None
         # checkboxes default
+        self.touch_defaults()
         self.load_defaults()
         self.print_defaults()
 
         # load in splash screen
         self.load_splash_screen()
+
+        self.add_message(f"Directory is {self.get_package_path()}")
+
+    def touch_defaults(self):
+        try :
+            with open(f"{self.get_package_path()}/frontend.cfg") as file :
+                return
+        except FileNotFoundError :
+            # os.mkdir(f"{self.get_package_path()}")
+            f = open(f"{self.get_package_path()}/frontend.cfg", 'a+')
+            f.close()
+            self.save_defaults()
 
     def load_defaults(self):
         with open(f"{self.get_package_path()}/frontend.cfg") as file :
@@ -120,8 +147,90 @@ class Frontend:
                     if arg == "" or arg[0] == "#":
                         arg = f"{self.get_package_path()}/data"
                     self._default_load_file_loc = arg
+                elif "#BG_COLOUR" in line:
+                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "Default"
+                    self._default_bg_colour = arg
+                    if arg == "Black" :
+                        self._bg_color = (0., 0., 0.)
+                    elif arg == "White" :
+                        self._bg_color = (1., 1., 1.)
+                    elif arg == "Dark" :
+                        self._bg_color = (0.2, 0.2, 0.2)
+                    else:
+                        self._bg_color = (112 / 255, 146 / 255, 190 / 255)
+                elif "#DATAAXES_COLOUR" in line:
+                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "Default"
+                    self._default_dataaxes_colour = arg
+                    if arg == "White" :
+                        self._dataaxes_color = (0., 0., 0.)
+                    else:
+                        self._dataaxes_color = (1., 1., 1.)
+                elif "#FIT_COLOUR" in line:
+                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "Default"
+                    self._default_fit_colour = arg
+                    if arg == "Black" :
+                        self._fit_color = (0., 0., 0.)
+                    elif arg == "White" :
+                        self._fit_color = (1., 1., 1.)
+                    else:
+                        self._fit_color = (1., 0., 0.)
+                elif "#COS_ON" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "0"
+                    self._use_func_dict_name_tkVar["cos(x)"].set(bool(int(arg)))
+                elif "#SIN_ON" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "0"
+                    self._use_func_dict_name_tkVar["sin(x)"].set(bool(int(arg)))
+                elif "#EXP_ON" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "0"
+                    self._use_func_dict_name_tkVar["exp(x)"].set(bool(int(arg)))
+                elif "#LOG_ON" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "0"
+                    self._use_func_dict_name_tkVar["log(x)"].set(bool(int(arg)))
+                elif "#POW_NEG1_ON" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "0"
+                    self._use_func_dict_name_tkVar["1/x"].set(bool(int(arg)))
+                elif "#POW2_ON" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "0"
+                    self._use_func_dict_name_tkVar["x\U000000B2"].set(bool(int(arg)))
+                elif "#POW3_ON" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "0"
+                    self._use_func_dict_name_tkVar["x\U000000B3"].set(bool(int(arg)))
+                elif "#POW4_ON" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "0"
+                    self._use_func_dict_name_tkVar["x\U00002074"].set(bool(int(arg)))
+                elif "#CUSTOM_ON" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "0"
+                    self._use_func_dict_name_tkVar["custom"].set(bool(int(arg)))
+
 
     def save_defaults(self):
+        # print(f"{self._default_bg_colour=} {self._bg_color}")
+        if self.brute_forcing or self._default_fit_type == "Brute-Force":
+            return
         with open(f"{self.get_package_path()}/frontend.cfg",'w') as file :
             file.write(f"#FIT_TYPE {self._default_fit_type}\n")
             file.write(f"#EXCEL_RANGE_X {self._default_excel_x_range}\n")
@@ -129,14 +238,60 @@ class Frontend:
             file.write(f"#EXCEL_RANGE_SIGMA_X {self._default_excel_sigmax_range}\n")
             file.write(f"#EXCEL_RANGE_SIGMA_Y {self._default_excel_sigmay_range}\n")
             file.write(f"#LOAD_FILE_LOC {self._default_load_file_loc}\n")
+            file.write(f"#BG_COLOUR {self._default_bg_colour}\n")
+            file.write(f"#DATAAXES_COLOUR {self._default_dataaxes_colour}\n")
+            file.write(f"#FIT_COLOUR {self._default_fit_colour}\n")
+            cos_on = int(self._use_func_dict_name_tkVar["cos(x)"].get())
+            sin_on = int(self._use_func_dict_name_tkVar["sin(x)"].get())
+            exp_on = int(self._use_func_dict_name_tkVar["exp(x)"].get())
+            log_on = int(self._use_func_dict_name_tkVar["log(x)"].get())
+            pow_neg1_on = int(self._use_func_dict_name_tkVar["1/x"].get())
+            pow2_on = int(self._use_func_dict_name_tkVar["x\U000000B2"].get())
+            pow3_on = int(self._use_func_dict_name_tkVar["x\U000000B3"].get())
+            pow4_on = int(self._use_func_dict_name_tkVar["x\U00002074"].get())
+            custom_on = int(self._use_func_dict_name_tkVar["custom"].get())
+            if cos_on and sin_on and exp_on and log_on and pow_neg1_on and pow2_on and pow3_on and pow4_on and custom_on:
+                print("You shouldn't have all functions turned on for a procedural fit. Use brute-force instead.")
+                print(f"s{self.brute_forcing=} {self._default_fit_type=}")
+            file.write(f"#COS_ON {cos_on}\n")
+            file.write(f"#SIN_ON {sin_on}\n")
+            file.write(f"#EXP_ON {exp_on}\n")
+            file.write(f"#LOG_ON {log_on}\n")
+            file.write(f"#POW_NEG1_ON {pow_neg1_on}\n")
+            file.write(f"#POW2_ON {pow2_on}\n")
+            file.write(f"#POW3_ON {pow3_on}\n")
+            file.write(f"#POW4_ON {pow4_on}\n")
+            file.write(f"#CUSTOM_ON {custom_on}\n")
 
     def print_defaults(self):
-        print(f">{self._default_fit_type}<")
-        print(f">{self._default_excel_x_range}<")
-        print(f">{self._default_excel_y_range}<")
-        print(f">{self._default_excel_sigmax_range}<")
-        print(f">{self._default_excel_sigmay_range}<")
-        print(f">{self._default_load_file_loc}<")
+        print(f"Fit-type >{self._default_fit_type}<")
+        print(f"Excel X-Range >{self._default_excel_x_range}<")
+        print(f"Excel Y-Range >{self._default_excel_y_range}<")
+        print(f"Excel SigmaX-Range >{self._default_excel_sigmax_range}<")
+        print(f"Excel SigmaY-Range >{self._default_excel_sigmay_range}<")
+        print(f"Data location >{self._default_load_file_loc}<")
+        print(f"Background Colour >{self._default_bg_colour}<")
+        print(f"Data and Axis Colour >{self._default_dataaxes_colour}<")
+        print(f"Fit Line Colour >{self._default_fit_colour}<")
+        cos_on = int(self._use_func_dict_name_tkVar["cos(x)"].get())
+        sin_on = int(self._use_func_dict_name_tkVar["sin(x)"].get())
+        exp_on = int(self._use_func_dict_name_tkVar["exp(x)"].get())
+        log_on = int(self._use_func_dict_name_tkVar["log(x)"].get())
+        pow_neg1_on = int(self._use_func_dict_name_tkVar["1/x"].get())
+        pow2_on = int(self._use_func_dict_name_tkVar["x\U000000B2"].get())
+        pow3_on = int(self._use_func_dict_name_tkVar["x\U000000B3"].get())
+        pow4_on = int(self._use_func_dict_name_tkVar["x\U00002074"].get())
+        custom_on = int(self._use_func_dict_name_tkVar["custom"].get())
+        print(f"Procedural cos(x) >{cos_on}<")
+        print(f"Procedural sin(x) >{sin_on}<")
+        print(f"Procedural exp(x) >{exp_on}<")
+        print(f"Procedural log(x) >{log_on}<")
+        print(f"Procedural 1/x >{pow_neg1_on}<")
+        print(f"Procedural x\U000000B2 >{pow2_on}<")
+        print(f"Procedural x\U000000B3 >{pow3_on}<")
+        print(f"Procedural x\U00002074 >{pow4_on}<")
+        print(f"Procedural custom >{custom_on}<")
+
 
     # create left, right, and middle panels
     def load_splash_screen(self):
@@ -144,13 +299,16 @@ class Frontend:
         gui = self._gui
 
         # window size and title
-        gui.geometry(f"{round(self._os_width*5/6)}x{round(self._os_height*5/6)}")
+        gui.geometry(f"{round(self._os_width*5/6)}x{round(self._os_height*5/6)}+5+10")
         gui.rowconfigure(0, minsize=800, weight=1)
 
         # icon image and window title
         loc = Frontend.get_package_path()
         gui.iconbitmap(f"{loc}/icon.ico")
         gui.title("AutoFit")
+
+        # menus
+        self.create_file_menu()
 
         # left panel -- menu buttons
         self.create_left_panel()
@@ -162,6 +320,72 @@ class Frontend:
 
         # right panel -- text output
         self.create_right_panel()
+
+    """
+    
+    Menus
+    
+    """
+
+    def create_file_menu(self):
+
+        menu_bar = tk.Menu(self._gui)
+        file_menu = tk.Menu(master = menu_bar, tearoff = 0)
+        tutorial_menu = tk.Menu(master = menu_bar, tearoff=0)
+
+        self._gui.config(menu=menu_bar)
+        menu_bar.add_cascade(label="File", menu=file_menu, underline=0)
+        menu_bar.add_cascade(label="Tutorials", menu=tutorial_menu, underline=0)
+
+        # File menu
+
+        file_menu.add_command(label="Open", command=self.load_data_command)
+
+        preferences_menu = tk.Menu(master=file_menu, tearoff=0)
+        background_menu = tk.Menu(master=preferences_menu, tearoff=0)
+        background_menu.add_command(label="Default", command=self.bg_color_default)
+        background_menu.add_command(label="White", command=self.bg_color_white)
+        background_menu.add_command(label="Dark", command=self.bg_color_dark)
+        background_menu.add_command(label="Black", command=self.bg_color_black)
+        dataaxis_menu = tk.Menu(master=preferences_menu, tearoff=0)
+        dataaxis_menu.add_command(label="Default", command=self.dataaxes_color_default)
+        dataaxis_menu.add_command(label="White", command=self.dataaxes_color_white)
+        fit_colour_menu = tk.Menu(master=preferences_menu, tearoff=0)
+        fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
+        fit_colour_menu.add_command(label="White", command=self.fit_color_white)
+        fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
+
+        file_menu.add_cascade(label="Settings",menu=preferences_menu)
+        preferences_menu.add_cascade(label="Background Colour", menu=background_menu)
+        preferences_menu.add_cascade(label="Data/Axis Colour", menu=dataaxis_menu)
+        preferences_menu.add_cascade(label="Fit Colour", menu=fit_colour_menu)
+        preferences_menu.add_command(label="Hello")
+
+        # File
+        restart_menu = tk.Menu(master=file_menu, tearoff=0)
+        restart_are_you_sure_menu = tk.Menu(master=restart_menu, tearoff=0)
+        restart_are_you_sure_menu.add_command(label="Yes", command=self.restart_command)
+
+        file_menu.add_cascade(label="Restart", menu=restart_menu)
+        restart_menu.add_cascade(label="Are you sure?", menu=restart_are_you_sure_menu)
+
+        # File
+        exit_menu = tk.Menu(master=file_menu, tearoff=0)
+        exit_are_you_sure_menu = tk.Menu(master=exit_menu,tearoff=0)
+        exit_are_you_sure_menu.add_command(label="Yes", command=self._gui.destroy)
+
+
+
+
+        file_menu.add_cascade(label="Exit", menu=exit_menu)
+        exit_menu.add_cascade(label="Are you sure?", menu=exit_are_you_sure_menu)
+
+
+
+        pass
+
+    def create_tutorial_menu(self):
+        pass
 
 
     """
@@ -240,9 +464,12 @@ class Frontend:
                 sheet_names = pd.ExcelFile(path).sheet_names
             self._default_load_file_loc = '/'.join( regex.split( f"/", path )[:-1] )
             self._filepaths.append(path)
-            self._normalized_histogram_flags.append(False)
+            # self._normalized_histogram_flags.append(False)
+        if len(new_filepaths) > 0 and ( self.brute_forcing or self._default_fit_type == "Brute Force" ) :
+            print("In load data command, we're loading a file while brute-forcing is on")
+            self.brute_forcing = False
 
-        if self._new_user_stage % 2 != 0 :
+        if self._new_user_stage % 2 != 0 and len(self._filepaths) > 0 :
             self.create_fit_button()
             self._new_user_stage *= 2
 
@@ -250,15 +477,17 @@ class Frontend:
             self._curr_image_num = len(self._data_handlers)
             self.load_new_data(new_filepaths)
             if self._showing_fit_image :
-                self._optimizer.set_data_to(self.data_handler.data)
-                pars, uncs = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
-                self._current_args = pars
-                self._current_uncs = uncs
-                shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
-                self.add_message(f"\n \n> For {shortpath} \n")
-                self.print_results_to_console()
-                self.save_show_fit_image()
-                # TODO: load new file after already obtained a fit -- the fit all button goes away when it shouldn't
+                self.show_current_data_with_fit()
+                # self._optimizer.set_data_to(self.data_handler.data)
+                # pars, uncs = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+                # self._current_args = pars
+                # self._current_uncs = uncs
+                # shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
+                # self.add_message(f"\n \n> For {shortpath} \n")
+                # self.print_results_to_console()
+                # self.save_show_fit_image()
+                # # TODO: load new file after already obtained a fit -- the fit all button goes away when it shouldn't
+                # # FIXED?
             else:
                 self.show_current_data()
             if self._new_user_stage % 3 != 0 :
@@ -271,6 +500,10 @@ class Frontend:
                 self.create_left_right_buttons()
                 self._new_user_stage *= 5
             self.update_data_select()
+
+            if self._new_user_stage % 11 != 0 and self._showing_fit_image:
+                self.create_fit_all_button()
+                self._new_user_stage *= 11
 
         self.update_logx_relief()
         self.update_logy_relief()
@@ -366,6 +599,8 @@ class Frontend:
         for path in self._filepaths :
             self._data_handlers.append(DataHandler(filepath=path))
 
+
+
     def show_data(self, file_num=0):
 
         # mod_file_num = file_num % len(self._data_handlers)
@@ -380,7 +615,7 @@ class Frontend:
 
         plt.close()
         fig = plt.figure()
-        fig.patch.set_facecolor( (112/255, 146/255, 190/255) )
+        fig.patch.set_facecolor(self._bg_color)
         plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color='k')
         plt.xlabel(self.data_handler.x_label)
         plt.ylabel(self.data_handler.y_label)
@@ -418,7 +653,7 @@ class Frontend:
             axes.spines['top'].set_position(('data', 0.))
             axes.spines['bottom'].set_position(('data', 0.))
             axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
-        axes.set_facecolor((112 / 255, 146 / 255, 190 / 255))
+        axes.set_facecolor(self._bg_color)
 
         min_X, max_X = min(x_points), max(x_points)
         min_Y, max_Y = min(y_points), max(y_points)
@@ -484,7 +719,7 @@ class Frontend:
             print("Fitting to linear model")
             plot_model = CompositeFunction.built_in("Linear")
             self._optimizer.parameters_and_uncertainties_from_fitting(plot_model)
-        elif self._model_name_tkvar.get() == "Gaussian" and self.normalized_histogram_flag:
+        elif self._model_name_tkvar.get() == "Gaussian" and self.data_handler.normalized:
             print("Fitting to Normal distribution")
             plot_model = CompositeFunction.built_in("Normal")
             initial_guess = self._optimizer.find_initial_guess_scaling(plot_model)
@@ -504,6 +739,10 @@ class Frontend:
             # find fit button should now be find model
             self._optimizer.find_best_model_for_dataset()
             plot_model = self._optimizer.best_model
+            print(f"ACCs: {self._optimizer.top5_ACC}")
+            print(f"ACCcs: {self._optimizer.top5_ACCc}")
+            print(f"BCCs: {self._optimizer.top5_BCC}")
+            print(f"HQCs: {self._optimizer.top5_HQC}")
         elif self._model_name_tkvar.get() == "Brute-Force":
             print("Brute forcing a procedural model")
             # find fit button should now be find model
@@ -527,6 +766,8 @@ class Frontend:
             self.create_fit_all_button()
             self._new_user_stage *= 11
 
+        self.create_residuals_button()
+
         # print out the parameters on the right
         shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
         self.add_message(f"\n \n> For {shortpath} \n")
@@ -548,9 +789,12 @@ class Frontend:
             self.create_depth_up_down_buttons()
             self._new_user_stage *= 31
 
-        if self._model_name_tkvar.get() == "Brute-Force" and self._new_user_stage % 37 != 0 :
-            self.create_pause_button()
-            self._new_user_stage *= 37
+        if self._model_name_tkvar.get() == "Brute-Force" :
+            if self._new_user_stage % 37 != 0 :
+                self.create_pause_button()
+                self._new_user_stage *= 37
+            else :
+                self.show_pause_button()
 
         if self.brute_forcing :
             self.begin_brute_loop()
@@ -560,6 +804,9 @@ class Frontend:
         self._gui.after_idle(self.maintain_brute_loop)
 
     def maintain_brute_loop(self):
+        # TODO: add a model counter to show how many have been tested
+        # should also auto-pause when red chi sqr reaches ~1. Same for procedural, to avoid overfitting
+        # (the linear data is a good example of fits that become infinitesimally better with more parameters)
         if self.brute_forcing :
             status = self._optimizer.async_find_best_model_for_dataset()
             if status == "Done" :
@@ -590,10 +837,13 @@ class Frontend:
             b = self._optimizer.parameters[0]*self._optimizer.parameters[1]
             sigmab = math.sqrt( self._optimizer.uncertainties[0]**2 * self._optimizer.parameters[1]**2 +
                                 self._optimizer.uncertainties[1]**2 * self._optimizer.parameters[0]**2   )
+            # TODO: need covariances for the above uncertainty : m(x+k) = mk+b has highly correlated k and m for fixed b
+            # the uncertainty for linear regression is also very well-studied, so this should be a test case
+            # for uncertainty values
             print_string += f"   m = {m:+.2E}  \u00B1  {sigmam:.2E}\n"
             print_string += f"   b = {b:+.2E}  \u00B1  {sigmab:.2E}\n"
-            print_string += f"Goodness of fit: R\U000000B2 = {self._optimizer.r_squared(self._optimizer.best_model):.2F}\n"
-        elif self._model_name_tkvar.get() == "Gaussian" and self.normalized_histogram_flag:
+            print_string += f"Goodness of fit: R\U000000B2 = {self._optimizer.r_squared(self._optimizer.best_model):.4F}\n"
+        elif self._model_name_tkvar.get() == "Gaussian" and self.data_handler.normalized:
             if self.data_handler.logy_flag :
                 print_string += f"\n>  Normal fit is LY ="
             else :
@@ -604,7 +854,7 @@ class Frontend:
                 print_string += f" 1/\u221A(2\u03C0\u03C3\U000000B2) exp[-(x-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
             mu, sigmamu = -self._optimizer.parameters[1], self._optimizer.uncertainties[1]
             sigma = math.sqrt( 1 / (2*math.pi*self._optimizer.parameters[0]**2) )
-            sigmasigma = 1/(2*math.pi*self._optimizer.parameters[0]**2) * self._optimizer.uncertainties[0]
+            sigmasigma = self._optimizer.uncertainties[0] / math.sqrt( 2*math.pi*self._optimizer.parameters[0]**4 )
             print_string += f"   \u03BC = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
             print_string += f"   \u03C3 =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
         elif self._model_name_tkvar.get() == "Gaussian" :
@@ -619,7 +869,7 @@ class Frontend:
             A, sigmaA = self._optimizer.parameters[0], self._optimizer.uncertainties[0]
             mu, sigmamu = -self._optimizer.parameters[2], self._optimizer.uncertainties[2]
             sigma = math.sqrt( -1 / (2*self._optimizer.parameters[1]) )
-            sigmasigma = math.sqrt( 1/(4*self._optimizer.parameters[1]**2 * sigma) ) * self._optimizer.uncertainties[1]
+            sigmasigma = abs( sigma*self._optimizer.uncertainties[1] / (2*self._optimizer.parameters[1]) )
             print_string += f"   A = {A:+.2E}  \u00B1  {sigmaA:.2E}\n"
             print_string += f"   \u03BC = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
             print_string += f"   \u03C3 =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
@@ -687,9 +937,9 @@ class Frontend:
             print_string += f"Keep in mind that LX = log(x/{self.data_handler.X0:.2E})\n"
         self.add_message(print_string)
 
-    def fit_all_command(self):
+    def fit_all_command(self, quiet=False):
 
-        self.add_message("\n \n> Fitting all datasets\n")
+        # self.add_message("\n \n> Fitting all datasets\n")
 
         # if self._optimizer is None :
         #     # have to first find an optimal model
@@ -700,6 +950,7 @@ class Frontend:
         for handler in self._data_handlers :
             if handler == self.data_handler :
                 continue
+
             if self.data_handler.logx_flag :
                 if handler.logx_flag :
                     # unlog then relog
@@ -718,11 +969,9 @@ class Frontend:
             elif not self.data_handler.logy_flag and handler.logy_flag :
                 handler.logy_flag = False
             # TODO: test that this works
-            # it's a little complicated because the X0 and Y0 values are different
-
 
         # need to normalize all datasets if the current one is normalized
-        if any([handler.normalized for handler in self._data_handlers]) :
+        if any([handler.normalized for handler in self._data_handlers]) and not self.data_handler.normalized:
             self.data_handler.normalize_histogram_data()
         for handler in self._data_handlers :
             if self.data_handler.normalized and not handler.normalized :
@@ -743,7 +992,6 @@ class Frontend:
             # self._current_model.set_args(*pars)
             # self.save_show_fit_image(model=self._current_model)
 
-        self.add_message("> Average parameters from fitting all datasets:\n")
         means = []
         uncs = []
         for idx, _ in enumerate(list_of_args[0]) :
@@ -773,7 +1021,9 @@ class Frontend:
 
         # TODO: figure out what to do with the left/right arrows and the numbers
 
-        self.print_results_to_console()
+        if not quiet :
+            self.add_message("\n> Average parameters from fitting all datasets:\n")
+            self.print_results_to_console()
         self.update_data_select()
 
 
@@ -786,7 +1036,7 @@ class Frontend:
     def create_middle_panel(self):
         self._gui.columnconfigure(1, minsize=720)  # image panel
         middle_panel_frame = tk.Frame(master=self._gui, relief=tk.RIDGE)
-        middle_panel_frame.grid(row=0, column=1, sticky='news')
+        middle_panel_frame.grid(row=0, column=1, sticky='nsew')
         self.create_image_frame()
         self.create_data_perusal_frame()
         self.create_fit_options_frame()
@@ -811,7 +1061,20 @@ class Frontend:
         data_perusal_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
-        data_perusal_frame.grid(row=1, column=0, sticky='w')
+        data_perusal_frame.grid(row=1, column=0, sticky='ew')
+        data_perusal_frame.grid_columnconfigure(0,weight=1)
+        self.create_left_data_perusal_frame()
+        self.create_right_data_perusal_frame()
+    def create_left_data_perusal_frame(self):
+        data_perusal_frame_left = tk.Frame(
+            master=self._gui.children['!frame2'].children['!frame2']
+        )
+        data_perusal_frame_left.grid(row=0, column=0, sticky='w')
+    def create_right_data_perusal_frame(self):
+        data_perusal_frame_right = tk.Frame(
+            master=self._gui.children['!frame2'].children['!frame2']
+        )
+        data_perusal_frame_right.grid(row=0, column=1, sticky='e')
 
     def create_fit_options_frame(self):  # !frame3 : fit type, procedural top5, procedural checkboxes
         fit_options_frame = tk.Frame(
@@ -842,8 +1105,10 @@ class Frontend:
 
         # TODO: also make a save figure button
 
+        inspect_bar = self._gui.children['!frame2'].children['!frame2'].children['!frame']
+
         data_perusal_button = tk.Button(
-            master = self._gui.children['!frame2'].children['!frame2'],
+            master = self._gui.children['!frame2'].children['!frame2'].children['!frame'],
             text = "Inspect",
             command = self.inspect_command
         )
@@ -851,15 +1116,15 @@ class Frontend:
 
     def create_left_right_buttons(self):
 
-        left_button = tk.Button( master = self._gui.children['!frame2'].children['!frame2'],
+        left_button = tk.Button( master = self._gui.children['!frame2'].children['!frame2'].children['!frame'],
                                  text = "\U0001F844",
                                  command = self.image_left_command
                                )
         count_text = tk.Label(
-            master=self._gui.children['!frame2'].children['!frame2'],
+            master=self._gui.children['!frame2'].children['!frame2'].children['!frame'],
             text = f"{self._curr_image_num % len(self._data_handlers) + 1}/{len(self._data_handlers)}"
         )
-        right_button = tk.Button( master = self._gui.children['!frame2'].children['!frame2'],
+        right_button = tk.Button( master = self._gui.children['!frame2'].children['!frame2'].children['!frame'],
                                   text = "\U0001F846",
                                   command = self.image_right_command
                                 )
@@ -867,13 +1132,13 @@ class Frontend:
         count_text.grid(row=0, column=2)
         right_button.grid(row=0, column=3, padx=5, pady=5)
 
-    def create_show_residuals_button(self):
+    def create_residuals_button(self):
         show_residuals_button = tk.Button(
-            master = self._gui.children['!frame2'].children['!frame2'],
+            master = self._gui.children['!frame2'].children['!frame2'].children['!frame2'],
             text = "Show Residuals",
             command = self.show_residuals_command
         )
-        show_residuals_button.grid(row=0, column=4, padx=5, pady=5, sticky = 'e')
+        show_residuals_button.grid(row=0, column=0, padx=5, pady=5, sticky = 'e')
 
     def create_function_dropdown(self):
 
@@ -923,6 +1188,9 @@ class Frontend:
         self._which5_name_tkvar.trace('w', self.which5_dropdown_trace)
 
     def update_top5_dropdown(self):
+
+        # TODO: need to update the dropdown label whenever the drawn model is different from the label model
+
         # print("Updating", self._gui.children['!frame2'].children['!frame3'].children)
         top5_dropdown : tk.OptionMenu = self._gui.children['!frame2'].children['!frame3'].children['!optionmenu2']
 
@@ -976,8 +1244,12 @@ class Frontend:
         normalize_button = self._gui.children['!frame2'].children['!frame4'].children['!button3']
         normalize_button.grid_forget()
     def show_normalize_button(self):
-        normalize_button = self._gui.children['!frame2'].children['!frame4'].children['!button3']
-        normalize_button.grid(row=2, column=0, padx=5, pady=5, sticky = 'w')
+        try :
+            normalize_button = self._gui.children['!frame2'].children['!frame4'].children['!button3']
+            normalize_button.grid(row=2, column=0, padx=5, pady=5, sticky = 'w')
+        except KeyError :
+            print(f"Key error showing normalize button despite {self._new_user_stage=}")
+            raise KeyError
 
     ##
     #
@@ -992,7 +1264,7 @@ class Frontend:
         # TODO: find a way to show() again without rerunning fits
 
         if self._showing_fit_all_image :
-            self.save_show_fit_all()
+            self.fit_all_command(quiet=True)
         elif self._showing_fit_image :
             self.save_show_fit_image()
         else:
@@ -1003,14 +1275,15 @@ class Frontend:
         self._showing_fit_all_image = False
 
         if self._showing_fit_image :
-            self._optimizer.set_data_to(self.data_handler.data)
-            pars, uncs = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
-            self._current_args = pars
-            self._current_uncs = uncs
-            shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
-            self.add_message(f"\n \n> For {shortpath} \n")
-            self.print_results_to_console()
-            self.save_show_fit_image()
+            self.show_current_data_with_fit()
+            # self._optimizer.set_data_to(self.data_handler.data)
+            # pars, uncs = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+            # self._current_args = pars
+            # self._current_uncs = uncs
+            # shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
+            # self.add_message(f"\n \n> For {shortpath} \n")
+            # self.print_results_to_console()
+            # self.save_show_fit_image()
         else:
             self.show_current_data()
 
@@ -1026,18 +1299,18 @@ class Frontend:
 
     def image_right_command(self):
         self._curr_image_num  = (self._curr_image_num + 1) % len(self._data_handlers)
-        # change pars and uncs to current
         self._showing_fit_all_image = False
 
         if self._showing_fit_image :
-            self._optimizer.set_data_to(self.data_handler.data)
-            pars, uncs = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
-            self._current_args = pars
-            self._current_uncs = uncs
-            shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
-            self.add_message(f"\n \n> For {shortpath} \n")
-            self.print_results_to_console()
-            self.save_show_fit_image()
+            self.show_current_data_with_fit()
+            # self._optimizer.set_data_to(self.data_handler.data)
+            # pars, uncs = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+            # self._current_args = pars
+            # self._current_uncs = uncs
+            # shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
+            # self.add_message(f"\n \n> For {shortpath} \n")
+            # self.print_results_to_console()
+            # self.save_show_fit_image()
         else:
             self.show_current_data()
 
@@ -1051,18 +1324,181 @@ class Frontend:
         self.update_logy_relief()
 
     def show_residuals_command(self):
-        # TODO: this would be cool
-        pass
+        # TODO: this should do something different when fitting all
+        if self._showing_fit_all_image :
+            pass
+        residuals = []
+        if self._current_model is None :
+            print("Residuals_command: you shouldn't be here, quitting")
+            raise SystemExit
+
+        res_filepath=f"{self.get_package_path()}/plots/residuals.csv"
+
+        residuals = []
+
+        with open(file=res_filepath,mode='w') as res_file:
+            for datum in self.data_handler.data:
+                res = datum.val - self._current_model.eval_at(datum.pos)
+                residuals.append(res)
+                res_file.write(f"{res},\n")
+
+
+
+        res_handler = DataHandler(filepath=res_filepath)
+        res_optimizer = Optimizer(data=res_handler.data)
+
+        sample_mean = sum(residuals) / len(residuals)
+        sample_variance = sum([(res - sample_mean) ** 2 for res in residuals]) / (len(residuals) - 1)
+        sample_std_dev = math.sqrt(sample_variance)
+
+        # should be counting with std from 0, not from residual_mean
+        variance_rel_zero = sum([ res** 2 for res in residuals]) / (len(residuals) - 1)
+        std_dev_rel_zero = math.sqrt(variance_rel_zero)
+
+        std_dev = std_dev_rel_zero
+        sample_mean = 0.
+
+        # actually, you should be using the mean and sigma according to the *fit*
+        if len(res_handler.data) >= 4 :  # shouldn't fit a gaussian to 3 points
+            pars, uncs = res_optimizer.parameters_and_uncertainties_from_fitting(model=CompositeFunction.built_in("Gaussian"))
+            x0 = -pars[2]
+
+            sigma_from_fit = math.sqrt(-1 / (2 * pars[1]))
+            unc_sigma_from_fit = abs(sigma_from_fit * uncs[1] / (2 * pars[1]))
+            print(f"Mean from fit: {x0} +- {uncs[2]}")
+            print(f"Sigma from fit: {sigma_from_fit} +- {unc_sigma_from_fit} "
+                  f"... sample standard deviation: {sample_std_dev}"            )
+
+
+            std_dev = sigma_from_fit
+            sample_mean = x0
+
+
+
+        count_ulow = sum([1 if res-sample_mean < sample_mean-2*std_dev else 0 for res in residuals])
+        count_low = sum([1 if sample_mean-2*std_dev < res-sample_mean < sample_mean-std_dev else 0
+                         for res in residuals])
+        count_middle = sum([1 if sample_mean-std_dev < res-sample_mean < sample_mean + std_dev else 0
+                            for res in residuals])
+        count_high = sum([1 if sample_mean+std_dev < res-sample_mean < sample_mean+2*std_dev else 0
+                          for res in residuals])
+        count_uhigh = sum([1 if res-sample_mean > sample_mean + 2*std_dev else 0 for res in residuals])
+
+        # print(f" ultralow | low tail | centre | high tail | ultrahigh"
+        #       f"    {count_ulow} | {count_low} | {count_middle} | {count_high} | {count_uhigh}    "
+        #       f"    {count_ulow/len(residuals)} | {count_low/len(residuals)} | {count_middle/len(residuals)} | {count_low/len(residuals)} | {count_uhigh/len(residuals)}   ")
+
+        # if the residual was normally-distributed, the centre would account for 0.682689*N of the trials
+        # the low-tail would account for 0.1586555*N of the trials
+        # and the high-tail would also account for 0.1586555*N of the trials
+
+        # if we have independent trials, a binomial distribution for a sample of size N will have 90% confidence regions
+        # between kmin and kmax
+        kmin_fartail = 0
+        while True :
+            binomial_lowweight = scipy.stats.binom.cdf(kmin_fartail, len(residuals), 0.0227505)
+            if binomial_lowweight > 0.05 :
+                break
+            kmin_fartail += 1
+
+        kmax_fartail = len(residuals)
+        while True :
+            binomial_highweight = 1-scipy.stats.binom.cdf(kmax_fartail, len(residuals), 0.0227505)
+            if binomial_highweight > 0.05 :
+                break
+            kmax_fartail -= 1
+
+        kmin_tail = 0
+        while True :
+            binomial_lowweight = scipy.stats.binom.cdf(kmin_tail, len(residuals), 0.135905)
+            if binomial_lowweight > 0.05 :
+                break
+            kmin_tail += 1
+
+        kmax_tail = len(residuals)
+        while True :
+            binomial_highweight = 1-scipy.stats.binom.cdf(kmax_tail, len(residuals), 0.135905)
+            if binomial_highweight > 0.05 :
+                break
+            kmax_tail -= 1
+
+        kmin_centre = 0
+        while True :
+            binomial_lowweight = scipy.stats.binom.cdf(kmin_centre, len(residuals), 0.682689)
+            if binomial_lowweight > 0.05 :
+                break
+            kmin_centre += 1
+
+        kmax_centre = len(residuals)
+        while True :
+            binomial_highweight = 1-scipy.stats.binom.cdf(kmax_centre, len(residuals), 0.682689)
+            if binomial_highweight > 0.05 :
+                break
+            kmax_centre -= 1
+
+        print(f"If residuals were normally distributed, {kmin_fartail} < {count_ulow} < {kmax_fartail} ")
+        print(f"If residuals were normally distributed, {kmin_tail} < {count_low} < {kmax_tail} ")
+        print(f"If residuals were normally distributed, {kmin_centre} < {count_middle} < {kmax_centre} ")
+        print(f"If residuals were normally distributed, {kmin_tail} < {count_high} < {kmax_tail} ")
+        print(f"If residuals were normally distributed, {kmin_fartail} < {count_uhigh} < {kmax_fartail} ")
+        pvalue_ulow = 1 if kmin_fartail <= count_ulow <= kmax_fartail else 0.1
+        pvalue_low = 1 if kmin_tail <= count_low <= kmax_tail else 0.1
+        pvalue_middle = 1 if kmin_centre <= count_middle <= kmax_centre else 0.1
+        pvalue_high = 1 if kmin_tail <= count_high <= kmax_tail else 0.1
+        pvalue_uhigh = 1 if kmin_fartail <= count_uhigh <= kmax_fartail else 0.1
+        print([pvalue_ulow, pvalue_low, pvalue_middle, pvalue_high, pvalue_uhigh])
+        # if 0.1 in [pvalue_ulow, pvalue_low, pvalue_middle, pvalue_high, pvalue_uhigh] :
+        #     # print(f"You have evidence that the residuals are not normally distributed. Therefore,")
+        #     # print(f"the probability that you have found the correct fit for the data is "
+        #     #       f"{pvalue_ulow*pvalue_low*pvalue_middle*pvalue_high*pvalue_uhigh:.5F}")
+        #     self.add_message(f"\n \n> You have evidence that the residuals are not normally distributed.")
+        #     self.add_message(f"  The probability that you have found the correct fit for the data is "
+        #           f"{pvalue_ulow*pvalue_low*pvalue_middle*pvalue_high*pvalue_uhigh:.5F}\n")
+
+        if 0.1 in [pvalue_ulow, pvalue_low, pvalue_middle, pvalue_high, pvalue_uhigh] :
+            self.add_message(f"\n \n> Based on residuals binned in the tail, far-tail, and central regions,")
+            self.add_message(f"  the probability that you have found the correct fit for the data is "
+                  f"{pvalue_ulow*pvalue_low*pvalue_middle*pvalue_high*pvalue_uhigh:.5F}\n")
+
+        self.add_message(f"\n \n> p-values from standard normality tests:\n")
+        # other normality tests
+        W, alpha = scipy.stats.shapiro(residuals)
+        print(f"\n{W=} {alpha=}")
+        self.add_message(f"  Shapiro-Wilk       : {alpha:.5F}")
+        A2, crit, sig = scipy.stats.anderson(residuals, dist='norm')
+        print(f"{A2=} {crit=} {sig=}")
+        threshold_idx = -1
+        for idx, icrit in enumerate(crit) :
+            if A2 > icrit :
+                threshold_idx = idx
+        if threshold_idx < 0 :
+            self.add_message(f"  Anderson-Darling  : > {sig[0]*0.01:.2F}")
+        else :
+            self.add_message(f"  Anderson-Darling   : < {sig[threshold_idx]*0.01:.2F}")
+        kolmogorov, kol_pvalue = scipy.stats.kstest(residuals,'norm')
+        print(f"{kolmogorov=} {kol_pvalue=}")
+        if kol_pvalue > 1e-5 :
+            self.add_message(f"  Kolmogorov-Smirnov : {kol_pvalue:.5F}")
+        else :
+            self.add_message(f"  Kolmogorov-SMirnov : {kol_pvalue:.2E}")
+
+        # TODO: I've noticed that there's a bad interaction with all tests when logging-y
+
+        res_optimizer.show_fit()
+
+
+
 
     def normalize_command(self):
         self.data_handler.normalize_histogram_data()
-        self.normalized_histogram_flag = True
         if self._showing_fit_image :
-            self.fit_data_command()
+            self.show_current_data_with_fit()
         else:
             self.show_current_data()
 
     def update_logx_relief(self):
+        if self._new_user_stage % 13 != 0 :
+            return
         button: tk.Button = self._gui.children['!frame2'].children['!frame4'].children['!button']
         if self.data_handler.logx_flag :
             button.configure(relief=tk.SUNKEN)
@@ -1070,7 +1506,11 @@ class Frontend:
         else:
             button.configure(relief=tk.RAISED)
             if not self.data_handler.logy_flag and self.data_handler.histogram_flag :
-                self.show_normalize_button()
+                if self._new_user_stage % 17 != 0 :
+                    self.create_normalize_button()
+                    self._new_user_stage *= 17
+                else :
+                    self.show_normalize_button()
 
     # TODO: if loading new file, or using left/right buttons, need to update the logx and logy buttons
     def logx_command(self):
@@ -1095,6 +1535,8 @@ class Frontend:
 
 
     def update_logy_relief(self):
+        if self._new_user_stage % 13 != 0 :
+            return
         button: tk.Button = self._gui.children['!frame2'].children['!frame4'].children['!button2']
         if self.data_handler.logy_flag :
             button.configure(relief=tk.SUNKEN)
@@ -1102,7 +1544,11 @@ class Frontend:
         else:
             button.configure(relief=tk.RAISED)
             if not self.data_handler.logx_flag and self.data_handler.histogram_flag :
-                self.show_normalize_button()
+                if self._new_user_stage % 17 != 0 :
+                    self.create_normalize_button()
+                    self._new_user_stage *= 17
+                else :
+                    self.show_normalize_button()
 
     def logy_command(self):
 
@@ -1116,8 +1562,9 @@ class Frontend:
         if self._optimizer is not None:
             self._optimizer.set_data_to(self.data_handler.data)
         if self._showing_fit_image:
-            self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
-            self.save_show_fit_image()
+            self.show_current_data_with_fit()
+            # self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+            # self.save_show_fit_image()
         else:
             self.show_current_data()
 
@@ -1139,7 +1586,7 @@ class Frontend:
         self._image_frame.grid(row=0, column=0)
 
     def update_data_select(self):
-        text_label = self._gui.children['!frame2'].children['!frame2'].children['!label']
+        text_label = self._gui.children['!frame2'].children['!frame2'].children['!frame'].children['!label']
         if self._showing_fit_all_image :
             text_label.configure(text=f"-/{len(self._data_handlers)}")
         else:
@@ -1148,9 +1595,13 @@ class Frontend:
             )
 
     def function_dropdown_trace(self,*args):
+
         model_choice = self._model_name_tkvar.get()
 
-        self.fit_data_command()
+        if model_choice != "Brute-Force" :
+            self.load_defaults()
+            self.brute_forcing = False
+            self.hide_pause_button()
 
         if model_choice in ["Procedural", "Brute-Force"] :
             if self._new_user_stage % 29 != 0 :
@@ -1161,6 +1612,7 @@ class Frontend:
                 self.update_top5_dropdown()
         else:
             self.hide_top5_dropdown()
+            self.fit_data_command()
 
         if model_choice == "Procedural" :
             if self._new_user_stage % 31 != 0 :
@@ -1173,10 +1625,6 @@ class Frontend:
         else:
             self.hide_default_checkboxes()
             self.hide_depth_buttons()
-
-        if model_choice != "Brute-Force" :
-            self.brute_forcing = False
-            self.hide_pause_button()
 
     def save_show_fit_image(self, model = None):
 
@@ -1205,9 +1653,9 @@ class Frontend:
 
         plt.close()
         fig = plt.figure()
-        fig.patch.set_facecolor((112 / 255, 146 / 255, 190 / 255))
+        fig.patch.set_facecolor(self._bg_color)
         plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color='k')
-        plt.plot(smooth_x_for_fit, fit_vals, '-', color='r')
+        plt.plot(smooth_x_for_fit, fit_vals, '-', color=self._fit_color)
         plt.xlabel(handler.x_label)
         plt.ylabel(handler.y_label)
         axes : plt.axes = plt.gca()
@@ -1240,7 +1688,7 @@ class Frontend:
             axes.spines['top'].set_position(    ('data', 0.) )
             axes.spines['bottom'].set_position( ('data', 0.) )
             axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
-        axes.set_facecolor((112 / 255, 146 / 255, 190 / 255))
+        axes.set_facecolor(self._bg_color)
 
         # print( np.array(axes.spines['top'].get_spine_transform()) )
 
@@ -1306,11 +1754,13 @@ class Frontend:
 
             # col = 255 ** (idx/num_sets) / 255
             # col = math.sqrt(idx / num_sets)
-            col = idx / num_sets
-            print(f"{col=}")
-            set_color = (col,col,col)
-            axes.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color=set_color)
-            plt.plot(smooth_x_for_fit, fit_vals, '-', color=set_color)
+            col_tuple = [ (icol / max(self._dataaxes_color) if max(self._dataaxes_color) > 0 else 1)
+                          * (idx / num_sets) for icol in self._dataaxes_color ]
+            # col = idx / num_sets
+            #print(f"{col=}")
+            #set_color = (col,col,col)
+            axes.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color=col_tuple)
+            plt.plot(smooth_x_for_fit, fit_vals, '-', color=col_tuple)
 
             min_X, max_X = min(x_points), max(x_points)
             min_Y, max_Y = min(y_points), max(y_points)
@@ -1338,9 +1788,13 @@ class Frontend:
             fit_vals = [plot_model.eval_at(xi, Y0=self.data_handler.Y0) for xi in smooth_x_for_fit]
         else:
             fit_vals = [plot_model.eval_at(xi) for xi in smooth_x_for_fit]
-        plt.plot(smooth_x_for_fit, fit_vals, '-', color='r')
+        plt.plot(smooth_x_for_fit, fit_vals, '-', color=self._fit_color)
 
-        fig.patch.set_facecolor((112 / 255, 146 / 255, 190 / 255))
+        fig.patch.set_facecolor(self._bg_color)
+
+        col_tuple = [ icol for icol in self._dataaxes_color ]
+        for key, val in axes.spines.items():
+            val.set_color(col_tuple)
 
         plt.xlabel(self.data_handler.x_label)
         plt.ylabel(self.data_handler.y_label)
@@ -1374,7 +1828,7 @@ class Frontend:
             axes.spines['top'].set_position(    ('data', 0.) )
             axes.spines['bottom'].set_position( ('data', 0.) )
             axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
-        axes.set_facecolor((112 / 255, 146 / 255, 190 / 255))
+        axes.set_facecolor(self._bg_color)
 
 
         #  tx is the proportion between xmin and xmax where the zero lies
@@ -1397,7 +1851,6 @@ class Frontend:
 
 
     def which5_dropdown_trace(self,*args):
-        # TODO : should print out the model tree when you change to a different top5 model
         which5_choice = self._which5_name_tkvar.get()
         print(f"Changed top5_dropdown to {which5_choice}")
         # show the fit of the selected model
@@ -1499,10 +1952,11 @@ class Frontend:
 
     def create_pause_button(self):
         pause_button = tk.Button( self._gui.children['!frame2'].children['!frame3'],
-                                  text = "GO!",
+                                  text = "Pause",
                                   command = self.pause_command
                                )
         pause_button.grid(row=0, column=2, padx=(5,0), sticky='w')
+        pause_button.configure(width=8)
     def hide_pause_button(self):
         if self._new_user_stage % 37 != 0 :
             # the pause button hasn't been created yet, no need to hide it
@@ -1513,6 +1967,7 @@ class Frontend:
     def show_pause_button(self):
         pause_button = self._gui.children['!frame2'].children['!frame3'].children['!button']
         pause_button.grid(row=0, column=2, padx=(5,0), pady=5, sticky='w')
+        self.update_pause_button()
     def update_pause_button(self):
         pause_button : tk.Button = self._gui.children['!frame2'].children['!frame3'].children['!button']
         if self.brute_forcing :
@@ -1617,8 +2072,15 @@ class Frontend:
     @staticmethod
     def get_package_path():
 
+        try:
+            return sys._MEIPASS
+        except AttributeError:
+            pass
+            # print("It doesn't know about _MEIPASS")
+
         # keep stepping back from the current directory until we are in the directory /autofit
-        loc = os.path.dirname(os.path.abspath(__file__))
+        filepath = os.path.abspath(__file__)
+        loc = os.path.dirname(filepath)
 
         while loc[-7:] != "autofit":
             loc = os.path.dirname(loc)
@@ -1627,12 +2089,12 @@ class Frontend:
 
         return loc
 
-    @property
-    def normalized_histogram_flag(self):
-        return self._normalized_histogram_flags[self._curr_image_num]
-    @normalized_histogram_flag.setter
-    def normalized_histogram_flag(self, val):
-        self._normalized_histogram_flags[self._curr_image_num] = val
+    # @property
+    # def normalized_histogram_flag(self):
+    #     return self._normalized_histogram_flags[self._curr_image_num]
+    # @normalized_histogram_flag.setter
+    # def normalized_histogram_flag(self, val):
+    #     self._normalized_histogram_flags[self._curr_image_num] = val
     @property
     def data_handler(self):
         return self._data_handlers[self._curr_image_num]
@@ -1640,6 +2102,27 @@ class Frontend:
         self.show_data(self._curr_image_num)
         self._showing_fit_image = False
         self._showing_fit_all_image = False
+    def show_current_data_with_fit(self, quiet = False):
+        self._optimizer.set_data_to(self.data_handler.data)
+        if self._current_model.name == "Normal" and not self.data_handler.normalized :
+            self.fit_data_command()
+            return
+        pars, uncs = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+        self._current_args = pars
+        self._current_uncs = uncs
+        if not quiet :
+            shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
+            self.add_message(f"\n \n> For {shortpath} \n")
+            self.print_results_to_console()
+        self.save_show_fit_image()
+    def update_image(self):
+        if self._showing_fit_all_image :
+            self.fit_all_command()
+        elif self._showing_fit_image :
+            self.show_current_data_with_fit()
+        else:
+            if self._image_path != f"{self.get_package_path()}/splash.png" :
+                self.show_current_data()
     @property
     def brute_forcing(self):
         return self._brute_forcing.get()
@@ -1652,6 +2135,61 @@ class Frontend:
     def max_functions(self):
         return self._max_functions_tkInt.get()
 
+    def bg_color_default(self):
+        self._default_bg_colour = "Default"
+        self._bg_color =  (112 / 255, 146 / 255, 190 / 255)
+        self.update_image()
+        self.save_defaults()
+    def bg_color_white(self):
+        self._default_bg_colour = "White"
+        self._bg_color = (1., 1., 1.)
+        self.update_image()
+        self.save_defaults()
+    def bg_color_dark(self):
+        self._default_bg_colour = "Dark"
+        self._bg_color = (0.2, 0.2, 0.2)
+        self.update_image()
+        self.save_defaults()
+    def bg_color_black(self):
+        self._default_bg_colour = "Black"
+        self._bg_color = (0., 0., 0.)
+        self.update_image()
+        self.save_defaults()
+
+    def dataaxes_color_default(self):
+        self._default_dataaxes_colour = "Default"
+        self._dataaxes_color = (0., 0., 0.)
+        self.update_image()
+        self.save_defaults()
+    def dataaxes_color_white(self):
+        self._default_dataaxes_colour = "White"
+        self._dataaxes_color = (1., 1., 1.)
+        self.update_image()
+        self.save_defaults()
+
+    def fit_color_default(self):
+        self._default_fit_colour = "Default"
+        self._fit_color = (1., 0., 0.)
+        self.update_image()
+        self.save_defaults()
+    def fit_color_white(self):
+        self._default_fit_colour = "White"
+        self._fit_color = (1., 1., 1.)
+        self.update_image()
+        self.save_defaults()
+    def fit_color_black(self):
+        self._default_fit_colour = "Black"
+        self._fit_color = (0., 0., 0.)
+        self.update_image()
+        self.save_defaults()
+
+
     def exist(self):
         self._gui.mainloop()
+
+    def restart_command(self):
+        self._gui.destroy()
+
+        new_frontend = Frontend()
+        new_frontend.exist()
 

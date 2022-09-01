@@ -54,7 +54,7 @@ class CompositeFunction:
             self._parent = parent
 
         self._func_of_this_node = func.copy()
-        self._children_list = []
+        self._children_list : list[CompositeFunction] = []
         self._constraints = []  # list of (idx1, func, idx3) triplets, with the interpretation
                                # that par[idx1] = func( par[idx2 )]
         if children_list is not None :
@@ -102,15 +102,15 @@ class CompositeFunction:
 
 
 
-    def list_extend_with_added_prim_to_self_and_descendents(self, the_list, prim):
+    def list_extend_with_added_prim_to_self_and_descendents(self, the_list, new_prim):
 
         new_comp_base = self.copy()
-        new_comp_base.add_child(prim)
+        new_comp_base.add_child(new_prim)
         the_list.append( new_comp_base )
 
-        for ichild in self._children_list :
+        for _ in self._children_list :
             new_comp = self.copy()
-            new_comp.list_extend_with_added_prim_to_self_and_descendents(the_list=the_list, prim=prim)
+            new_comp.list_extend_with_added_prim_to_self_and_descendents(the_list=the_list, new_prim=new_prim)
 
     def build_name(self):
         name_str = ""
@@ -336,7 +336,6 @@ class CompositeFunction:
         all_args = []
         if skip_flag :
             pass
-            # print(f"Skipping argument of {self._name}")
         else :
             all_args.append(self._func_of_this_node.arg)
 
@@ -344,7 +343,6 @@ class CompositeFunction:
         if self._func_of_this_node.name[0:3] == "pow" and len( self._children_list ) > 0 :
             skip_flag = 1
 
-        # print(f"In get_args of {self=}, {self._children_list=}")
         for child in self._children_list :
             all_args.extend( child.get_args(skip_flag) )
             skip_flag = 0
@@ -353,6 +351,57 @@ class CompositeFunction:
             del all_args[idx_constrained]
 
         return all_args
+
+    def get_nodes_with_freedom(self, skip_flag=0):
+        # gets all nodes which are associated with a degree of freedom
+        all_nodes = []
+        if skip_flag :
+            pass
+        else :
+            all_nodes.append(self)
+
+        skip_flag = 0
+        if self._func_of_this_node.name[0:3] == "pow" and len( self._children_list ) > 0 :
+            skip_flag = 1
+
+        for child in self._children_list :
+            all_nodes.extend( child.get_nodes_with_freedom(skip_flag) )
+            skip_flag = 0
+
+        for idx_constrained, _, _ in sorted(self._constraints, key=lambda tup: tup[0], reverse=True) :
+            del all_nodes[idx_constrained]
+
+        return all_nodes
+
+    def construct_model_from_name(self, given_name):
+        # should be able to construct a model purely from a name given as a string
+        pass
+
+    def submodel_without_node_idx(self, n):
+
+        if n < 1 :
+            print("Can't remove head node of a model ")
+            return -1
+        if len(self._constraints) > 0 :
+            print("Reduced model of a constrained model is not yet implemented")
+            raise NotImplementedError
+
+        new_model = self.copy()
+        node_to_remove = (new_model.get_nodes_with_freedom())[n]
+        reduced_model = new_model.remove_node(node=node_to_remove)
+        return reduced_model
+
+    def remove_node(self, node):
+
+        parent_of_removed = node.parent
+        parent_of_removed.children_list.remove(node)
+        parent_of_removed.build_name()
+
+        self.build_name()
+
+        return self
+
+
 
     def scipy_func(self, x, *args):
         self.set_args(*args)

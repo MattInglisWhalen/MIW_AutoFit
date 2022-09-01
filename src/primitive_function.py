@@ -147,8 +147,8 @@ class PrimitiveFunction:
     def my_log(x, arg):
         return arg*np.log(x)
 
-    # arbitrary powers can be created using function composition,
-    # i.e use the CompositeFunction class, e.g. exp( 1.5 log(x) ) == x^1.5
+    # arbitrary powers can be created using function composition (i.e using the CompositeFunction class)
+    # For example x^1.5 = exp( 1.5 log(x) )
 
 
     @staticmethod
