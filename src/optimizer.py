@@ -163,9 +163,13 @@ class Optimizer:
                 # and add the new function to the top5 list
                 for ndx, (arg, unc) in enumerate( zip(pars,uncertainties) ) :
                     if abs(arg) < 2*unc :  # 95% confidence level arg is not different from zero
-                        print("Zero arg detected: new trimmed model is")
+                        print(f"Zero arg detected: attempting to trim model...")
                         reduced_model = model.submodel_without_node_idx(n=ndx)
-                        if reduced_model != -1 :
+
+                        if reduced_model != -1:
+                            if not self.passes_rules(reduced_model):
+                                print(f"\t {reduced_model.name} doesn't pass the validity tests")
+                            print(f"Success! > {reduced_model.name} <")
                             reduced_model.print_tree()
 
                             pars, uncs = self.parameters_and_uncertainties_from_fitting(
@@ -179,7 +183,7 @@ class Optimizer:
                                                    red_chi_squared=new_red_chi_squared
                                                    )
                         else:
-                            print("Can't reduce the model")
+                            print("\t Can't reduce the model")
                         break
 
                 if self._top_5_red_chi_squareds[-1] > 9e4 and self._top_5_red_chi_squareds[0] < 9e4 :
@@ -234,9 +238,10 @@ class Optimizer:
             new_comp = CompositeFunction(func=iprim)
             self._composite_function_list.append(new_comp)
 
-        for _ in range(self._max_functions-1) :
+        for _ in range(self._max_functions - 1) :
             new_list = self._composite_function_list.copy()
             for icomp in self._composite_function_list[:]:
+                # extend list through composition
                 for idescendent in range(icomp.num_nodes()):
                     for iprim in self._primitive_function_list:
                         new_comp = icomp.copy()
@@ -246,12 +251,36 @@ class Optimizer:
             self._composite_function_list = new_list.copy()
 
         for comp in CompositeFunction.built_in_list():
-            self._composite_function_list.append(comp.copy())
+            if comp.dof < self._max_functions :
+                self._composite_function_list.append(comp.copy())
 
         # prepend the current top 5 models
 
         self.trim_composite_function_list()
         print(f"After trimming list: (len={len(self._composite_function_list)})")
+        for icomp in self._composite_function_list:
+            print(icomp)
+        print("|----------------\n")
+
+        # extend list through multiplication
+        # TODO: the above new lists should have indices for their depth, so I can multiply them together
+        #       with the appropriate number of degrees of freedom
+
+        # TODO : the complex nature of the multiplication means that functions end up with complex ranges,
+        #        which need to be subsequently cast to real numbers for the fits. Check for parent=None in evat_at
+
+        # TODO: consider just adding a new product data structure so we don't have to go through exps and logs
+        #       just to do a simple multiplication
+        new_list = self._composite_function_list.copy()
+        for icomp1 in self._composite_function_list[:]:
+            for icomp2 in self._composite_function_list[:]:
+                if icomp1.dof + icomp2.dof > self._max_functions :
+                    continue
+                new_prod = CompositeFunction.prod(icomp1,icomp2)
+                new_list.append(new_prod)
+        self._composite_function_list = new_list.copy()
+
+        print(f"After adding multiplications: (len={len(self._composite_function_list)})")
         for icomp in self._composite_function_list:
             print(icomp)
         print("|----------------\n")
@@ -788,7 +817,8 @@ class Optimizer:
             for i in range(7) :
                 test_func.set_args(2*np.abs(pos_Ynu[argmax]), 2*math.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) )
                 sin_rchisqr_list.append( self.reduced_chi_squared_of_fit(model=test_func) )
-                print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={sin_rchisqr_list[-1]}")
+                # for debugging fourier decomp
+                # print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={sin_rchisqr_list[-1]}")
 
             # should only do this if we find a minimum
             min_idx, min_val = np.argmin(sin_rchisqr_list[1:-1]), min(sin_rchisqr_list[1:-1])  # don't look at endpoints
@@ -798,12 +828,15 @@ class Optimizer:
                     # we found a minimum
                     best_freq = pos_nu[argmax]+delta_nu*(list_idx-3)/3
                     best_rchisqr = min_val
-                    print(f"Found sin minimum with {best_freq*2*math.pi} {best_rchisqr=}")
+                    # for debugging fourier decomp
+                    # print(f"Found sin minimum with {best_freq*2*math.pi} {best_rchisqr=}")
                 else :
                     best_freq = pos_nu[argmax]
                     best_rchisqr = min_val
-                    print(f"NO  SIN  MINIMUM   so {best_freq=} {best_rchisqr=}")
-                print(f"Best sin omega is {2*math.pi*best_freq} with {best_rchisqr=} at idx {list_idx}")
+                    # for debugging fourier decomp
+                    # print(f"NO  SIN  MINIMUM   so {best_freq=} {best_rchisqr=}")
+                # for debugging fourier decomp
+                # print(f"Best sin omega is {2*math.pi*best_freq} with {best_rchisqr=} at idx {list_idx}")
 
             # now with cosine
             test_func = CompositeFunction(func=PrimitiveFunction.built_in("cos"),
@@ -812,7 +845,8 @@ class Optimizer:
             for i in range(7):
                 test_func.set_args( 2*np.abs(pos_Ynu[argmax]), 2*math.pi*(pos_nu[argmax] + delta_nu*(i-3) / 3) )
                 cos_rchisqr_list.append(self.reduced_chi_squared_of_fit(model=test_func))
-                print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={cos_rchisqr_list[-1]}")
+                # for debugging fourier decomp
+                # print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={cos_rchisqr_list[-1]}")
 
             # should only do this if we find a minimum
             min_idx, min_val = np.argmin(cos_rchisqr_list[1:-1]), min(cos_rchisqr_list[1:-1])  # don't look at endpoints
@@ -823,15 +857,21 @@ class Optimizer:
                     # we found a minimum
                     best_freq = pos_nu[argmax] + delta_nu*(list_idx-3)/3
                     best_rchisqr = min_val
-                    print(f"Found cos minimum with {best_freq*2*math.pi} {best_rchisqr=}")
+                    # for debugging fourier decomp
+                    # print(f"Found cos minimum with {best_freq*2*math.pi} {best_rchisqr=}")
                 else:
                     best_freq = pos_nu[argmax]
                     best_rchisqr = min_val
-                    print(f"NO  COS  MINIMUM   so {best_freq=} {best_rchisqr=}")
-                print(f"So better fit is cos where omega is {2*math.pi*best_freq} with {best_rchisqr=}")
+                    # for debugging fourier decomp
+                    # print(f"NO  COS  MINIMUM   so {best_freq=} {best_rchisqr=}")
+                # for debugging fourier decomp
+                # print(f"So better fit is cos where omega is {2*math.pi*best_freq} with {best_rchisqr=}")
             else :
-                print("Nothing better in cosine")
-            print(" ")
+                pass
+                # for debugging fourier decomp
+                # print("Nothing better in cosine")
+            # for debugging fourier decomp
+            # print(" ")
 
             if is_sin :
                 # print(f"Adding {best_freq} to sin")
