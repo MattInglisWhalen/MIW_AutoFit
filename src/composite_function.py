@@ -41,6 +41,8 @@ class CompositeFunction:
     """
     This class represents the nodes of the tree. A node with no children is just a wrapper for a primitive function, 
     while a node with no parent is the function tree as a whole.
+    
+    Testing coalescence
     """
 
     """
