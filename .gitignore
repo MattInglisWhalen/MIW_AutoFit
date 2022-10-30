@@ -1,0 +1,4 @@
+dist/
+autofit.egg-info/
+*.spec
+__pycache__/
