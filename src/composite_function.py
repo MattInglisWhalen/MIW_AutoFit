@@ -53,36 +53,33 @@ class CompositeFunction:
 
 
     def __init__(self,
-                 func: PrimitiveFunction = None,
+                 prim: PrimitiveFunction = None,
                  parent : CompositeFunction = None,
-                 name: str = "",
                  branch_list = None,
+                 name: str = "",
                  args: list[float] = None):
 
-        if branch_list is None :
-            branch_list = []
-
         # the head function which takes as argument the output of all branches
-        if func is None :
+        if prim is None :
             self._prim_of_this_node : PrimitiveFunction = PrimitiveFunction.built_in("pow1").copy()
-            if name == "" and len(branch_list) > 1:
-                name = "sum"
         else:
-            self._prim_of_this_node : PrimitiveFunction = func.copy()
+            self._prim_of_this_node : PrimitiveFunction = prim.copy()
 
         # parent node
         self._parent : CompositeFunction = parent
+        if parent is None:
+            self._head_arg : float = 1.
 
-        # children_list should nominally be a list of terms (branches),
+        # the tree constitutes a list of terms (branches),
         # with each branch containing a list of factors (leaves)
         self._branch_list : list[list[CompositeFunction]] = []
-        if branch_list is not None :
-            for branch in branch_list :
-                self.add_branch(branch, update_name=False)
-            if len(self._branch_list) == 1 and len(self._branch_list[0]) > 1 :
-                name = "prod"
+        if branch_list is None :
+            branch_list = []
+        for branch in branch_list :
+            self.add_branch(branch, update_name=False)
 
         # short name of the function
+        self._name = ""
         if name != "" :
             self._name = name
         else:
@@ -94,11 +91,11 @@ class CompositeFunction:
         # in constrast, non-holonomic constraint (_nh_constraint) don't reduce dof
         self._nh_constraints: (int, Callable[[float], float], int) = []
 
-        # the arguments/parameters of each term: one for the head function and one for each term
-        if args is None or len(args) != self.calculate_degrees_of_freedom() :
-            self._args = [1 for _ in range(self.dof)]
+        # the constant in front of each term
+        if len(args) != len(self._branch_list) :
+            self._args : list[float] = [1 for _ in range(len(self._branch_list)+1)]
         else :
-            self._args = args
+            self._args : list[float] = args
 
 
 
@@ -106,10 +103,65 @@ class CompositeFunction:
         return f"Composite {self._name} w/ {self.dof} dof"
 
     """
+    Properties for class variables
+    """
+
+    @property
+    def name(self) -> str:
+        return self._name
+    @name.setter
+    def name(self, val):
+        self._name = val
+
+    @property
+    def prim(self) -> PrimitiveFunction:
+        return self._prim_of_this_node
+    @prim.setter
+    def prim(self, other: PrimitiveFunction):
+        self._prim_of_this_node = other
+
+    @property
+    def prim_func(self) -> Callable[[float],float]:
+        return self._prim_of_this_node.func
+    @prim_func.setter
+    def prim_func(self, other: Callable[[float],float]):
+        self._prim_of_this_node.func = other
+
+    @property
+    def dof(self) -> int:
+        return self.calculate_degrees_of_freedom()
+    @property
+    def args(self) -> list[float]:
+        return self._args
+    @args.setter
+    def args(self, args_list) :
+        self._args = args_list
+
+    @property
+    def parent(self) -> CompositeFunction:
+        return self._parent
+    @property
+    def branch_list(self) -> list[list[CompositeFunction]]:
+        return self._branch_list
+
+    def branch(self, idx) -> list[CompositeFunction]:
+        return self._branch_list[idx]
+    def branch_leaf(self, idx_b, idx_l) -> CompositeFunction:
+        return (self._branch_list[idx_b])[idx_l]
+
+    @property
+    def leaf_list(self) -> list[CompositeFunction]:
+        leaves = []
+        for branch in self._branch_list :
+            leaves.extend([ leaf for leaf in branch])
+        return leaves
+
+
+    """
     For __init__
     """
 
-    def add_branch(self, branch_to_add: Union[CompositeFunction,list[CompositeFunction]], update_name = True):
+    def add_branch(self, branch_to_add: Union[CompositeFunction,list[CompositeFunction]], update_name = True) -> None:
         # branch could either be a single Composite or a list of Composites -- hooray for duck-typing!
         factors = []
         if isinstance(branch_to_add, list) :
@@ -123,25 +175,25 @@ class CompositeFunction:
         if update_name:
             self.build_name()
 
-    def add_leaf_to_branch(self, branch: list[CompositeFunction], leaf: Union[CompositeFunction,PrimitiveFunction]):
+    def add_leaf_to_branch(self, branch: list[CompositeFunction],
+                                 leaf: Union[CompositeFunction,PrimitiveFunction]) -> None:
         new_leaf = leaf.copy()
         if isinstance(new_leaf, PrimitiveFunction):  # have to convert it to a Composite
-            prim_as_comp = CompositeFunction(func=new_leaf, parent=self)
+            prim_as_comp = CompositeFunction(prim=new_leaf, parent=self)
             branch.append(prim_as_comp)
         else :
             new_leaf._parent = self
             branch.append(new_leaf)
 
     @staticmethod
-    def term_name(term: list[CompositeFunction]):
-
+    def term_name(term: list[CompositeFunction]) -> str:
         name_str = ""
         factor_names = sorted([factor.name for factor in term])
         for name in factor_names:
             name_str += f"{name}·"
         return name_str[:-1]
 
-    def build_name(self):
+    def build_name(self) -> None:
 
         name_str = ""
         name_str += f"{self._prim_of_this_node.name}("
@@ -156,23 +208,23 @@ class CompositeFunction:
         if self._parent is not None:
             self._parent.build_name()
 
-    def add_constraint(self, constraint_3tuple: (int, Callable[[float],float], float)):
+    def add_constraint(self, constraint_3tuple: (int, Callable[[float],float], float)) -> None:
         self._constraints.append(constraint_3tuple)
-    def add_non_holonomic_constraint(self, constraint_3tuple: (int, Callable[[float],float], float)):
+    def add_non_holonomic_constraint(self, constraint_3tuple: (int, Callable[[float],float], float)) -> None:
         self._nh_constraints.append(constraint_3tuple)
 
     """
     Information about this function
     """
 
-    def num_nodes(self):
+    def num_nodes(self) -> int:
         nodes = 1  # for self
         for branch in self._branch_list:
             for leaf in branch :
                 nodes += leaf.num_nodes()
         return nodes
 
-    def calculate_degrees_of_freedom(self):
+    def calculate_degrees_of_freedom(self) -> int:
 
         # one for the func_of_this_node and one for each term/branch
 
@@ -188,8 +240,9 @@ class CompositeFunction:
 
         if self._name[0:3] in ["pow","sum","pro"] and len(self._branch_list) > 0:
             # powers are special: they lose a degree of freedom if they have children
-            # e.g. pow: A( B cos(x) )^2 == A B^2 cos^2(x) == C cos^2(x). We keep the outer one as free,
-            # and the first parameter in the composition is set to unity
+            # e.g. pow: A( B cos(x) )^2 == A B^2 cos^2(x) == C cos^2(x). We keep the inner one as free,
+            # and the outer parameter of the composition is set to unity, e.g. here A=1 and B free
+            # N.B. this helps precision in the case that the inner composition has a large heierarchy of component sizes
             num_dof -= 1
 
         return num_dof - len(self._constraints)
@@ -216,7 +269,7 @@ class CompositeFunction:
     def tree_as_string_with_args(self, buffer_chars=0):
         buff_num = 19
         head_name = self._name.split('(')[0]
-        tree_str = f"{self.arg[0]:+.2E}{head_name[:10] : <10}"
+        tree_str = f"{self.args[0]:+.2E}{head_name[:10] : <10}"
         for idx, branch in enumerate(self._branch_list) :
             for jdx, leaf in enumerate(branch) :
                 if idx > 0 and jdx > 0:
@@ -269,7 +322,7 @@ class CompositeFunction:
                 it += leaf.num_nodes()
 
     def copy(self):
-        new_comp = CompositeFunction(func=self.func.copy(),
+        new_comp = CompositeFunction(prim=self.prim.copy(),
                                      parent=None,
                                      name=self.name,
                                      args=self._args.copy())
@@ -305,7 +358,7 @@ class CompositeFunction:
     """
 
     def has_double_trigness(self):
-        if "sin" in self.func.name or "cos" in self.func.name :
+        if "sin" in self.prim.name or "cos" in self.prim.name :
             if self.has_trig_children() :
                 return True
         for child in self.leaf_list :
@@ -321,82 +374,46 @@ class CompositeFunction:
         return self.name.count("my_sin")
 
     def has_double_expness(self):
-        if "exp" in self.func.name :
+        if "exp" in self.prim.name :
             if self.has_exp_children() :
                 return True
-        for child in self._children_list :
+        for child in self.leaf_list :
             if child.has_double_expness():
                 return True
         return False
     def has_double_logness(self):
-        if "log" in self.func.name :
+        if "log" in self.prim.name :
             if self.has_log_children() :
                 return True
-        for child in self._children_list :
+        for child in self.leaf_list :
             if child.has_double_logness():
                 return True
         return False
 
     def has_trig_children(self):
-        for child in self._children_list :
-            if "sin" in child.func.name or "cos" in child.func.name or child.has_trig_children() :
+        for child in self.leaf_list :
+            if "sin" in child.prim.name or "cos" in child.prim.name or child.has_trig_children() :
                 return True
         return False
     def has_exp_children(self):
-        for child in self._children_list :
-            if "exp" in child.func.name or child.has_exp_children() :
+        for child in self.leaf_list :
+            if "exp" in child.prim.name or child.has_exp_children() :
                 return True
         return False
     def has_log_children(self):
-        for child in self._children_list :
-            if "log" in child.func.name or child.has_log_children() :
+        for child in self.leaf_list :
+            if "log" in child.prim.name or child.has_log_children() :
                 return True
         return False
 
-    def num_children(self):
-        return len(self._children_list)
+    def num_branches(self):
+        return len(self._branch_list)
+    def num_leaves(self):
+        count = 0
+        for branch in self._branch_list:
+            count += len(branch)
+        return count
 
-
-    """
-    Properties
-    """
-
-    @property
-    def name(self) -> str:
-        return self._name
-    @name.setter
-    def name(self, val):
-        self._name = val
-
-    @property
-    def func(self) -> PrimitiveFunction:
-        return self._prim_of_this_node
-    @func.setter
-    def func(self, other: Callable[[float],float]):
-        self._prim_of_this_node = other
-
-    @property
-    def dof(self) -> int:
-        return self.calculate_degrees_of_freedom()
-    @property
-    def args(self) -> list[float]:
-        return self._args
-    @args.setter
-    def args(self, args_list) :
-        self._args = args_list
-
-    @property
-    def parent(self) -> CompositeFunction:
-        return self._parent
-    @property
-    def branch_list(self) -> list[list[CompositeFunction]]:
-        return self._branch_list
-    @property
-    def leaf_list(self) -> list[CompositeFunction]:
-        leaves = []
-        for branch in self._branch_list :
-            leaves.extend([ leaf for leaf in branch])
-        return leaves
 
     """
     Evaluation
@@ -410,6 +427,7 @@ class CompositeFunction:
             LX = np.log(x/X0)
             x = LX
 
+        hello = self._branch_list
         if len(self._branch_list) == 0 :
             if Y0 :
                 LY = self.args[0]*self._prim_of_this_node.eval_at(x)
@@ -422,13 +440,14 @@ class CompositeFunction:
         children_eval_to = 0
 
         for ibranch, branch in enumerate(self._branch_list) :
-            branch_evals_to = self.arg[ibranch+1]
+            branch_eval = self.args[ibranch+1]
             for leaf in branch :
-                branch_evals_to *= leaf.eval_at(x)
-            children_eval_to += child.eval_at(x)
+                branch_eval *= leaf.eval_at(x)
+            children_eval_to += branch_eval
+
         if Y0 :
             # print(f"{Y0=}")
-            # the model is working with LY as the dependent variable, but we're expecting to return x
+            # the model is working with LY as the dependent variable, but we're expecting to return y
             LY = self._prim_of_this_node.eval_at(children_eval_to)
             y = Y0*np.exp(LY)
         else:
@@ -448,6 +467,10 @@ class CompositeFunction:
     Get and sets for term arguments
     """
 
+    def set_dof_args(self, *args):
+        pass
+
+    # takes in the
     def set_args(self, *args):
 
         print(f"In {self._name=} set_args to {args=}")
@@ -475,6 +498,9 @@ class CompositeFunction:
             next_dof = child.dof
             child.set_args( *args_as_list[it:it+next_dof] )
             it += next_dof
+
+    def get_dof_args(self, skip_flag=0):
+        pass
 
     def get_args(self, skip_flag=0):  # this needs to be massively rewritten if we add multiplication functionality
         # get all arguments normally, then pop off the ones with constraints once we get to the head
@@ -584,16 +610,16 @@ class CompositeFunction:
         built_ins = {}
 
         # linear model: m, b as parameters (roughly)
-        linear = CompositeFunction(func=PrimitiveFunction.built_in("pow1"),
+        linear = CompositeFunction(prim=PrimitiveFunction.built_in("pow1"),
                                    children_list=[PrimitiveFunction.built_in("pow1"),PrimitiveFunction.built_in("pow0")],
                                    name = "Linear Model")
 
         # Gaussian: A, mu, sigma as parameters (roughly)
-        gaussian_inner_negativequadratic = CompositeFunction(func=PrimitiveFunction.built_in("pow2_force_neg_arg"),
+        gaussian_inner_negativequadratic = CompositeFunction(prim=PrimitiveFunction.built_in("pow2_force_neg_arg"),
                                                              children_list=[PrimitiveFunction.built_in("pow1"),
                                                                             PrimitiveFunction.built_in("pow0")]
-                                                            )
-        gaussian = CompositeFunction(func=PrimitiveFunction.built_in("exp"),
+                                                             )
+        gaussian = CompositeFunction(prim=PrimitiveFunction.built_in("exp"),
                                      children_list=[gaussian_inner_negativequadratic],
                                      name = "Gaussian")
 
@@ -604,11 +630,11 @@ class CompositeFunction:
 
         # Sigmoid H/(1 + exp(-w(x-x0)) ) + F
         # aka F[ 1 + h/( 1+Bexp(-wx) ) ]
-        exp_part = CompositeFunction(func=PrimitiveFunction.built_in("exp"),
+        exp_part = CompositeFunction(prim=PrimitiveFunction.built_in("exp"),
                                      children_list=[PrimitiveFunction.built_in("pow1")])
-        inv_part = CompositeFunction(func=PrimitiveFunction.built_in("pow_neg1_force_pos_arg"),
+        inv_part = CompositeFunction(prim=PrimitiveFunction.built_in("pow_neg1_force_pos_arg"),
                                      children_list=[PrimitiveFunction.built_in("pow0"),exp_part])
-        sigmoid = CompositeFunction(func=PrimitiveFunction.built_in("pow1"),
+        sigmoid = CompositeFunction(prim=PrimitiveFunction.built_in("pow1"),
                                     children_list=[PrimitiveFunction.built_in("pow0"),inv_part],
                                     name="Sigmoid")
 
@@ -636,7 +662,7 @@ class CompositeFunction:
         if self._parent is None:
             return -self.dimension_func
         # else
-        if self._parent.func.name[:3] == "pow" :
+        if self._parent.prim.name[:3] == "pow" :
             if self == self._parent.children_list[0] :
                 return 0
             # else
@@ -686,17 +712,17 @@ class CompositeFunction:
 
 def test_composite_functions():
 
-    cos_sqr =  CompositeFunction(func=PrimitiveFunction.built_in("pow2"),
-                                  children_list=[PrimitiveFunction.built_in("cos")],
-                                  name="cos_sqr")
-    inv_lin_cos_sqr = CompositeFunction(func=PrimitiveFunction.built_in("pow_neg1"),
+    cos_sqr =  CompositeFunction(prim=PrimitiveFunction.built_in("pow2"),
+                                 children_list=[PrimitiveFunction.built_in("cos")],
+                                 name="cos_sqr")
+    inv_lin_cos_sqr = CompositeFunction(prim=PrimitiveFunction.built_in("pow_neg1"),
                                         children_list=[PrimitiveFunction.built_in("pow2"),
                                                        PrimitiveFunction.built_in("pow1")],
                                         name="inv_lin_cos_sqr")
     inv_lin_cos_sqr.print_tree()
     print(inv_lin_cos_sqr.tree_as_string_with_dimensions())
 
-    test_comp = CompositeFunction(func=PrimitiveFunction.built_in("pow1"),
+    test_comp = CompositeFunction(prim=PrimitiveFunction.built_in("pow1"),
                                   children_list=[PrimitiveFunction.built_in("pow0"),
                                                  PrimitiveFunction.built_in("pow1")],
                                   name="TestMeNow")
@@ -708,9 +734,9 @@ def test_composite_functions():
     print(value)
     print(test_comp.dimension_func, test_comp.dimension_arg )
 
-    test_comp2 = CompositeFunction(func=PrimitiveFunction.built_in("pow2"),
-                                    children_list=[test_comp,test_comp,test_comp],
-                                    name="TestMeNowBaby")
+    test_comp2 = CompositeFunction(prim=PrimitiveFunction.built_in("pow2"),
+                                   children_list=[test_comp,test_comp,test_comp],
+                                   name="TestMeNowBaby")
     test_comp2.print_tree()
     value2 = test_comp2.eval_at(1)
     print(value2)

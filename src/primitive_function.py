@@ -15,8 +15,7 @@ class PrimitiveFunction:
     Instance variables
 
     _name : string
-    _func : a callable function with the form f(x, arg), e.g. A*x^2
-    _arg  : the argument for the function
+    _func : a callable function with the form f(x), e.g. x^2
     _deriv : another PrimitiveFunction which is the derivative of self.
                     If left as None, it will be found numerically when required
 
@@ -31,14 +30,14 @@ class PrimitiveFunction:
     def __init__(self, func : Callable[[float],float] = None, name : str = "" ):
 
         if func is None :
-            self._func = PrimitiveFunction.pow1
+            self._func : Callable[[float],float] = PrimitiveFunction.pow1
         else :
             self._func : Callable[[float],float] = func  # valid functions must all be of the type f(x,arg)
 
         if name == "" :
-            self._name = self._func.__name__
+            self._name : str = self._func.__name__
         else :
-            self._name: str = name
+            self._name : str = name
 
 
 
@@ -50,7 +49,7 @@ class PrimitiveFunction:
     """
 
     @property
-    def name(self):
+    def name(self) -> str:
         # Try to keep names less than 10 characters, so a composite function's tree looks good
         return self._name
     @name.setter
@@ -58,19 +57,19 @@ class PrimitiveFunction:
         self._name = val
 
     @property
-    def func(self):
+    def func(self) -> Callable[[float],float]:
         return self._func
     @func.setter
-    def func(self, other):
+    def func(self, other: Callable[[float],float]):
         self._func = other
 
-    def eval_at(self,x):
+    def eval_at(self,x) -> float:
         return self._func(x)
-    def eval_deriv_at(self,x):
+    def eval_deriv_at(self,x) -> float:
         delta = 1e-5
         return (self.eval_at(x+delta) - self.eval_at(x-delta) ) / (2*delta)
 
-    def copy(self):
+    def copy(self) -> PrimitiveFunction:
         new_prim = PrimitiveFunction(name=self._name, func=self._func)
         return new_prim
 
@@ -80,7 +79,7 @@ class PrimitiveFunction:
 
     # positives
     @staticmethod
-    def pow_neg1(x):
+    def pow_neg1(x) -> float:
         try:
             return 1/x
         except ZeroDivisionError :
@@ -88,35 +87,35 @@ class PrimitiveFunction:
             return 1e10
     # noinspection PyUnusedLocal
     @staticmethod
-    def pow0(x):
+    def pow0(x) -> float:
         return 1
     @staticmethod
-    def pow1(x):
+    def pow1(x) -> float:
         return x
     @staticmethod
-    def pow2(x):
+    def pow2(x) -> float:
         return x*x
     @staticmethod
-    def pow3(x):
+    def pow3(x) -> float:
         return x*x*x
     @staticmethod
-    def pow4(x):
+    def pow4(x) -> float:
         return x*x*x*x
     @staticmethod
-    def my_sin(x):
+    def my_sin(x) -> float:
         return np.sin(x)
     @staticmethod
-    def my_cos(x):
+    def my_cos(x) -> float:
         return np.cos(x)
     @staticmethod
-    def my_exp(x):
+    def my_exp(x) -> float:
         try :
             return np.exp(x)
         except RuntimeWarning :
             print(f"my_exp: {x} is large")
             return 1e10
     @staticmethod
-    def my_log(x):
+    def my_log(x) -> float:
         try :
             return np.log(x*x)/2  # controversial choice
         except RuntimeWarning :
@@ -130,7 +129,7 @@ class PrimitiveFunction:
 
 
     @staticmethod
-    def build_built_in_dict():
+    def build_built_in_dict() -> dict[str,PrimitiveFunction]:
 
         # Powers
         prim_pow0 = PrimitiveFunction(func=PrimitiveFunction.pow0 )
@@ -164,7 +163,7 @@ class PrimitiveFunction:
         return PrimitiveFunction._built_in_prims_dict
 
     @staticmethod
-    def built_in_list():
+    def built_in_list() -> list[PrimitiveFunction]:
         built_ins = []
         if not PrimitiveFunction._built_in_prims_dict :
             PrimitiveFunction.build_built_in_dict()
@@ -173,26 +172,12 @@ class PrimitiveFunction:
         return built_ins
 
     @staticmethod
-    def built_in_dict():
+    def built_in_dict() -> dict[str,PrimitiveFunction]:
         return PrimitiveFunction._built_in_prims_dict
 
     @staticmethod
-    def built_in(key):
+    def built_in(key) -> PrimitiveFunction:
         if not PrimitiveFunction._built_in_prims_dict :
             PrimitiveFunction.build_built_in_dict()
         return PrimitiveFunction._built_in_prims_dict[key]
-
-
-
-
-def test_primitive_functions():
-
-    built_ins = PrimitiveFunction.built_in_list()
-    for prim in built_ins:
-        print(f"{prim.name}: {prim.eval(0.1)}")
-
-
-if __name__ == "__main__" :
-
-    test_primitive_functions()
 

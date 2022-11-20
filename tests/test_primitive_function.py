@@ -28,9 +28,9 @@ def test_prim_init():
     assertRelativelyEqual( default_prim.eval_deriv_at(0.1), 1. )
 
     # with name and function specified
-    test_prim = PrimitiveFunction(name="test_func", func=PrimitiveFunction.built_in("cos"))
-    assert test_prim.name is "test_func"
-    assert test_prim.func is PrimitiveFunction.built_in("cos")
+    test_prim = PrimitiveFunction(name="test_func", func=PrimitiveFunction.my_cos)
+    assert test_prim.name == "test_func"
+    assert test_prim.func is PrimitiveFunction.my_cos
 
 
 def test_prim_builtins():
