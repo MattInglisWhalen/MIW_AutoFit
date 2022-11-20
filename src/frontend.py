@@ -2270,15 +2270,15 @@ class Frontend:
 
         print( inner, middle, outer )
 
-        test_comp = CompositeFunction(func=PrimitiveFunction.built_in("cos"),
+        test_comp = CompositeFunction(prim=PrimitiveFunction.built_in("cos"),
                                       children_list=[PrimitiveFunction.built_in("pow0"),
                                                      PrimitiveFunction.built_in("pow1")],
                                       name = "first_product")
 
         print(test_comp.name)
 
-        func1 = CompositeFunction(func=PrimitiveFunction.built_in("pow1"))
-        func2 = CompositeFunction(func=PrimitiveFunction.built_in("exp"),
+        func1 = CompositeFunction(prim=PrimitiveFunction.built_in("pow1"))
+        func2 = CompositeFunction(prim=PrimitiveFunction.built_in("exp"),
                                   children_list=[PrimitiveFunction.built_in("pow1")])
         func2.set_args(*[1,-1])
 

@@ -200,7 +200,7 @@ class Optimizer:
 
         if depth <= 1 :
             for iprim in self._primitive_function_list:
-                new_comp = CompositeFunction(func=iprim)
+                new_comp = CompositeFunction(prim=iprim)
                 yield new_comp
 
         else :
@@ -235,7 +235,7 @@ class Optimizer:
         # start with simple primitives
         self._composite_function_list = []
         for iprim in self._primitive_function_list:
-            new_comp = CompositeFunction(func=iprim)
+            new_comp = CompositeFunction(prim=iprim)
             self._composite_function_list.append(new_comp)
 
         for _ in range(self._max_functions - 1) :
@@ -811,7 +811,7 @@ class Optimizer:
             # note that tested frequencies can overlap from one argmax to the next
 
             # first with sine
-            test_func = CompositeFunction(func=PrimitiveFunction.built_in("sin"),
+            test_func = CompositeFunction(prim=PrimitiveFunction.built_in("sin"),
                                           children_list=[PrimitiveFunction.built_in("pow1")])
             sin_rchisqr_list = []
             for i in range(7) :
@@ -839,7 +839,7 @@ class Optimizer:
                 # print(f"Best sin omega is {2*math.pi*best_freq} with {best_rchisqr=} at idx {list_idx}")
 
             # now with cosine
-            test_func = CompositeFunction(func=PrimitiveFunction.built_in("cos"),
+            test_func = CompositeFunction(prim=PrimitiveFunction.built_in("cos"),
                                           children_list=[PrimitiveFunction.built_in("pow1")])
             cos_rchisqr_list = []
             for i in range(7):
@@ -969,7 +969,7 @@ class Optimizer:
 
         # use knowledge of scaling to guess parameter sizes from the characteristic sizes in the data
         charY = (max([datum.val for datum in self._data]) - min([datum.val for datum in self._data])) / 2
-        if composite.func.name == "pow0" :
+        if composite.prim.name == "pow0" :
             # this typically represents a shift, so the average X is more important than the range of x-values
             charX = ( max( [datum.pos for datum in self._data] ) + min( [datum.pos for datum in self._data] ) ) / 2
         else :
@@ -983,7 +983,7 @@ class Optimizer:
         if composite.parent is None :
             # function of this node A*func(x) should scale like y
             ymul = charY
-        elif composite.parent.func.name == "my_cos" :
+        elif composite.parent.prim.name == "my_cos" :
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / 1e-5
             if abs(slope_at_zero) > 1e-5 :
                 if len(self._cos_freq_list_dup) > 0 :
@@ -998,7 +998,7 @@ class Optimizer:
                         print(self._cos_freq_list_dup)
                         print(self._cos_freq_list)
                         raise SystemExit
-        elif composite.parent.func.name == "my_sin" :
+        elif composite.parent.prim.name == "my_sin" :
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / 1e-5
             if abs(slope_at_zero) > 1e-5 :
                 if len(self._sin_freq_list_dup) > 0 :
@@ -1007,7 +1007,7 @@ class Optimizer:
                 else:  # misassigned cosine frequency
                     xmul = ( 2*math.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
 
-        composite.func.arg = xmul * ymul
+        composite.prim.arg = xmul * ymul
 
         return composite.get_args()
 
@@ -1151,7 +1151,6 @@ class Optimizer:
         print("Using smoothed data")
         raise RuntimeError
 
-        data_to_smooth = []
         return_data = []
         if n <= 1 :
             data_to_smooth = self._averaged_data
@@ -1305,6 +1304,7 @@ class Optimizer:
     def unload_pow4_function(self):
         self._primitive_function_list.remove( PrimitiveFunction.built_in("pow4") )
 
+    # TODO:
     def load_custom_functions(self):
         pass
     def unload_custom_functions(self):
