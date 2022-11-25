@@ -8,4 +8,3 @@ def start_autofit():
 if __name__ == "__main__":
 
     start_autofit()
-    

@@ -2,6 +2,11 @@
 import math
 from dataclasses import field
 from math import floor
+import sys
+import os as os
+import re as regex
+
+from time import perf_counter
 
 # external libraries
 import tkinter as tk
@@ -16,15 +21,19 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import scipy.stats
 from PIL import ImageTk, Image
-import os as os
-import re as regex
+
 
 # internal classes
 from autofit.src.composite_function import CompositeFunction
 from autofit.src.data_handler import DataHandler
 from autofit.src.optimizer import Optimizer
 
-import sys
+
+# for testing only
+
+from autofit.src.primitive_function import PrimitiveFunction
+xsuite = [-100 ,-10 ,-0.1 ,-0.001 ,-1e-8 ,1e-8 ,0.001 ,0.1 ,10 ,100 ,
+          -100j,-10j,-0.1j,-0.001j,-1e-8j,1e-8j,0.001j,0.1j,10j,100j]
 
 
 class Frontend:
@@ -85,7 +94,7 @@ class Frontend:
         self._brute_forcing = tk.BooleanVar(value=False)
 
         # defaults config
-        self._default_fit_type = None
+        self._default_fit_type = "linear"
         self._default_excel_x_range = None
         self._default_excel_y_range = None
         self._default_excel_sigmax_range = None
@@ -94,10 +103,14 @@ class Frontend:
         self._default_bg_colour = None
         self._default_dataaxes_colour = None
         self._default_fit_colour = None
+        self._default_os_scaling = 1
         # checkboxes default
-        self.touch_defaults()
+        # self.touch_defaults()
         self.load_defaults()
         self.print_defaults()
+
+        # Fix OS scaling
+        self._gui.tk.call('tk','scaling',self._default_os_scaling)
 
         # load in splash screen
         self.load_splash_screen()
@@ -122,6 +135,11 @@ class Frontend:
                     if arg == "" or arg[0] == "#":
                         arg = "linear"
                     self._default_fit_type = arg
+                if "#PROCEDURAL_DEPTH" in line :
+                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "3"
+                    self._max_functions_tkInt.set(arg)
                 elif "#EXCEL_RANGE_X" in line :
                     arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
@@ -225,6 +243,11 @@ class Frontend:
                     if arg == "" or arg[0] == "#":
                         arg = "0"
                     self._use_func_dict_name_tkVar["custom"].set(bool(int(arg)))
+                elif "#OS_SCALING" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = 1.
+                    self._default_os_scaling = max(float(arg),0.1)
 
 
     def save_defaults(self):
@@ -233,6 +256,7 @@ class Frontend:
             return
         with open(f"{self.get_package_path()}/frontend.cfg",'w') as file :
             file.write(f"#FIT_TYPE {self._default_fit_type}\n")
+            file.write(f"#PROCEDURAL_DEPTH {self.max_functions()}\n")
             file.write(f"#EXCEL_RANGE_X {self._default_excel_x_range}\n")
             file.write(f"#EXCEL_RANGE_Y {self._default_excel_y_range}\n")
             file.write(f"#EXCEL_RANGE_SIGMA_X {self._default_excel_sigmax_range}\n")
@@ -262,9 +286,11 @@ class Frontend:
             file.write(f"#POW3_ON {pow3_on}\n")
             file.write(f"#POW4_ON {pow4_on}\n")
             file.write(f"#CUSTOM_ON {custom_on}\n")
+            file.write(f"#OS_SCALING {self._default_os_scaling}")
 
     def print_defaults(self):
         print(f"Fit-type >{self._default_fit_type}<")
+        print(f"Procedural depth >{self.max_functions()}<")
         print(f"Excel X-Range >{self._default_excel_x_range}<")
         print(f"Excel Y-Range >{self._default_excel_y_range}<")
         print(f"Excel SigmaX-Range >{self._default_excel_sigmax_range}<")
@@ -291,6 +317,7 @@ class Frontend:
         print(f"Procedural x\U000000B3 >{pow3_on}<")
         print(f"Procedural x\U00002074 >{pow4_on}<")
         print(f"Procedural custom >{custom_on}<")
+        print(f"OS Scaling >{self._default_os_scaling}<")
 
 
     # create left, right, and middle panels
@@ -320,6 +347,8 @@ class Frontend:
 
         # right panel -- text output
         self.create_right_panel()
+
+        self.perform_tests()
 
     """
     
@@ -354,11 +383,15 @@ class Frontend:
         fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
         fit_colour_menu.add_command(label="White", command=self.fit_color_white)
         fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
+        gui_resolution_menu = tk.Menu(master=preferences_menu, tearoff=0)
+        gui_resolution_menu.add_command(label="Up", command=self.resolution_up)
+        gui_resolution_menu.add_command(label="Down", command=self.resolution_down)
 
         file_menu.add_cascade(label="Settings",menu=preferences_menu)
         preferences_menu.add_cascade(label="Background Colour", menu=background_menu)
         preferences_menu.add_cascade(label="Data/Axis Colour", menu=dataaxis_menu)
         preferences_menu.add_cascade(label="Fit Colour", menu=fit_colour_menu)
+        preferences_menu.add_cascade(label="GUI resolution", menu=gui_resolution_menu)
         preferences_menu.add_command(label="Hello")
 
         # File
@@ -472,6 +505,16 @@ class Frontend:
         if self._new_user_stage % 2 != 0 and len(self._filepaths) > 0 :
             self.create_fit_button()
             self._new_user_stage *= 2
+
+        # add buttons to adjust fit options
+        if self._default_fit_type != "linear" and self._new_user_stage % 7 != 0 :
+            self._new_user_stage *= 7
+            self.create_function_dropdown()
+        # checkbox and depth options for procedural fits
+        if self._model_name_tkvar.get() == "Procedural" and self._new_user_stage % 31 != 0 :
+            self.create_default_checkboxes()
+            self.create_depth_up_down_buttons()
+            self._new_user_stage *= 31
 
         if len(new_filepaths) > 0 :
             self._curr_image_num = len(self._data_handlers)
@@ -713,7 +756,7 @@ class Frontend:
         data = self.data_handler.data
         self._optimizer = Optimizer(data=data,
                                     use_functions_dict = self.use_functions_dict(),
-                                    max_functions=self.max_functions() )
+                                    max_functions=self.max_functions())
         plot_model = None
         if self._model_name_tkvar.get() == "Linear" :
             print("Fitting to linear model")
@@ -736,7 +779,7 @@ class Frontend:
             self._optimizer.parameters_and_uncertainties_from_fitting(plot_model,initial_guess=initial_guess)
         elif self._model_name_tkvar.get() == "Procedural":
             print("Fitting to procedural model")
-            # find fit button should now be find model
+            # TODO: find fit button should now be find model
             self._optimizer.find_best_model_for_dataset()
             plot_model = self._optimizer.best_model
             print(f"ACCs: {self._optimizer.top5_ACC}")
@@ -783,12 +826,13 @@ class Frontend:
             self.create_top5_dropdown()
             self._new_user_stage *= 29
 
-        # add status updates for brute-force fits
+        # checkbox and depth options for procedural fits
         if self._model_name_tkvar.get() == "Procedural" and self._new_user_stage % 31 != 0 :
             self.create_default_checkboxes()
             self.create_depth_up_down_buttons()
             self._new_user_stage *= 31
 
+        # add status updates for brute-force fits
         if self._model_name_tkvar.get() == "Brute-Force" :
             if self._new_user_stage % 37 != 0 :
                 self.create_pause_button()
@@ -2068,7 +2112,7 @@ class Frontend:
     def get_package_path():
 
         try:
-            return sys._MEIPASS
+            return sys._MEIPASS  # for pyinstaller
         except AttributeError:
             pass
             # print("It doesn't know about _MEIPASS")
@@ -2178,13 +2222,64 @@ class Frontend:
         self.update_image()
         self.save_defaults()
 
+    def resolution_up(self):
+        print("Increasing resolution")
+        self._default_os_scaling -= 0.1
+        self.restart_command()
+
+    def resolution_down(self):
+        print("Decreasing resolution")
+        self._default_os_scaling += 0.1
+        self.restart_command()
+
 
     def exist(self):
         self._gui.mainloop()
 
     def restart_command(self):
+        self.save_defaults()
         self._gui.destroy()
 
         new_frontend = Frontend()
         new_frontend.exist()
+
+
+
+
+
+
+
+
+
+
+
+    def perform_tests(self):
+
+        # print(f"{1+2j<0=}")
+        print(f"{np.real(1+2j)=} {np.imag(1+2j)=}")
+        print(f"{np.real(1)=} {np.imag(1)=}")
+
+        inner = np.sin(3 * np.pi / 2)
+        middle = PrimitiveFunction.built_in("log").eval_at(inner)
+        outer = PrimitiveFunction.built_in("exp").eval_at(middle)
+
+        print( inner, middle, outer )
+
+        test_comp = CompositeFunction(prim=PrimitiveFunction.built_in("cos"),
+                                      children_list=[PrimitiveFunction.built_in("pow0"),
+                                                     PrimitiveFunction.built_in("pow1")],
+                                      name = "first_product")
+
+        print(test_comp.name)
+
+        func1 = CompositeFunction(prim=PrimitiveFunction.built_in("pow1"))
+        func2 = CompositeFunction(prim=PrimitiveFunction.built_in("exp"),
+                                  children_list=[PrimitiveFunction.built_in("pow1")])
+        func2.set_args(*[1,-1])
+
+        prod = CompositeFunction.prod(func1, func2)
+
+        for xval in xsuite:
+            print(prod.eval_at(xval), xval * np.exp(-xval))
+
 
