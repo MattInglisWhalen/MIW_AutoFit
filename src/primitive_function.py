@@ -1,7 +1,9 @@
+from __future__ import annotations
 
 # built-in libraries
 import random as rng
 from dataclasses import field
+from typing import Callable, Union
 
 # external libraries
 import numpy as np
@@ -47,10 +49,10 @@ class PrimitiveFunction:
         return self._name
 
     @property
-    def f(self):
+    def func(self):
         return self._func
-    @f.setter
-    def f(self, other):
+    @func.setter
+    def func(self, other):
         self._func = other
 
     @property
@@ -208,20 +210,11 @@ class PrimitiveFunction:
             PrimitiveFunction.build_built_in_dict()
         return PrimitiveFunction._built_in_prims_dict[key]
 
+def do_new_things():
 
-
-
-def test_primitive_functions():
-
-    built_ins = PrimitiveFunction.built_in_list()
-    for prim in built_ins:
-        print(f"{prim.name}: {prim.eval(0.1)}")
+    pass
 
 
 if __name__ == "__main__" :
 
-    test_primitive_functions()
-    my_str = "abcdefghijk"
-    print( f"{my_str[:10]: <10} <--")
-    my_str = "abcd"
-    print( f"{my_str[:10]: <10} <--")
+    do_new_things()

@@ -6,9 +6,7 @@ from collections import defaultdict
 import codeop
 
 # external libraries
-import numpy
-import scipy.optimize
-from scipy.optimize import curve_fit, differential_evolution
+from scipy.optimize import curve_fit
 from scipy.fft import fft, fftshift, fftfreq
 import matplotlib.pyplot as plt
 import numpy as np
@@ -196,7 +194,7 @@ class Optimizer:
 
         if depth <= 1 :
             for iprim in self._primitive_function_list:
-                new_comp = CompositeFunction(func=iprim)
+                new_comp = CompositeFunction(prim_=iprim)
                 yield new_comp
 
         else :
@@ -208,6 +206,11 @@ class Optimizer:
                         new_comp.get_node_with_index(idescendent).add_child(iprim)
                         new_comp.build_name()
                         yield new_comp
+
+                        new_mul = icomp.copy()
+                        new_mul.get_node_with_index(idescendent).add_younger_brother(iprim)
+                        new_mul.build_name()
+                        yield new_mul
 
     def valid_composite_function_generator(self, depth):
 
@@ -231,7 +234,7 @@ class Optimizer:
         # start with simple primitives
         self._composite_function_list = []
         for iprim in self._primitive_function_list:
-            new_comp = CompositeFunction(func=iprim)
+            new_comp = CompositeFunction(prim_=iprim)
             self._composite_function_list.append(new_comp)
 
         for _ in range(self._max_functions-1) :
@@ -243,6 +246,11 @@ class Optimizer:
                         new_comp.get_node_with_index(idescendent).add_child(iprim)
                         new_comp.build_name()
                         new_list.append(new_comp)
+
+                        new_mul = icomp.copy()
+                        new_mul.get_node_with_index(idescendent).add_younger_brother(iprim)
+                        new_mul.build_name()
+                        new_list.append(new_mul)
             self._composite_function_list = new_list.copy()
 
         for comp in CompositeFunction.built_in_list():
@@ -294,7 +302,7 @@ class Optimizer:
             remove_flag = 3
 
         # composition of powers with no sum is wrong
-        if regex.search(f"pow[0-9]\(pow[a-z0-9_]*\)", name):
+        if regex.search(f"pow[0-9]\(pow[a-z0-9_·]*\)", name):
             remove_flag = 5
 
         # repeated reciprocal is wrong
@@ -322,7 +330,7 @@ class Optimizer:
         if regex.search(f"\+pow1\(", name):
             remove_flag = 19
 
-        # sum of the same function is wrong
+        # sum of the same function (without further composition) is wrong
         for prim_name in self._primitive_names_list:
             if regex.search(f"{prim_name}[a-z0-9_+]*{prim_name}", name):
                 remove_flag = 23
@@ -343,10 +351,10 @@ class Optimizer:
                 or regex.search(f"my_log\([a-z0-9_]*\)\+pow0", name):
             remove_flag = 37
 
-        # sins and cosines and exps and logs never have angular frequency or decay parameters exactly 1
+        # sins, cosines, exps, and logs never have angular frequency or decay parameters exactly 1
         # all unitless-argument functions start with my_
-        if regex.search(f"my_[a-z]*\+", name) or regex.search(f"my_[a-z]*\)", name):
-            if regex.search(f"my_exp\(my_log\)", name):
+        if regex.search(f"my_[a-z]*[+·)]", name):
+            if regex.search(f"my_exp\(my_log\)", name) :
                 # the one exception in order to get power laws
                 pass
             else:
@@ -356,7 +364,7 @@ class Optimizer:
         if regex.search(f"\(pow1\(", name) or regex.search(f"\+pow1\(", name):
             remove_flag = 47
 
-        # more more exp algebra: Alog( Bexp(Cx) ) = AlogB + ACx = pow0+pow1
+        # more more exp algebra: Alog( Bexp(Cx) ) = AlogB + ACx = pow1(pow0+pow1)
         if regex.search(f"my_log\(my_exp\(pow1\)\)", name):
             remove_flag = 53
 
@@ -372,10 +380,10 @@ class Optimizer:
             remove_flag = 67
 
         # exp(pow0+...) is just exp(...)
-        if regex.search(f"my_exp\(pow0", name) or regex.search(f"my_exp\([a-z0-9_+]*pow0", name):
+        if regex.search(f"my_exp\(pow0", name) or regex.search(f"my_exp\([a-z0-9_+·]*pow0", name):
             remove_flag = 71
 
-        # log(1/f+g) of log( (f+g)^n )is the same as log(f+g)
+        # log(1/f+g) or log( (f+g)^n )is the same as log(f+g)
         if regex.search(f"my_log\(pow[a-z0-9_]*\([a-z0-9_+]*\)\)", name):
             remove_flag = 73
 
@@ -383,25 +391,48 @@ class Optimizer:
         if regex.search(f"pow[a-z0-9_]*\(my_exp\([a-z0-9_+]*\)\)", name):
             remove_flag = 83
 
-        if name == "my_exp(my_log)":
-            if remove_flag:
-                print(f"\n\n>>> Why did we remove {name=} at {remove_flag=} <<<\n\n")
-                raise SystemExit
+        """
+        Multiplicative rules
+        """
+        if regex.search(f"pow0·", name) or regex.search(f"·pow0", name):
+            remove_flag = 1000 + 2
 
-        if name == "pow1(my_cos(pow1)+my_sin(pow1))":
-            if remove_flag:
-                print(f"Why did we remove {name=} at {remove_flag=}")
-                raise SystemExit
+        if regex.search(f"my_exp·my_exp",name):
+            remove_flag = 1000 + 3
 
-        if name == "pow_neg1":
-            if remove_flag:
-                print(f"Why did we remove {name=} with {remove_flag=}")
-                raise SystemExit
+        """
+        Checks
+        """
 
-        if name == "pow1(pow0+pow0)":
-            if not remove_flag:
-                print(f"Why didn't we remove {name=} with {remove_flag=}")
-                raise SystemExit
+        if name == "my_exp(my_log)" and remove_flag:
+            print(f"\n\n>>> Why did we remove {name=} at {remove_flag=} <<<\n\n")
+            raise SystemExit
+
+        if name == "pow1(my_cos(pow1)+my_sin(pow1))" and remove_flag:
+            print(f"\n\n>>> Why did we remove {name=} at {remove_flag=} <<<\n\n")
+            raise SystemExit
+
+        if name == "pow_neg1" and remove_flag:
+            print(f"\n\n>>> Why did we remove {name=} with {remove_flag=} <<<\n\n")
+            raise SystemExit
+
+        if name == "pow1(pow0+pow0)" and not remove_flag:
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=23 <<<\n\n")
+            raise SystemExit
+
+        if name == "pow1·pow1(pow1·pow1)" and not remove_flag:
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=?? <<<\n\n")
+            raise SystemExit
+
+        if name == "my_exp(pow1)·my_exp·pow1" and not remove_flag:
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=43 <<<\n\n")
+            print(icomp.has_double_expness())
+            raise SystemExit
+
+        if (name == "pow1·my_exp(my_exp)" or name == "pow1·my_exp(pow1·my_exp)") and not remove_flag:
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=29 <<<\n\n")
+            print(icomp.has_double_expness())
+            raise SystemExit
 
         if remove_flag :
             return False
@@ -448,14 +479,15 @@ class Optimizer:
         sigma_points = []
 
         use_errors = True
-
+        y_range = max([datum.val for datum in self._data])-min([datum.val for datum in self._data])
         for datum in self._data:
             x_points.append(datum.pos)
             y_points.append(datum.val)
-            if datum.sigma_val < 1e-5:
-                print(" >>> NO UNCERTAINTY <<< ")
+            if datum.sigma_val < 1e-10:
+                # print(" >>> NO UNCERTAINTY <<< ")
                 use_errors = False
-                sigma_points.append(1.)
+                sigma_points.append(y_range/10)
+                datum.sigma_val = y_range/10
             else:
                 sigma_points.append(datum.sigma_val)
 
@@ -470,6 +502,8 @@ class Optimizer:
         if initial_guess is None :
             initial_guess = self.find_initial_guess_scaling(model)
             model.set_args(*initial_guess)
+        print(model.tree_as_string_with_dimensions())
+        model.print_tree()
 
         # Next, find a better guess by relaxing the error bars on the data
         # Unintuitively, this helps. Tight error bars flatten the gradients away from the global minimum,
@@ -481,6 +515,8 @@ class Optimizer:
             print("Couldn't find optimal parameters for a better guess.")
             self._best_args = initial_guess
             self._best_args_uncertainty = [1e5 for _ in range(model.dof)]
+            model.set_args(*self._best_args)
+            self._best_function = model.copy()
             return self._best_args, self._best_args_uncertainty
 
         # Finally, use the better guess to find the true minimum with the true error bars
@@ -517,13 +553,14 @@ class Optimizer:
 
         use_errors = True
 
+        y_range = max([datum.val for datum in self._data])-min([datum.val for datum in self._data])
         for datum in self._data :
             x_points.append( datum.pos )
             y_points.append( datum.val )
-            if datum.sigma_val < 1e-5 :
+            if datum.sigma_val < 1e-10 :
                 use_errors = False
-                sigma_points.append( 1. )
-                datum.sigma_val = 1
+                sigma_points.append( y_range/10 )
+                datum.sigma_val = y_range/10
             else:
                 sigma_points.append( datum.sigma_val )
 
@@ -615,13 +652,14 @@ class Optimizer:
         use_errors = True
         done_flag = 0
 
+        y_range = max([datum.val for datum in self._data])-min([datum.val for datum in self._data])
         for datum in self._data :
             x_points.append( datum.pos )
             y_points.append( datum.val )
             if datum.sigma_val < 1e-5 :
                 use_errors = False
-                sigma_points.append( 1. )
-                datum.sigma_val = 1
+                sigma_points.append( y_range/10 )
+                datum.sigma_val = y_range/10
             else:
                 sigma_points.append( datum.sigma_val )
 
@@ -728,41 +766,12 @@ class Optimizer:
         #  the phase information from the FFT often gets the nature of sin/cosine wrong.
         #  Is there a way to do better?
 
-        # create an ultra-sample of these equally-spaced data points. This is so we can pick out phase information
-        # more readily, which is important for determining whether an oscillator is sin-like or cosine-like
-        # this only adds higher frequencies, not lower ones :'(
-        # new_xpoints = []
-        # new_ypoints = []
-        # for idx, (x, y) in enumerate( zip(x_points[:-1],y_points[:-1]) ) :
-        #     deltax =  x_points[idx+1] - x
-        #     deltay = y_points[idx+1] - y
-        #     slope = deltay / deltax
-        #     for i in range(5) :
-        #         new_xpoints.append( x + deltax*i/5 )
-        #         new_ypoints.append( y + slope*(deltax*i/5) )
-        #
-        # x_points = new_xpoints
-        # y_points = new_ypoints
-
         avg_y = sum(y_points) / len(y_points)
         zeroed_y_points = [val - avg_y for val in y_points]
 
         # complex fourier spectrum, with positions adjusted to frequency space
         fft_Ynu = fftshift(fft(zeroed_y_points)) / len(zeroed_y_points)
         fft_nu = fftshift(fftfreq(len(zeroed_y_points), x_points[1] - x_points[0]))
-
-        # mid_idx = math.floor(len(fft_Ynu)/2)
-        # for shift in range(9) :
-        #     fft_phi = math.atan2(np.imag(fft_Ynu[mid_idx-4+shift]) ,
-        #                          np.real(fft_Ynu[mid_idx-4+shift])   )
-        #     fft_quarter_turns = fft_phi / (math.pi/2)
-        #     print(f"{fft_nu[mid_idx-4+shift]} {fft_Ynu[mid_idx-4+shift]} {fft_phi=} {fft_quarter_turns=}")
-        #
-        # plt.close()
-        # plt.plot(fft_nu,np.abs(fft_Ynu))
-        # plt.show()
-
-
 
         pos_Ynu = fft_Ynu[ math.floor(len(fft_Ynu)/2) : ]  # the positive frequency values
         pos_nu = fft_nu[ math.floor(len(fft_Ynu)/2) : ]    # the positive frequencies
@@ -782,13 +791,13 @@ class Optimizer:
             # note that tested frequencies can overlap from one argmax to the next
 
             # first with sine
-            test_func = CompositeFunction(func=PrimitiveFunction.built_in("sin"),
+            test_func = CompositeFunction(prim_=PrimitiveFunction.built_in("sin"),
                                           children_list=[PrimitiveFunction.built_in("pow1")])
             sin_rchisqr_list = []
             for i in range(7) :
                 test_func.set_args(2*np.abs(pos_Ynu[argmax]), 2*math.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) )
                 sin_rchisqr_list.append( self.reduced_chi_squared_of_fit(model=test_func) )
-                print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={sin_rchisqr_list[-1]}")
+                # print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={sin_rchisqr_list[-1]}")
 
             # should only do this if we find a minimum
             min_idx, min_val = np.argmin(sin_rchisqr_list[1:-1]), min(sin_rchisqr_list[1:-1])  # don't look at endpoints
@@ -798,21 +807,21 @@ class Optimizer:
                     # we found a minimum
                     best_freq = pos_nu[argmax]+delta_nu*(list_idx-3)/3
                     best_rchisqr = min_val
-                    print(f"Found sin minimum with {best_freq*2*math.pi} {best_rchisqr=}")
+                    # print(f"Found sin minimum with {best_freq*2*math.pi} {best_rchisqr=}")
                 else :
                     best_freq = pos_nu[argmax]
                     best_rchisqr = min_val
-                    print(f"NO  SIN  MINIMUM   so {best_freq=} {best_rchisqr=}")
-                print(f"Best sin omega is {2*math.pi*best_freq} with {best_rchisqr=} at idx {list_idx}")
+                    # print(f"NO  SIN  MINIMUM   so {best_freq=} {best_rchisqr=}")
+                # print(f"Best sin omega is {2*math.pi*best_freq} with {best_rchisqr=} at idx {list_idx}")
 
             # now with cosine
-            test_func = CompositeFunction(func=PrimitiveFunction.built_in("cos"),
+            test_func = CompositeFunction(prim_=PrimitiveFunction.built_in("cos"),
                                           children_list=[PrimitiveFunction.built_in("pow1")])
             cos_rchisqr_list = []
             for i in range(7):
                 test_func.set_args( 2*np.abs(pos_Ynu[argmax]), 2*math.pi*(pos_nu[argmax] + delta_nu*(i-3) / 3) )
                 cos_rchisqr_list.append(self.reduced_chi_squared_of_fit(model=test_func))
-                print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={cos_rchisqr_list[-1]}")
+                # print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={cos_rchisqr_list[-1]}")
 
             # should only do this if we find a minimum
             min_idx, min_val = np.argmin(cos_rchisqr_list[1:-1]), min(cos_rchisqr_list[1:-1])  # don't look at endpoints
@@ -823,15 +832,16 @@ class Optimizer:
                     # we found a minimum
                     best_freq = pos_nu[argmax] + delta_nu*(list_idx-3)/3
                     best_rchisqr = min_val
-                    print(f"Found cos minimum with {best_freq*2*math.pi} {best_rchisqr=}")
+                    # print(f"Found cos minimum with {best_freq*2*math.pi} {best_rchisqr=}")
                 else:
                     best_freq = pos_nu[argmax]
                     best_rchisqr = min_val
-                    print(f"NO  COS  MINIMUM   so {best_freq=} {best_rchisqr=}")
-                print(f"So better fit is cos where omega is {2*math.pi*best_freq} with {best_rchisqr=}")
+                    # print(f"NO  COS  MINIMUM   so {best_freq=} {best_rchisqr=}")
+                # print(f"So better fit is cos where omega is {2*math.pi*best_freq} with {best_rchisqr=}")
             else :
-                print("Nothing better in cosine")
-            print(" ")
+                pass
+                # print("Nothing better in cosine")
+            #print(" ")
 
             if is_sin :
                 # print(f"Adding {best_freq} to sin")
@@ -845,64 +855,18 @@ class Optimizer:
         print("Done fourier decomp")
 
 
-            # previous logic, based on relative size of real and imaginary components
-            # if np.abs(np.real(pos_Ynu[argmax])) > np.abs(np.imag(pos_Ynu[argmax])) :
-            #     print(f"Adding {pos_nu[argmax]} to cos because {pos_Ynu[argmax]=}")
-            #     self._cos_freq_list.append( pos_nu[argmax] )
-            # else:
-            #     print(f"Adding {pos_nu[argmax]} to sin because {pos_Ynu[argmax]=}")
-            #     self._sin_freq_list.append(pos_nu[argmax])
-            # pos_Ynu = np.delete(pos_Ynu, argmax)
-            # pos_nu = np.delete(pos_nu, argmax)
 
-
-    # def find_initial_guess(self, model: CompositeFunction, width = 10., num_each=10):
-    #
-    #     best_rchisqr = 1e5
-    #     best_grid_point = model.get_args()
-    #
-    #     total_grid = np.mgrid[tuple(slice(-width / 2, width / 2, complex(0, num_each)) for _ in range(model.dof))]
-    #
-    #     args = []
-    #     for idim in range( model.dof ):
-    #         args.append(total_grid[idim].flatten())
-    #     for ipoint in zip(*args):
-    #         model.set_args( *ipoint )
-    #         temp_rchisqr = self.reduced_chi_squared_of_fit(model)
-    #         if temp_rchisqr < best_rchisqr :
-    #             best_rchisqr = temp_rchisqr
-    #             best_grid_point = list(ipoint)
-    #
-    #     model.set_args( *best_grid_point)
-    #
-    #     return best_grid_point
-
-    # def find_initial_guess_genetic(self, model: CompositeFunction):
-    #
-    #     max_Y_data = max( [datum.val for datum in self._data] ) - min( [datum.val for datum in self._data] )
-    #     max_X_data = max( [datum.pos for datum in self._data] ) - min( [datum.pos for datum in self._data] )
-    #     max_data = max( max_X_data, max_Y_data )
-    #
-    #     parameter_bounds = []
-    #     for _ in range(model.dof):
-    #         parameter_bounds.append( [-max_data, max_data] )
-    #
-    #     self._temp_function = model
-    #     best_point = differential_evolution( self.loss_function, parameter_bounds)
-    #
-    #     return best_point.x
 
     def find_initial_guess_scaling(self, model):
-
-        # print(f"In find_initial_guess_scaling with {model.name=}")
 
         scaling_args_no_sign = self.find_set_initial_guess_scaling(model)
 
         # the above args, with sizes based on scaling, could each be positive or negative. Find the best one (of 2^dof)
-        best_rchisqr = 1e5
+        best_rchisqr = 1e50
         best_grid_point = scaling_args_no_sign
 
         scaling_args_sign_list = []
+        # creates list of arguments to try with all +/- sign combinations
         for idx in range( 2**model.dof ) :
             binary_string_of_index = f"0000000000000000{idx:b}"
 
@@ -911,6 +875,7 @@ class Optimizer:
                 new_gridpoint[bit] = arg*(1-2*int(binary_string_of_index[-1-bit]))
             scaling_args_sign_list.append(new_gridpoint)
 
+        # tests each of the +/- combinations for the best fit
         for point in scaling_args_sign_list:
             model.set_args( *point )
             temp_rchisqr = self.reduced_chi_squared_of_fit(model)
@@ -929,7 +894,7 @@ class Optimizer:
 
         # use knowledge of scaling to guess parameter sizes from the characteristic sizes in the data
         charY = (max([datum.val for datum in self._data]) - min([datum.val for datum in self._data])) / 2
-        if composite.func.name == "pow0" :
+        if composite.prim.name == "pow0" :
             # this typically represents a shift, so the average X is more important than the range of x-values
             charX = ( max( [datum.pos for datum in self._data] ) + min( [datum.pos for datum in self._data] ) ) / 2
         else :
@@ -943,7 +908,7 @@ class Optimizer:
         if composite.parent is None :
             # function of this node A*func(x) should scale like y
             ymul = charY
-        elif composite.parent.func.name == "my_cos" :
+        elif composite.parent.prim.name == "my_cos" :
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / 1e-5
             if abs(slope_at_zero) > 1e-5 :
                 if len(self._cos_freq_list_dup) > 0 :
@@ -958,7 +923,7 @@ class Optimizer:
                         print(self._cos_freq_list_dup)
                         print(self._cos_freq_list)
                         raise SystemExit
-        elif composite.parent.func.name == "my_sin" :
+        elif composite.parent.prim.name == "my_sin" :
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / 1e-5
             if abs(slope_at_zero) > 1e-5 :
                 if len(self._sin_freq_list_dup) > 0 :
@@ -967,7 +932,7 @@ class Optimizer:
                 else:  # misassigned cosine frequency
                     xmul = ( 2*math.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
 
-        composite.func.arg = xmul * ymul
+        composite.prim.arg = xmul * ymul
 
         return composite.get_args()
 
@@ -996,6 +961,7 @@ class Optimizer:
         if plot_model is not None :
             smooth_x_for_fit = np.linspace( x_points[0], x_points[-1], 4*len(x_points))
             fit_vals = [ plot_model.eval_at(xi) for xi in smooth_x_for_fit ]
+            print(f"{fit_vals=}")
             plt.plot( smooth_x_for_fit, fit_vals, '-', color='r')
         plt.xlabel("x")
         plt.ylabel("y")
