@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 # built-in libraries
+import math
 from math import floor
 from typing import Callable, Union
-import re as regex
-
 
 # external libraries
 import numpy as np
@@ -14,97 +13,95 @@ from autofit.src.primitive_function import PrimitiveFunction
 
 class CompositeFunction:
 
-    # TODO: think how to structure this so that a sum/pow1 is always at the top-level, but doesn't show in the name
     """
     A composite function is represented as a tree.
-            sin
-         /     \   \
-      1 . 4     6   8
-     /\    \     \
-    2  3   5      7
-    Branches sharing the same parent node are summed together and leaves sharing the same branch
-    are multiplied together. These are used as input
-    for functional composition in the parent node. E.g., with reference to the above tree
-    E.g. f(x) = sin[ f1( f2(x) + f3(x) ) * f4( f5(x) ) + f6( f7(x) ) + f8(x)]
+          f
+      |      |
+      5     13
+    |  |      |
+    2  3     11
+    Leaves sharing the same parent node are summed together, and are used as input
+    for functional composition in the parent node.
+    E.g. f(x) = f5( f2(x) + f3(x) ) + f13( f11(x) )
     """
     """
-    The tree for the sigmoid function 2/(3+4e^(-5x)) is then
-           neg_pow1(x)
+    The tree for the sigmoid function 1/(1+e^(-x)) is then
+                f(x)
+                /
+           neg_pow1(x,1)
            /        \
-      my_exp(x)  pow0(x)
+      my_exp(x,1)  pow0(x,1)
         /
-    pow1(x)
-    
-    with args (2,4,-5,3)
+    pow1(x,-1)
     """
 
     """
     This class represents the nodes of the tree. A node with no children is just a wrapper for a primitive function, 
     while a node with no parent is the function tree as a whole.
-    
-    Testing reconciliation
-    """
-
-    """
-    We are currently working on implementing multiplication between shared branches. Need to redo dof calcs 
-    and get/set arg methods with new paradigm where it is the Composite function which keeps track of the args, not
-    the primitive function
     """
 
 
     def __init__(self,
-                 prim: PrimitiveFunction = None,
+                 children_list : Union[list[PrimitiveFunction],list[CompositeFunction]] = None,
+                 younger_brother : Union[PrimitiveFunction,CompositeFunction] = None,
                  parent : CompositeFunction = None,
-                 branch_list = None,
-                 name: str = "",
-                 args: list[float] = None):
+                 prim_: PrimitiveFunction = PrimitiveFunction.built_in("pow1"),
+                 name : str = ""):
 
-        # the head function which takes as argument the output of all branches
-        if prim is None :
-            self._prim_of_this_node : PrimitiveFunction = PrimitiveFunction.built_in("pow1").copy()
-        else:
-            self._prim_of_this_node : PrimitiveFunction = prim.copy()
-
-        # parent node
+        # Declarations before manipulations
+        self._children_list : list[CompositeFunction] = []
+        self._younger_brother : CompositeFunction = None
+        self._older_brother : CompositeFunction = None
         self._parent : CompositeFunction = parent
-        if parent is None:
-            self._head_arg : float = 1.
+        self._prim : PrimitiveFunction = prim_.copy()
+        self._name : str = name
+        self._constraints : (int, Callable[[float], float], int) = []
+        # list of (idx1, func, idx3) triplets, with the interpretation that par[idx1] = func( par[idx2 )]
+        # if there are constraints, the add_child and add_brother functions should throw an error
 
-        # the tree constitutes a list of terms (branches),
-        # with each branch containing a list of factors (leaves)
-        self._branch_list : list[list[CompositeFunction]] = []
-        if branch_list is None :
-            branch_list = []
-        for branch in branch_list :
-            self.add_branch(branch, update_name=False)
-
-        # short name of the function
-        self._name = ""
-        if name != "" :
-            self._name = name
-        else:
+        if children_list is not None :
+            for child in children_list :
+                self.add_child(child)
+        if younger_brother is not None:
+            self.add_younger_brother(younger_brother)
+        if name == "" :
             self.build_name()
-
-        # list of (idx1, func, idx2) triplets, with the interpretation that par[idx1] = func( par[idx2] )
-        # each _contraint reduces dof by 1
-        self._constraints: (int, Callable[[float], float], int) = []
-        # in constrast, non-holonomic constraint (_nh_constraint) don't reduce dof
-        self._nh_constraints: (int, Callable[[float], float], int) = []
-
-        # the constant in front of each term
-        if len(args) != len(self._branch_list) :
-            self._args : list[float] = [1 for _ in range(len(self._branch_list)+1)]
-        else :
-            self._args : list[float] = args
-
 
 
     def __repr__(self):
-        return f"Composite {self._name} w/ {self.dof} dof"
+        return f"{self._name} w/ {self.dof} dof"
 
     """
-    Properties for class variables
+    Properties
     """
+
+    @property
+    def children_list(self) -> list[CompositeFunction]:
+        return self._children_list
+    @property
+    def younger_brother(self) -> CompositeFunction:
+        return self._younger_brother
+    @property
+    def older_brother(self) -> CompositeFunction:
+        return self._older_brother
+    @older_brother.setter
+    def older_brother(self,older):
+        self._older_brother = older
+    @property
+    def parent(self) -> CompositeFunction:
+        return self._parent
+    @parent.setter
+    def parent(self, par):
+        self._parent = par
+        if self._younger_brother is not None:
+            self._younger_brother.parent = par
+
+    @property
+    def prim(self) -> PrimitiveFunction:
+        return self._prim
+    @prim.setter
+    def prim(self, p):
+        self._prim = p
 
     @property
     def name(self) -> str:
@@ -114,256 +111,243 @@ class CompositeFunction:
         self._name = val
 
     @property
-    def prim(self) -> PrimitiveFunction:
-        return self._prim_of_this_node
-    @prim.setter
-    def prim(self, other: PrimitiveFunction):
-        self._prim_of_this_node = other
-
-    @property
-    def prim_func(self) -> Callable[[float],float]:
-        return self._prim_of_this_node.func
-    @prim_func.setter
-    def prim_func(self, other: Callable[[float],float]):
-        self._prim_of_this_node.func = other
+    def constraints(self):
+        return self._constraints
 
     @property
     def dof(self) -> int:
         return self.calculate_degrees_of_freedom()
-    @property
-    def args(self) -> list[float]:
-        return self._args
-    @args.setter
-    def args(self, args_list) :
-        self._args = args_list
-
-    @property
-    def parent(self) -> CompositeFunction:
-        return self._parent
-    @property
-    def branch_list(self) -> list[list[CompositeFunction]]:
-        return self._branch_list
-
-    def branch(self, idx) -> list[CompositeFunction]:
-        return self._branch_list[idx]
-    def branch_leaf(self, idx_b, idx_l) -> CompositeFunction:
-        return (self._branch_list[idx_b])[idx_l]
-
-    @property
-    def leaf_list(self) -> list[CompositeFunction]:
-        leaves = []
-        for branch in self._branch_list :
-            leaves.extend([ leaf for leaf in branch])
-        return leaves
 
 
     """
-    For __init__
+    Manipulation of the tree
     """
 
-    def add_branch(self, branch_to_add: Union[CompositeFunction,list[CompositeFunction]], update_name = True) -> None:
-        # branch could either be a single Composite or a list of Composites -- hooray for duck-typing!
-        factors = []
-        if isinstance(branch_to_add, list) :
-            for leaf in branch_to_add :
-                self.add_leaf_to_branch(factors,leaf)
-        else:
-            self.add_leaf_to_branch(factors,branch_to_add)
+    def add_child(self, child : Union[PrimitiveFunction,CompositeFunction], update_name : bool = True):
+        if len(self._constraints) > 0 :
+            raise AttributeError
 
-        self._branch_list.append(factors)
+        new_child = child.copy()
+        if isinstance(new_child, PrimitiveFunction):  # have to convert it to a Composite
+            prim_as_comp = CompositeFunction(prim_=new_child, parent=self)
+            self._children_list.append(prim_as_comp)
+        else :
+            new_child._parent = self
+            self._children_list.append(new_child)
 
         if update_name:
             self.build_name()
 
-    def add_leaf_to_branch(self, branch: list[CompositeFunction],
-                                 leaf: Union[CompositeFunction,PrimitiveFunction]) -> None:
-        new_leaf = leaf.copy()
-        if isinstance(new_leaf, PrimitiveFunction):  # have to convert it to a Composite
-            prim_as_comp = CompositeFunction(prim=new_leaf, parent=self)
-            branch.append(prim_as_comp)
+    def add_younger_brother(self, brother_to_add : Union[PrimitiveFunction,CompositeFunction], update_name = True):
+        if len(self._constraints) > 0 :
+            raise AttributeError
+
+        new_brother = brother_to_add.copy()
+        if isinstance(new_brother, PrimitiveFunction):  # have to convert it to a Composite
+            new_brother_comp = CompositeFunction(prim_=new_brother)
         else :
-            new_leaf._parent = self
-            branch.append(new_leaf)
+            new_brother_comp = new_brother
 
-    @staticmethod
-    def term_name(term: list[CompositeFunction]) -> str:
+        new_brother_comp.parent = self.parent
+        new_brother_comp.older_brother = self
+        if self._younger_brother is None:
+            self._younger_brother = new_brother_comp
+        else:
+            self._younger_brother.add_younger_brother(new_brother_comp)
+
+        if update_name:
+            self.build_name()
+
+    def copy(self):
+
+        new_comp = CompositeFunction(name=self._name, prim_=self.prim)
+        for child in self._children_list:
+            new_comp.add_child(child)
+        if self._younger_brother is not None:
+            new_comp.add_younger_brother(self.younger_brother)
+        # don't copy older siblings
+        # don't copy parent
+        for constraint in self._constraints:
+            new_comp.add_constraint(constraint)
+
+        return new_comp
+
+    def build_name(self):
         name_str = ""
-        factor_names = sorted([factor.name for factor in term])
-        for name in factor_names:
-            name_str += f"{name}·"
-        return name_str[:-1]
+        name_str += f"{self._prim.name}("
 
-    def build_name(self) -> None:
-
-        name_str = ""
-        name_str += f"{self._prim_of_this_node.name}("
-
-        term_names = sorted([ CompositeFunction.term_name(term) for term in self._branch_list ])
-        for name in term_names:
+        names = sorted([child.name for child in self._children_list])
+        for name in names:
             name_str += f"{name}+"
-        if len(term_names) > 0:
+        if len(self._children_list) > 0:
             name_str = name_str[:-1] + "))"
         self._name = name_str[:-1]
 
-        if self._parent is not None:
-            self._parent.build_name()
+        if self._younger_brother is not None :
+            me_name = self.name
+            younger_name = self._younger_brother.name
+            self._name = '·'.join(sorted([me_name,younger_name]))
+            # self._name += f"·{self._younger_brother.name}"
 
-    def add_constraint(self, constraint_3tuple: (int, Callable[[float],float], float)) -> None:
+        if self.parent is not None:
+            self.parent.build_name()
+
+    def add_constraint(self, constraint_3tuple):
         self._constraints.append(constraint_3tuple)
-    def add_non_holonomic_constraint(self, constraint_3tuple: (int, Callable[[float],float], float)) -> None:
-        self._nh_constraints.append(constraint_3tuple)
 
     """
-    Information about this function
+    Info about the composite
     """
 
     def num_nodes(self) -> int:
         nodes = 1  # for self
-        for branch in self._branch_list:
-            for leaf in branch :
-                nodes += leaf.num_nodes()
+        for child in self._children_list:
+            nodes += child.num_nodes()
+        if self._younger_brother is not None :
+            nodes += self._younger_brother.num_nodes()
+
         return nodes
 
-    def calculate_degrees_of_freedom(self) -> int:
+    def get_node_with_index(self, n) -> CompositeFunction:
+        if n == 0 :
+            return self
+        it = 1
+        for child in self._children_list :
+            if it <= n < it + child.num_nodes() :
+                return child.get_node_with_index(n-it)
+            it += child.num_nodes()
+        if self._younger_brother is not None :
+            return self._younger_brother.get_node_with_index(n-it)
+        raise IndexError
 
-        # one for the func_of_this_node and one for each term/branch
+    def calculate_degrees_of_freedom(self):
 
-        if self._parent is None :
-            num_dof = 1
-        else:
-            num_dof = 0
+        num_dof = 1 if self.older_brother is None else 0
+        for child in self._children_list:
+            num_dof += child.calculate_degrees_of_freedom()
+        if self._younger_brother is not None :
+            num_dof += self._younger_brother.calculate_degrees_of_freedom()
 
-        for branch in self._branch_list:
-            num_dof += 1
-            for leaf in branch:
-                num_dof += leaf.calculate_degrees_of_freedom()
-
-        if self._name[0:3] in ["pow","sum","pro"] and len(self._branch_list) > 0:
+        if self._name[0:3] == "pow" and len(self._children_list) > 0:
             # powers are special: they lose a degree of freedom if they have children
-            # e.g. pow: A( B cos(x) )^2 == A B^2 cos^2(x) == C cos^2(x). We keep the inner one as free,
-            # and the outer parameter of the composition is set to unity, e.g. here A=1 and B free
-            # N.B. this helps precision in the case that the inner composition has a large heierarchy of component sizes
+            # e.g. A*( B*cos(x) )^2 == A*B^2*cos^2(x) == C*cos^2(x). We keep the outer one as free,
+            # and the first parameter in the composition is set to unity
             num_dof -= 1
 
         return num_dof - len(self._constraints)
 
-    def tree_as_string(self, buffer_chars=0):
+    def tree_as_string(self, buffer_chars=0, head_mul = 0, end_sig=0):
+
         buff_num = 10
-        head_name = self._name.split('(')[0]
-        tree_str = f"{head_name[:10] : <10}"  # pads and truncates to ensure a length of 10
-        for idx, branch in enumerate(self._branch_list) :
-            for jdx, leaf in enumerate(branch) :
-                if idx > 0 and jdx > 0 :
-                    tree_str += " " * buff_num
-                    for n in range( floor(buffer_chars/buff_num) ) :
-                        tree_str += "   " + " " * buff_num
-                if jdx > 0 :
-                    tree_str += " x "
-                else :
-                    tree_str += " ~ "
-                tree_str += leaf.tree_as_string(buffer_chars=buffer_chars+buff_num)
-                tree_str += "\n"
-        return tree_str[:-2]
+        if head_mul == 0 :
+            head_mul = 1 if self.younger_brother is not None and self._younger_brother is not None and self.parent is None else 0
 
-    # doesn't work perfectly wih negative coefficients
-    def tree_as_string_with_args(self, buffer_chars=0):
+        tree_str = "   " if self.younger_brother is not None and self.parent is None and self._older_brother is None else ""
+        tree_str += f"{self._prim.name[:10] : <10}"  # pads and truncates to ensure a length of 10
+        for idx, child in enumerate(self._children_list) :
+            if idx > 0 :
+                tree_str += " | " * head_mul + " " * buff_num
+                for n in range( floor(buffer_chars/buff_num) ) :
+                    if end_sig == 1:
+                        tree_str += "   "
+                    else:
+                        tree_str += " | "
+                    tree_str += " " * buff_num
+            if idx == len(self._children_list)-1:
+                end_sig = 1
+            tree_str += " ~ "
+            tree_str += child.tree_as_string(buffer_chars=buffer_chars+buff_num, head_mul=head_mul, end_sig=end_sig)
+            tree_str += "\n"
+        if self._younger_brother is not None :
+            if tree_str[-1] != '\n':
+                tree_str += '\n'
+            for n in range(floor(buffer_chars / buff_num)):
+                tree_str += " | " + " " * buff_num
+            tree_str += f" x "
+            tree_str += f"{self._younger_brother.tree_as_string(buffer_chars=buffer_chars, head_mul=head_mul,end_sig=end_sig)}".rstrip('\n')
+        return tree_str.rstrip('\n') if self.parent is None and self._older_brother is None else tree_str
+
+    def tree_as_string_with_args(self, buffer_chars=0, head_mul = 0, end_sig=0):
+
         buff_num = 19
-        head_name = self._name.split('(')[0]
-        tree_str = f"{self.args[0]:+.2E}{head_name[:10] : <10}"
-        for idx, branch in enumerate(self._branch_list) :
-            for jdx, leaf in enumerate(branch) :
-                if idx > 0 and jdx > 0:
-                    tree_str += " " * buff_num
-                    for n in range( floor(buffer_chars/buff_num) ) :
-                        tree_str += "   " + " " * buff_num
-                if jdx > 0 :
-                    tree_str += " x "
-                else :
-                    tree_str += " ~ "
-                tree_str += leaf.tree_as_string_with_args(buffer_chars=buffer_chars+buff_num)
-                tree_str += "\n"
-        return tree_str
+        if head_mul == 0 :
+            head_mul = 1 if self.younger_brother is not None and self._younger_brother is not None and self.parent is None else 0
 
-    def tree_as_string_with_dimensions(self, buffer_chars=0):
-        buff_num = 13
-        head_name = self._name.split('(')[0]
-        tree_str = f"{self.dimension_arg}/{self.dimension_func}{head_name[:10] : <10}"
-        for idx, branch in enumerate(self._branch_list) :
-            for jdx, leaf in enumerate(branch) :
-                if idx > 0 and jdx > 0:
+        tree_str = "   " if self.younger_brother is not None and self.parent is None and self._older_brother is None else ""
+        tree_str += f"{self._prim.arg:+.2E}{self._prim.name[:10] : <10}"  # pads and truncates to ensure a length of 10
+        for idx, child in enumerate(self._children_list) :
+            if idx > 0 :
+                tree_str += " | " * head_mul + " " * buff_num
+                for n in range( floor(buffer_chars/buff_num) ) :
+                    if end_sig == 1:
+                        tree_str += "   "
+                    else:
+                        tree_str += " | "
                     tree_str += " " * buff_num
-                    for n in range( floor(buffer_chars/buff_num) ) :
-                        tree_str += "   " + " " * buff_num
-                if jdx > 0:
-                    tree_str += " x "
-                else:
-                    tree_str += " ~ "
-                tree_str += leaf.tree_as_string_with_dimensions(buffer_chars=buffer_chars+buff_num)
-                tree_str += "\n"
-        return tree_str
+            if idx == len(self._children_list)-1:
+                end_sig = 1
+            tree_str += " ~ "
+            tree_str += child.tree_as_string_with_args(buffer_chars=buffer_chars+buff_num, head_mul=head_mul, end_sig=end_sig)
+            tree_str += "\n"
+        if self._younger_brother is not None :
+            if tree_str[-1] != '\n':
+                tree_str += '\n'
+            for n in range(floor(buffer_chars / buff_num)):
+                tree_str += " | " + " " * buff_num
+            tree_str += f" x "
+            tree_str += f"{self._younger_brother.tree_as_string_with_args(buffer_chars=buffer_chars, head_mul=head_mul,end_sig=end_sig)}".rstrip('\n')
+        return tree_str.rstrip('\n') if self.parent is None and self._older_brother is None else tree_str
+
+    def tree_as_string_with_dimensions(self, buffer_chars=0, head_mul = 0, end_sig=0):
+        buff_num = 15
+
+        if head_mul == 0 :
+            head_mul = 1 if self.younger_brother is not None and self._younger_brother is not None and self.parent is None else 0
+
+        tree_str = "   " if self.younger_brother is not None and self.parent is None and self._older_brother is None else ""
+        tree_str += f"{self.dimension_arg:+}/{self.dimension_func:+}{self._prim.name[:10] : <10}"  # pads and truncates to ensure a length of 10
+        for idx, child in enumerate(self._children_list) :
+            if idx > 0 :
+                tree_str += " | " * head_mul + " " * buff_num
+                for n in range( floor(buffer_chars/buff_num) ) :
+                    if end_sig == 1:
+                        tree_str += "   "
+                    else:
+                        tree_str += " | "
+                    tree_str += " " * buff_num
+            if idx == len(self._children_list)-1:
+                end_sig = 1
+            tree_str += " ~ "
+            tree_str += child.tree_as_string_with_dimensions(buffer_chars=buffer_chars+buff_num, head_mul=head_mul, end_sig=end_sig)
+            tree_str += "\n"
+        if self._younger_brother is not None :
+            if tree_str[-1] != '\n':
+                tree_str += '\n'
+            for n in range(floor(buffer_chars / buff_num)):
+                tree_str += " | " + " " * buff_num
+            tree_str += f" x "
+            tree_str += f"{self._younger_brother.tree_as_string_with_dimensions(buffer_chars=buffer_chars, head_mul=head_mul,end_sig=end_sig)}".rstrip('\n')
+        return tree_str.rstrip('\n') if self.parent is None and self._older_brother is None else tree_str
 
     def print_tree(self):
-        print(f"Tree {self._name}:")
+        print(f"{self._name}:")
         # print(self.tree_as_string())
         print(self.tree_as_string_with_args())
 
-    """
-    Utility
-    """
-
-    def get_node_with_index(self, n):
-        if n == 0 :
-            return self
-        it = 1
-        for branch in self._branch_list :
-            for leaf in branch :
-                if it <= n < it + leaf.num_nodes() :
-                    return leaf.get_node_with_index(n-it)
-                it += leaf.num_nodes()
-
-    def copy(self):
-        new_comp = CompositeFunction(prim=self.prim.copy(),
-                                     parent=None,
-                                     name=self.name,
-                                     args=self._args.copy())
-        for branch in self._branch_list :
-            new_comp.add_branch( branch )
-        for constraint in self._constraints :
-            new_comp.add_constraint( constraint )
-        for nh_constraint in self._nh_constraints :
-            new_comp.add_non_holonomic_constraint( nh_constraint )
-        return new_comp
-
-    # Don't know where this is needed, potentially cuttable
-    # def list_extend_with_added_prim_to_self_and_descendents(self, the_list: list[CompositeFunction],
-    #                                                               new_prim: PrimitiveFunction):
-    #
-    #     new_comp_base = self.copy()
-    #     new_comp_base.add_child(new_prim)
-    #     the_list.append( new_comp_base )
-    #
-    #     for _ in self._children_list :
-    #         new_comp = self.copy()
-    #         new_comp.list_extend_with_added_prim_to_self_and_descendents(the_list=the_list, new_prim=new_prim)
-
-
-
-
-
-
-
 
     """
-    Classifiers for "too much function composition"
+    Metadata
     """
 
     def has_double_trigness(self):
         if "sin" in self.prim.name or "cos" in self.prim.name :
             if self.has_trig_children() :
                 return True
-        for child in self.leaf_list :
+        for child in self._children_list :
             if child.has_double_trigness():
                 return True
+        if self._younger_brother is not None:
+            return self._younger_brother.has_double_trigness()
         return False
 
     def num_trig(self):
@@ -377,107 +361,96 @@ class CompositeFunction:
         if "exp" in self.prim.name :
             if self.has_exp_children() :
                 return True
-        for child in self.leaf_list :
+        for child in self._children_list :
             if child.has_double_expness():
                 return True
+        if self._younger_brother is not None:
+            return self._younger_brother.has_double_expness()
         return False
+
     def has_double_logness(self):
         if "log" in self.prim.name :
             if self.has_log_children() :
                 return True
-        for child in self.leaf_list :
+        for child in self._children_list :
             if child.has_double_logness():
                 return True
+        if self._younger_brother is not None:
+            return self._younger_brother.has_double_logness()
         return False
 
     def has_trig_children(self):
-        for child in self.leaf_list :
-            if "sin" in child.prim.name or "cos" in child.prim.name or child.has_trig_children() :
-                return True
-        return False
-    def has_exp_children(self):
-        for child in self.leaf_list :
-            if "exp" in child.prim.name or child.has_exp_children() :
-                return True
-        return False
-    def has_log_children(self):
-        for child in self.leaf_list :
-            if "log" in child.prim.name or child.has_log_children() :
+        for child in self._children_list :
+            if "sin" in child.name or "cos" in child.name :
                 return True
         return False
 
-    def num_branches(self):
-        return len(self._branch_list)
-    def num_leaves(self):
-        count = 0
-        for branch in self._branch_list:
-            count += len(branch)
-        return count
+    def has_exp_children(self):
+        for child in self._children_list :
+            if "exp" in child.name :
+                return True
+        return False
+
+    def has_log_children(self):
+        for child in self._children_list :
+            if "log" in child.name :
+                return True
+        return False
+
+    def num_children(self):
+        return len(self._children_list)
+
 
 
     """
     Evaluation
     """
 
-    def eval_at(self, x, X0 = 0, Y0 = 0):
-
+    def eval_at(self,x, X0 = 0, Y0 = 0):
         if X0 :
             # print(f"{X0=}")
             # the model is working with LX as the independent variable, but we're being passed x
-            LX = np.log(x/X0)
+            LX = math.log(x/X0)
             x = LX
-
-        hello = self._branch_list
-        if len(self._branch_list) == 0 :
-            if Y0 :
-                LY = self.args[0]*self._prim_of_this_node.eval_at(x)
-                y = Y0*np.exp(LY)
-            else:
-                y = self.args[0]*self._prim_of_this_node.eval_at(x)
-            return y
-        # else ...
-
         children_eval_to = 0
-
-        for ibranch, branch in enumerate(self._branch_list) :
-            branch_eval = self.args[ibranch+1]
-            for leaf in branch :
-                branch_eval *= leaf.eval_at(x)
-            children_eval_to += branch_eval
-
+        if len(self._children_list) == 0 :
+            if Y0 :
+                # the model is working with LY as the dependent variable, but we need to return y
+                LY = self._prim.eval_at(x)
+                if self._younger_brother is not None :
+                    LY *= self._younger_brother.eval_at(x)
+                y = Y0*math.exp(LY)
+            else:
+                y = self._prim.eval_at(x)
+                if self._younger_brother is not None :
+                    y *= self._younger_brother.eval_at(x)
+            return y
+        for child in self._children_list :
+            children_eval_to += child.eval_at(x)
         if Y0 :
             # print(f"{Y0=}")
-            # the model is working with LY as the dependent variable, but we're expecting to return y
-            LY = self._prim_of_this_node.eval_at(children_eval_to)
-            y = Y0*np.exp(LY)
+            # the model is working with LY as the dependent variable, but we're expecting to return x
+            LY = self._prim.eval_at(children_eval_to)
+            if self._younger_brother is not None:
+                LY *= self._younger_brother.eval_at(x)
+            y = Y0*math.exp(LY)
         else:
-            y = self._prim_of_this_node.eval_at(children_eval_to)
+            y = self._prim.eval_at(children_eval_to)
+            if self._younger_brother is not None:
+                y *= self._younger_brother.eval_at(x)
         return y
 
     def eval_deriv_at(self,x):
         # simple symmetric difference. If exact derivative is needed, can add that later
         delta = 1e-5
         return (self.eval_at(x + delta) - self.eval_at(x - delta)) / (2 * delta)
-        # can do higher differences later? https://en.wikipedia.org/wiki/Finite_difference_coefficient
-        # return ( self.eval_at(x-2*delta) - 8*self.eval_at(x-delta)
-        #           + 8*self.eval_at(x+delta) - self.eval_at(x+2*delta) ) / (12*delta)
 
 
-    """
-    Get and sets for term arguments
-    """
-
-    def set_dof_args(self, *args):
-        pass
-
-    # takes in the
     def set_args(self, *args):
 
-        print(f"In {self._name=} set_args to {args=}")
         it = 0
-
         args_as_list = list(args)
-        assert len(args_as_list) is self.dof
+
         # insert zeroes where the constrained arguments go
         for idx_constrained, _, _ in sorted(self._constraints, key=lambda tup: tup[0]) :
             args_as_list.insert( idx_constrained, 0 )
@@ -486,12 +459,16 @@ class CompositeFunction:
             args_as_list[idx_constrained] = func( args_as_list[idx_other] )
 
         try:
-            self._prim_of_this_node.arg = args_as_list[it]
+            if self.older_brother is None:
+                self._prim.arg = args_as_list[it]
+                it += 1
+            else :
+                self._prim.arg = 1
         except IndexError:
-            # print(f"In set_args {self._name=} {args_as_list=}")
+            # print(f"In set_args {self._name=} {args_as_list=} {it=} {self.parent=} {self._older_brother=}")
             raise IndexError
-        it += 1
-        if self._prim_of_this_node.name[0:3] == "pow" and len(self._children_list) > 0 :
+
+        if self._prim.name[0:3] == "pow" and len(self._children_list) > 0 :
             args_as_list.insert(it,1)
 
         for child in self._children_list :
@@ -499,24 +476,32 @@ class CompositeFunction:
             child.set_args( *args_as_list[it:it+next_dof] )
             it += next_dof
 
-    def get_dof_args(self, skip_flag=0):
-        pass
+        if self._younger_brother is not None :
+            brother_dof = self._younger_brother.dof
+            self._younger_brother.set_args( *args_as_list[it:it+brother_dof] )
+            it += brother_dof
 
-    def get_args(self, skip_flag=0):  # this needs to be massively rewritten if we add multiplication functionality
+        if it != len(args_as_list) :
+            raise RuntimeError
+
+    def get_args(self, skip_flag=0):
         # get all arguments normally, then pop off the ones with constraints once we get to the head
         all_args = []
         if skip_flag :
             pass
         else :
-            all_args.append(self._prim_of_this_node.arg)
+            all_args.append(self._prim.arg)
 
         skip_flag = 0
-        if self._prim_of_this_node.name[0:3] == "pow" and len(self._children_list) > 0 :
+        if self._prim.name[0:3] == "pow" and len(self._children_list) > 0 :
             skip_flag = 1
 
         for child in self._children_list :
             all_args.extend( child.get_args(skip_flag) )
             skip_flag = 0
+
+        if self._younger_brother is not None:
+            all_args.extend( self._younger_brother.get_args(skip_flag=1) )
 
         for idx_constrained, _, _ in sorted(self._constraints, key=lambda tup: tup[0], reverse=True) :
             del all_args[idx_constrained]
@@ -524,6 +509,7 @@ class CompositeFunction:
         return all_args
 
     def get_nodes_with_freedom(self, skip_flag=0):
+        # untested with siblings
         # gets all nodes which are associated with a degree of freedom
         all_nodes = []
         if skip_flag :
@@ -532,12 +518,15 @@ class CompositeFunction:
             all_nodes.append(self)
 
         skip_flag = 0
-        if self._prim_of_this_node.name[0:3] == "pow" and len(self._children_list) > 0 :
+        if self._prim.name[0:3] == "pow" and len(self._children_list) > 0 :
             skip_flag = 1
 
         for child in self._children_list :
             all_nodes.extend( child.get_nodes_with_freedom(skip_flag) )
             skip_flag = 0
+
+        if self._younger_brother is not None:
+            all_nodes.extend( self._younger_brother.get_nodes_with_freedom(skip_flag=1) )
 
         for idx_constrained, _, _ in sorted(self._constraints, key=lambda tup: tup[0], reverse=True) :
             del all_nodes[idx_constrained]
@@ -548,13 +537,13 @@ class CompositeFunction:
         # should be able to construct a model purely from a name given as a string
         pass
 
-    def submodel_without_node_idx(self, n):
-
+    def submodel_without_node_idx(self, n) -> CompositeFunction:
+        # untested with siblings
         if n < 1 :
-            print("\t Can't remove head node of a model ")
+            print("Can't remove head node of a model ")
             return -1
         if len(self._constraints) > 0 :
-            print("\t Reduced model of a constrained model is not yet implemented")
+            print("Reduced model of a constrained model is not yet implemented")
             raise NotImplementedError
 
         new_model = self.copy()
@@ -562,8 +551,9 @@ class CompositeFunction:
         reduced_model = new_model.remove_node(node=node_to_remove)
         return reduced_model
 
-    def remove_node(self, node):
+    def remove_node(self, node: CompositeFunction) -> CompositeFunction:
 
+        # untested with siblings
         parent_of_removed = node.parent
         parent_of_removed.children_list.remove(node)
         parent_of_removed.build_name()
@@ -572,69 +562,44 @@ class CompositeFunction:
 
         return self
 
+
+
     def scipy_func(self, x, *args):
         self.set_args(*args)
         return self.eval_at(x)
 
-    """
-    Holonomic Constraints (reduces dof by one)
-    """
     @staticmethod
-    def unity_constraint(x : float):
-        return 1
-    @staticmethod
-    def sameness_constraint(x: float):
-        return x
-    # Normalization of A exp[ B(x+C)^2 ] requires A=sqrt(1 / 2 pi sigma^2) with B= - 1 / 2 sigma^2
-    @staticmethod
-    def gaussian_normalization_constraint1(x: float):
-        return np.sqrt(np.abs(x) / np.pi)
-    # Alternative normalization of A exp[ B(x+C)^2 ] requires B = -pi*A^2 with A = 1/sqrt(2 pi sigma^2)
-    @staticmethod
-    def gaussian_normalization_constraint(x: float):
-        return -np.pi * np.power(x, 2)
-
-    """
-    Non-holonomic constraints (doesn't reduce dof)
-    """
-    @staticmethod
-    def positive_constraint(x: float):
-        return x if x > 0 else 1e5
-    @staticmethod
-    def negative_constraint(x: float):
-        return x if x < 0 else -1e5
-
-    @staticmethod
-    def built_in_dict():
+    def built_in_dict() -> dict[str,CompositeFunction]:
 
         built_ins = {}
 
         # linear model: m, b as parameters (roughly)
-        linear = CompositeFunction(prim=PrimitiveFunction.built_in("pow1"),
-                                   children_list=[PrimitiveFunction.built_in("pow1"),PrimitiveFunction.built_in("pow0")],
-                                   name = "Linear Model")
+        linear = CompositeFunction(prim_=PrimitiveFunction.built_in("pow1"),
+                                   children_list=[PrimitiveFunction.built_in("pow1"),
+                                   PrimitiveFunction.built_in("pow0")]
+                                   )
 
         # Gaussian: A, mu, sigma as parameters (roughly)
-        gaussian_inner_negativequadratic = CompositeFunction(prim=PrimitiveFunction.built_in("pow2_force_neg_arg"),
+        gaussian_inner_negativequadratic = CompositeFunction(prim_=PrimitiveFunction.built_in("pow2_force_neg_arg"),
                                                              children_list=[PrimitiveFunction.built_in("pow1"),
                                                                             PrimitiveFunction.built_in("pow0")]
                                                              )
-        gaussian = CompositeFunction(prim=PrimitiveFunction.built_in("exp"),
+        gaussian = CompositeFunction(prim_=PrimitiveFunction.built_in("exp"),
                                      children_list=[gaussian_inner_negativequadratic],
-                                     name = "Gaussian")
+                                     name="Gaussian")
 
         # Normal: mu, sigma as parameters (roughly)
         normal = gaussian.copy()
         normal.name = "Normal"
-        normal.add_constraint( (1,CompositeFunction.gaussian_normalization_constraint,0) )
+        normal.add_constraint( (1,gaussian_normalization_constraint,0) )
 
         # Sigmoid H/(1 + exp(-w(x-x0)) ) + F
         # aka F[ 1 + h/( 1+Bexp(-wx) ) ]
-        exp_part = CompositeFunction(prim=PrimitiveFunction.built_in("exp"),
+        exp_part = CompositeFunction(prim_=PrimitiveFunction.built_in("exp"),
                                      children_list=[PrimitiveFunction.built_in("pow1")])
-        inv_part = CompositeFunction(prim=PrimitiveFunction.built_in("pow_neg1_force_pos_arg"),
+        inv_part = CompositeFunction(prim_=PrimitiveFunction.built_in("pow_neg1_force_pos_arg"),
                                      children_list=[PrimitiveFunction.built_in("pow0"),exp_part])
-        sigmoid = CompositeFunction(prim=PrimitiveFunction.built_in("pow1"),
+        sigmoid = CompositeFunction(prim_=PrimitiveFunction.built_in("pow1"),
                                     children_list=[PrimitiveFunction.built_in("pow0"),inv_part],
                                     name="Sigmoid")
 
@@ -647,110 +612,94 @@ class CompositeFunction:
         return built_ins
 
     @staticmethod
-    def built_in_list():
+    def built_in_list() -> list[CompositeFunction]:
         built_ins = []
         for key, comp in CompositeFunction.built_in_dict().items():
             built_ins.append(comp)
         return built_ins
 
     @staticmethod
-    def built_in(key):
+    def built_in(key) -> CompositeFunction:
         return CompositeFunction.built_in_dict()[key]
 
     @property
-    def dimension_arg(self):
-        if self._parent is None:
-            return -self.dimension_func
-        # else
-        if self._parent.prim.name[:3] == "pow" :
-            if self == self._parent.children_list[0] :
-                return 0
-            # else
-            return self._parent.children_list[0].dimension_func - self.dimension_func
-        # else, e.g. self._parent.func.name in ["my_cos","my_sin","my_exp","my_log"] :
-        return -self.dimension_func
+    def net_function_dimension_self_and_younger_siblings(self):
+        dim = self.dimension_func
+        if self._younger_brother is not None :
+            dim += self._younger_brother.net_function_dimension_self_and_younger_siblings
+        return dim
 
     @property
-    def dimension_func(self):
+    def dimension_arg(self) -> int:
+        # untested with siblings
+        if self._older_brother is not None :
+            return 0
+        if self.parent is None:
+            return -self.net_function_dimension_self_and_younger_siblings
+        # else
+        if self.parent.prim.name[:3] == "pow" :
+            if self == self.parent.children_list[0] :
+                return 0
+            # else
+            return self.parent.children_list[0].net_function_dimension_self_and_younger_siblings - self.net_function_dimension_self_and_younger_siblings
+        # else, e.g. self.parent.func.name in ["my_cos","my_sin","my_exp","my_log"] :
+        return -self.net_function_dimension_self_and_younger_siblings
+
+    @property
+    def dimension_func(self) -> int:
+        # untested with siblings
+        if self._prim.name[:3] == "my_":
+            return 0
+        elif self._prim.name == "pow0":
+            return 0
+
         if self._children_list == [] :
-            if self._prim_of_this_node.name[:3] == "my_" :
-                return 0
-            elif self._prim_of_this_node.name == "pow0" :
-                return 0
-            elif self._prim_of_this_node.name == "pow1" :
+            if self._prim.name == "pow1" :
                 return 1
-            elif self._prim_of_this_node.name[:4] == "pow2" :
+            elif self._prim.name[:4] == "pow2" :
                 return 2
-            elif self._prim_of_this_node.name == "pow3" :
+            elif self._prim.name == "pow3" :
                 return 3
-            elif self._prim_of_this_node.name == "pow4" :
+            elif self._prim.name == "pow4" :
                 return 4
-            elif self._prim_of_this_node.name[:8] == "pow_neg1" :
+            elif self._prim.name[:8] == "pow_neg1" :
                 return -1
         else :
-            if self._prim_of_this_node.name[:3] == "my_":
-                return 0
-            if self._prim_of_this_node.name == "pow0" :
-                return 0
-            elif self._prim_of_this_node.name == "pow1" :
+            if self._prim.name == "pow1" :
                 return self._children_list[0].dimension
-            elif self._prim_of_this_node.name[:4] == "pow2" :
+            elif self._prim.name[:4] == "pow2" :
                 return 2*self._children_list[0].dimension
-            elif self._prim_of_this_node.name == "pow3" :
+            elif self._prim.name == "pow3" :
                 return 3*self._children_list[0].dimension
-            elif self._prim_of_this_node.name == "pow4" :
+            elif self._prim.name == "pow4" :
                 return 4*self._children_list[0].dimension
-            elif self._prim_of_this_node.name[:8] == "pow_neg1" :
+            elif self._prim.name[:8] == "pow_neg1" :
                 return -1*self._children_list[0].dimension
 
     @ property
-    def dimension(self):
-        return self.dimension_arg + self.dimension_func
+    def dimension(self) -> int:
+        # untested with siblings
+        sibling_dimension = 0
+        if self.younger_brother is not None:
+            sibling_dimension = self.younger_brother.dimension_func
+        # return self.dimension_arg + self.dimension_func + sibling_dimension
+        return self.dimension_arg + self.net_function_dimension_self_and_younger_siblings
+
+def sameness_constraint(x):
+    return x
+# Normalization of A exp[ B(x+C)^2 ] requires A=sqrt(1 / 2 pi sigma^2) and B= - 1 / 2 sigma^2
+def gaussian_normalization_constraint1(x):
+    return np.sqrt(np.abs(x)/np.pi)
+def gaussian_normalization_constraint(x):
+    return -np.pi*np.power(x,2)
 
 
+def do_new_things():
+
+    for x in np.arange(0,20,0.4) :
+        print(f"{x:.2F}, {5*x*x*np.exp(-x/3):.2F}")
 
 
-def test_composite_functions():
+if __name__ == "__main__" :
 
-    cos_sqr =  CompositeFunction(prim=PrimitiveFunction.built_in("pow2"),
-                                 children_list=[PrimitiveFunction.built_in("cos")],
-                                 name="cos_sqr")
-    inv_lin_cos_sqr = CompositeFunction(prim=PrimitiveFunction.built_in("pow_neg1"),
-                                        children_list=[PrimitiveFunction.built_in("pow2"),
-                                                       PrimitiveFunction.built_in("pow1")],
-                                        name="inv_lin_cos_sqr")
-    inv_lin_cos_sqr.print_tree()
-    print(inv_lin_cos_sqr.tree_as_string_with_dimensions())
-
-    test_comp = CompositeFunction(prim=PrimitiveFunction.built_in("pow1"),
-                                  children_list=[PrimitiveFunction.built_in("pow0"),
-                                                 PrimitiveFunction.built_in("pow1")],
-                                  name="TestMeNow")
-    test_comp.set_args(5,7)
-
-    print( "pp",test_comp.get_args() )
-    test_comp.print_tree()
-    value = test_comp.eval_at(1)
-    print(value)
-    print(test_comp.dimension_func, test_comp.dimension_arg )
-
-    test_comp2 = CompositeFunction(prim=PrimitiveFunction.built_in("pow2"),
-                                   children_list=[test_comp,test_comp,test_comp],
-                                   name="TestMeNowBaby")
-    test_comp2.print_tree()
-    value2 = test_comp2.eval_at(1)
-    print(value2)
-
-    constraint1 = (0,CompositeFunction.sameness_constraint,1)
-    test_comp.add_constraint(constraint1)
-    test_comp.set_args(5)
-
-    test_comp.print_tree()
-    value3 = test_comp.eval_at(5)
-    print(value3)
-
-
-
-if __name__ == "__main__":
-    test_composite_functions()
-
+    do_new_things()

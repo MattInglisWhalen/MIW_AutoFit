@@ -6,9 +6,7 @@ from collections import defaultdict
 import codeop
 
 # external libraries
-import numpy
-import scipy.optimize
-from scipy.optimize import curve_fit, differential_evolution
+from scipy.optimize import curve_fit
 from scipy.fft import fft, fftshift, fftfreq
 import matplotlib.pyplot as plt
 import numpy as np
@@ -163,13 +161,9 @@ class Optimizer:
                 # and add the new function to the top5 list
                 for ndx, (arg, unc) in enumerate( zip(pars,uncertainties) ) :
                     if abs(arg) < 2*unc :  # 95% confidence level arg is not different from zero
-                        print(f"Zero arg detected: attempting to trim model...")
+                        print("Zero arg detected: new trimmed model is")
                         reduced_model = model.submodel_without_node_idx(n=ndx)
-
-                        if reduced_model != -1:
-                            if not self.passes_rules(reduced_model):
-                                print(f"\t {reduced_model.name} doesn't pass the validity tests")
-                            print(f"Success! > {reduced_model.name} <")
+                        if reduced_model != -1 :
                             reduced_model.print_tree()
 
                             pars, uncs = self.parameters_and_uncertainties_from_fitting(
@@ -183,7 +177,7 @@ class Optimizer:
                                                    red_chi_squared=new_red_chi_squared
                                                    )
                         else:
-                            print("\t Can't reduce the model")
+                            print("Can't reduce the model")
                         break
 
                 if self._top_5_red_chi_squareds[-1] > 9e4 and self._top_5_red_chi_squareds[0] < 9e4 :
@@ -200,7 +194,7 @@ class Optimizer:
 
         if depth <= 1 :
             for iprim in self._primitive_function_list:
-                new_comp = CompositeFunction(prim=iprim)
+                new_comp = CompositeFunction(prim_=iprim)
                 yield new_comp
 
         else :
@@ -212,6 +206,11 @@ class Optimizer:
                         new_comp.get_node_with_index(idescendent).add_child(iprim)
                         new_comp.build_name()
                         yield new_comp
+
+                        new_mul = icomp.copy()
+                        new_mul.get_node_with_index(idescendent).add_younger_brother(iprim)
+                        new_mul.build_name()
+                        yield new_mul
 
     def valid_composite_function_generator(self, depth):
 
@@ -235,52 +234,32 @@ class Optimizer:
         # start with simple primitives
         self._composite_function_list = []
         for iprim in self._primitive_function_list:
-            new_comp = CompositeFunction(prim=iprim)
+            new_comp = CompositeFunction(prim_=iprim)
             self._composite_function_list.append(new_comp)
 
-        for _ in range(self._max_functions - 1) :
+        for _ in range(self._max_functions-1) :
             new_list = self._composite_function_list.copy()
             for icomp in self._composite_function_list[:]:
-                # extend list through composition
                 for idescendent in range(icomp.num_nodes()):
                     for iprim in self._primitive_function_list:
                         new_comp = icomp.copy()
                         new_comp.get_node_with_index(idescendent).add_child(iprim)
                         new_comp.build_name()
                         new_list.append(new_comp)
+
+                        new_mul = icomp.copy()
+                        new_mul.get_node_with_index(idescendent).add_younger_brother(iprim)
+                        new_mul.build_name()
+                        new_list.append(new_mul)
             self._composite_function_list = new_list.copy()
 
         for comp in CompositeFunction.built_in_list():
-            if comp.dof < self._max_functions :
-                self._composite_function_list.append(comp.copy())
+            self._composite_function_list.append(comp.copy())
 
         # prepend the current top 5 models
 
         self.trim_composite_function_list()
         print(f"After trimming list: (len={len(self._composite_function_list)})")
-        for icomp in self._composite_function_list:
-            print(icomp)
-        print("|----------------\n")
-
-        # extend list through multiplication
-        # TODO: the above new lists should have indices for their depth, so I can multiply them together
-        #       with the appropriate number of degrees of freedom
-
-        # TODO : the complex nature of the multiplication means that functions end up with complex ranges,
-        #        which need to be subsequently cast to real numbers for the fits. Check for parent=None in evat_at
-
-        # TODO: consider just adding a new product data structure so we don't have to go through exps and logs
-        #       just to do a simple multiplication
-        new_list = self._composite_function_list.copy()
-        for icomp1 in self._composite_function_list[:]:
-            for icomp2 in self._composite_function_list[:]:
-                if icomp1.dof + icomp2.dof > self._max_functions :
-                    continue
-                new_prod = CompositeFunction.prod(icomp1,icomp2)
-                new_list.append(new_prod)
-        self._composite_function_list = new_list.copy()
-
-        print(f"After adding multiplications: (len={len(self._composite_function_list)})")
         for icomp in self._composite_function_list:
             print(icomp)
         print("|----------------\n")
@@ -323,7 +302,7 @@ class Optimizer:
             remove_flag = 3
 
         # composition of powers with no sum is wrong
-        if regex.search(f"pow[0-9]\(pow[a-z0-9_]*\)", name):
+        if regex.search(f"pow[0-9]\(pow[a-z0-9_·]*\)", name):
             remove_flag = 5
 
         # repeated reciprocal is wrong
@@ -351,7 +330,7 @@ class Optimizer:
         if regex.search(f"\+pow1\(", name):
             remove_flag = 19
 
-        # sum of the same function is wrong
+        # sum of the same function (without further composition) is wrong
         for prim_name in self._primitive_names_list:
             if regex.search(f"{prim_name}[a-z0-9_+]*{prim_name}", name):
                 remove_flag = 23
@@ -372,10 +351,10 @@ class Optimizer:
                 or regex.search(f"my_log\([a-z0-9_]*\)\+pow0", name):
             remove_flag = 37
 
-        # sins and cosines and exps and logs never have angular frequency or decay parameters exactly 1
+        # sins, cosines, exps, and logs never have angular frequency or decay parameters exactly 1
         # all unitless-argument functions start with my_
-        if regex.search(f"my_[a-z]*\+", name) or regex.search(f"my_[a-z]*\)", name):
-            if regex.search(f"my_exp\(my_log\)", name):
+        if regex.search(f"my_[a-z]*[+·)]", name):
+            if regex.search(f"my_exp\(my_log\)", name) :
                 # the one exception in order to get power laws
                 pass
             else:
@@ -385,7 +364,7 @@ class Optimizer:
         if regex.search(f"\(pow1\(", name) or regex.search(f"\+pow1\(", name):
             remove_flag = 47
 
-        # more more exp algebra: Alog( Bexp(Cx) ) = AlogB + ACx = pow0+pow1
+        # more more exp algebra: Alog( Bexp(Cx) ) = AlogB + ACx = pow1(pow0+pow1)
         if regex.search(f"my_log\(my_exp\(pow1\)\)", name):
             remove_flag = 53
 
@@ -401,10 +380,10 @@ class Optimizer:
             remove_flag = 67
 
         # exp(pow0+...) is just exp(...)
-        if regex.search(f"my_exp\(pow0", name) or regex.search(f"my_exp\([a-z0-9_+]*pow0", name):
+        if regex.search(f"my_exp\(pow0", name) or regex.search(f"my_exp\([a-z0-9_+·]*pow0", name):
             remove_flag = 71
 
-        # log(1/f+g) of log( (f+g)^n )is the same as log(f+g)
+        # log(1/f+g) or log( (f+g)^n )is the same as log(f+g)
         if regex.search(f"my_log\(pow[a-z0-9_]*\([a-z0-9_+]*\)\)", name):
             remove_flag = 73
 
@@ -412,25 +391,48 @@ class Optimizer:
         if regex.search(f"pow[a-z0-9_]*\(my_exp\([a-z0-9_+]*\)\)", name):
             remove_flag = 83
 
-        if name == "my_exp(my_log)":
-            if remove_flag:
-                print(f"\n\n>>> Why did we remove {name=} at {remove_flag=} <<<\n\n")
-                raise SystemExit
+        """
+        Multiplicative rules
+        """
+        if regex.search(f"pow0·", name) or regex.search(f"·pow0", name):
+            remove_flag = 1000 + 2
 
-        if name == "pow1(my_cos(pow1)+my_sin(pow1))":
-            if remove_flag:
-                print(f"Why did we remove {name=} at {remove_flag=}")
-                raise SystemExit
+        if regex.search(f"my_exp·my_exp",name):
+            remove_flag = 1000 + 3
 
-        if name == "pow_neg1":
-            if remove_flag:
-                print(f"Why did we remove {name=} with {remove_flag=}")
-                raise SystemExit
+        """
+        Checks
+        """
 
-        if name == "pow1(pow0+pow0)":
-            if not remove_flag:
-                print(f"Why didn't we remove {name=} with {remove_flag=}")
-                raise SystemExit
+        if name == "my_exp(my_log)" and remove_flag:
+            print(f"\n\n>>> Why did we remove {name=} at {remove_flag=} <<<\n\n")
+            raise SystemExit
+
+        if name == "pow1(my_cos(pow1)+my_sin(pow1))" and remove_flag:
+            print(f"\n\n>>> Why did we remove {name=} at {remove_flag=} <<<\n\n")
+            raise SystemExit
+
+        if name == "pow_neg1" and remove_flag:
+            print(f"\n\n>>> Why did we remove {name=} with {remove_flag=} <<<\n\n")
+            raise SystemExit
+
+        if name == "pow1(pow0+pow0)" and not remove_flag:
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=23 <<<\n\n")
+            raise SystemExit
+
+        if name == "pow1·pow1(pow1·pow1)" and not remove_flag:
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=?? <<<\n\n")
+            raise SystemExit
+
+        if name == "my_exp(pow1)·my_exp·pow1" and not remove_flag:
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=43 <<<\n\n")
+            print(icomp.has_double_expness())
+            raise SystemExit
+
+        if (name == "pow1·my_exp(my_exp)" or name == "pow1·my_exp(pow1·my_exp)") and not remove_flag:
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=29 <<<\n\n")
+            print(icomp.has_double_expness())
+            raise SystemExit
 
         if remove_flag :
             return False
@@ -477,14 +479,15 @@ class Optimizer:
         sigma_points = []
 
         use_errors = True
-
+        y_range = max([datum.val for datum in self._data])-min([datum.val for datum in self._data])
         for datum in self._data:
             x_points.append(datum.pos)
             y_points.append(datum.val)
-            if datum.sigma_val < 1e-5:
-                print(" >>> NO UNCERTAINTY <<< ")
+            if datum.sigma_val < 1e-10:
+                # print(" >>> NO UNCERTAINTY <<< ")
                 use_errors = False
-                sigma_points.append(1.)
+                sigma_points.append(y_range/10)
+                datum.sigma_val = y_range/10
             else:
                 sigma_points.append(datum.sigma_val)
 
@@ -499,6 +502,8 @@ class Optimizer:
         if initial_guess is None :
             initial_guess = self.find_initial_guess_scaling(model)
             model.set_args(*initial_guess)
+        print(model.tree_as_string_with_dimensions())
+        model.print_tree()
 
         # Next, find a better guess by relaxing the error bars on the data
         # Unintuitively, this helps. Tight error bars flatten the gradients away from the global minimum,
@@ -510,6 +515,8 @@ class Optimizer:
             print("Couldn't find optimal parameters for a better guess.")
             self._best_args = initial_guess
             self._best_args_uncertainty = [1e5 for _ in range(model.dof)]
+            model.set_args(*self._best_args)
+            self._best_function = model.copy()
             return self._best_args, self._best_args_uncertainty
 
         # Finally, use the better guess to find the true minimum with the true error bars
@@ -546,13 +553,14 @@ class Optimizer:
 
         use_errors = True
 
+        y_range = max([datum.val for datum in self._data])-min([datum.val for datum in self._data])
         for datum in self._data :
             x_points.append( datum.pos )
             y_points.append( datum.val )
-            if datum.sigma_val < 1e-5 :
+            if datum.sigma_val < 1e-10 :
                 use_errors = False
-                sigma_points.append( 1. )
-                datum.sigma_val = 1
+                sigma_points.append( y_range/10 )
+                datum.sigma_val = y_range/10
             else:
                 sigma_points.append( datum.sigma_val )
 
@@ -644,13 +652,14 @@ class Optimizer:
         use_errors = True
         done_flag = 0
 
+        y_range = max([datum.val for datum in self._data])-min([datum.val for datum in self._data])
         for datum in self._data :
             x_points.append( datum.pos )
             y_points.append( datum.val )
             if datum.sigma_val < 1e-5 :
                 use_errors = False
-                sigma_points.append( 1. )
-                datum.sigma_val = 1
+                sigma_points.append( y_range/10 )
+                datum.sigma_val = y_range/10
             else:
                 sigma_points.append( datum.sigma_val )
 
@@ -757,41 +766,12 @@ class Optimizer:
         #  the phase information from the FFT often gets the nature of sin/cosine wrong.
         #  Is there a way to do better?
 
-        # create an ultra-sample of these equally-spaced data points. This is so we can pick out phase information
-        # more readily, which is important for determining whether an oscillator is sin-like or cosine-like
-        # this only adds higher frequencies, not lower ones :'(
-        # new_xpoints = []
-        # new_ypoints = []
-        # for idx, (x, y) in enumerate( zip(x_points[:-1],y_points[:-1]) ) :
-        #     deltax =  x_points[idx+1] - x
-        #     deltay = y_points[idx+1] - y
-        #     slope = deltay / deltax
-        #     for i in range(5) :
-        #         new_xpoints.append( x + deltax*i/5 )
-        #         new_ypoints.append( y + slope*(deltax*i/5) )
-        #
-        # x_points = new_xpoints
-        # y_points = new_ypoints
-
         avg_y = sum(y_points) / len(y_points)
         zeroed_y_points = [val - avg_y for val in y_points]
 
         # complex fourier spectrum, with positions adjusted to frequency space
         fft_Ynu = fftshift(fft(zeroed_y_points)) / len(zeroed_y_points)
         fft_nu = fftshift(fftfreq(len(zeroed_y_points), x_points[1] - x_points[0]))
-
-        # mid_idx = math.floor(len(fft_Ynu)/2)
-        # for shift in range(9) :
-        #     fft_phi = math.atan2(np.imag(fft_Ynu[mid_idx-4+shift]) ,
-        #                          np.real(fft_Ynu[mid_idx-4+shift])   )
-        #     fft_quarter_turns = fft_phi / (math.pi/2)
-        #     print(f"{fft_nu[mid_idx-4+shift]} {fft_Ynu[mid_idx-4+shift]} {fft_phi=} {fft_quarter_turns=}")
-        #
-        # plt.close()
-        # plt.plot(fft_nu,np.abs(fft_Ynu))
-        # plt.show()
-
-
 
         pos_Ynu = fft_Ynu[ math.floor(len(fft_Ynu)/2) : ]  # the positive frequency values
         pos_nu = fft_nu[ math.floor(len(fft_Ynu)/2) : ]    # the positive frequencies
@@ -811,13 +791,12 @@ class Optimizer:
             # note that tested frequencies can overlap from one argmax to the next
 
             # first with sine
-            test_func = CompositeFunction(prim=PrimitiveFunction.built_in("sin"),
+            test_func = CompositeFunction(prim_=PrimitiveFunction.built_in("sin"),
                                           children_list=[PrimitiveFunction.built_in("pow1")])
             sin_rchisqr_list = []
             for i in range(7) :
                 test_func.set_args(2*np.abs(pos_Ynu[argmax]), 2*math.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) )
                 sin_rchisqr_list.append( self.reduced_chi_squared_of_fit(model=test_func) )
-                # for debugging fourier decomp
                 # print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={sin_rchisqr_list[-1]}")
 
             # should only do this if we find a minimum
@@ -828,24 +807,20 @@ class Optimizer:
                     # we found a minimum
                     best_freq = pos_nu[argmax]+delta_nu*(list_idx-3)/3
                     best_rchisqr = min_val
-                    # for debugging fourier decomp
                     # print(f"Found sin minimum with {best_freq*2*math.pi} {best_rchisqr=}")
                 else :
                     best_freq = pos_nu[argmax]
                     best_rchisqr = min_val
-                    # for debugging fourier decomp
                     # print(f"NO  SIN  MINIMUM   so {best_freq=} {best_rchisqr=}")
-                # for debugging fourier decomp
                 # print(f"Best sin omega is {2*math.pi*best_freq} with {best_rchisqr=} at idx {list_idx}")
 
             # now with cosine
-            test_func = CompositeFunction(prim=PrimitiveFunction.built_in("cos"),
+            test_func = CompositeFunction(prim_=PrimitiveFunction.built_in("cos"),
                                           children_list=[PrimitiveFunction.built_in("pow1")])
             cos_rchisqr_list = []
             for i in range(7):
                 test_func.set_args( 2*np.abs(pos_Ynu[argmax]), 2*math.pi*(pos_nu[argmax] + delta_nu*(i-3) / 3) )
                 cos_rchisqr_list.append(self.reduced_chi_squared_of_fit(model=test_func))
-                # for debugging fourier decomp
                 # print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={cos_rchisqr_list[-1]}")
 
             # should only do this if we find a minimum
@@ -857,21 +832,16 @@ class Optimizer:
                     # we found a minimum
                     best_freq = pos_nu[argmax] + delta_nu*(list_idx-3)/3
                     best_rchisqr = min_val
-                    # for debugging fourier decomp
                     # print(f"Found cos minimum with {best_freq*2*math.pi} {best_rchisqr=}")
                 else:
                     best_freq = pos_nu[argmax]
                     best_rchisqr = min_val
-                    # for debugging fourier decomp
                     # print(f"NO  COS  MINIMUM   so {best_freq=} {best_rchisqr=}")
-                # for debugging fourier decomp
                 # print(f"So better fit is cos where omega is {2*math.pi*best_freq} with {best_rchisqr=}")
             else :
                 pass
-                # for debugging fourier decomp
                 # print("Nothing better in cosine")
-            # for debugging fourier decomp
-            # print(" ")
+            #print(" ")
 
             if is_sin :
                 # print(f"Adding {best_freq} to sin")
@@ -885,64 +855,18 @@ class Optimizer:
         print("Done fourier decomp")
 
 
-            # previous logic, based on relative size of real and imaginary components
-            # if np.abs(np.real(pos_Ynu[argmax])) > np.abs(np.imag(pos_Ynu[argmax])) :
-            #     print(f"Adding {pos_nu[argmax]} to cos because {pos_Ynu[argmax]=}")
-            #     self._cos_freq_list.append( pos_nu[argmax] )
-            # else:
-            #     print(f"Adding {pos_nu[argmax]} to sin because {pos_Ynu[argmax]=}")
-            #     self._sin_freq_list.append(pos_nu[argmax])
-            # pos_Ynu = np.delete(pos_Ynu, argmax)
-            # pos_nu = np.delete(pos_nu, argmax)
 
-
-    # def find_initial_guess(self, model: CompositeFunction, width = 10., num_each=10):
-    #
-    #     best_rchisqr = 1e5
-    #     best_grid_point = model.get_args()
-    #
-    #     total_grid = np.mgrid[tuple(slice(-width / 2, width / 2, complex(0, num_each)) for _ in range(model.dof))]
-    #
-    #     args = []
-    #     for idim in range( model.dof ):
-    #         args.append(total_grid[idim].flatten())
-    #     for ipoint in zip(*args):
-    #         model.set_args( *ipoint )
-    #         temp_rchisqr = self.reduced_chi_squared_of_fit(model)
-    #         if temp_rchisqr < best_rchisqr :
-    #             best_rchisqr = temp_rchisqr
-    #             best_grid_point = list(ipoint)
-    #
-    #     model.set_args( *best_grid_point)
-    #
-    #     return best_grid_point
-
-    # def find_initial_guess_genetic(self, model: CompositeFunction):
-    #
-    #     max_Y_data = max( [datum.val for datum in self._data] ) - min( [datum.val for datum in self._data] )
-    #     max_X_data = max( [datum.pos for datum in self._data] ) - min( [datum.pos for datum in self._data] )
-    #     max_data = max( max_X_data, max_Y_data )
-    #
-    #     parameter_bounds = []
-    #     for _ in range(model.dof):
-    #         parameter_bounds.append( [-max_data, max_data] )
-    #
-    #     self._temp_function = model
-    #     best_point = differential_evolution( self.loss_function, parameter_bounds)
-    #
-    #     return best_point.x
 
     def find_initial_guess_scaling(self, model):
-
-        # print(f"In find_initial_guess_scaling with {model.name=}")
 
         scaling_args_no_sign = self.find_set_initial_guess_scaling(model)
 
         # the above args, with sizes based on scaling, could each be positive or negative. Find the best one (of 2^dof)
-        best_rchisqr = 1e5
+        best_rchisqr = 1e50
         best_grid_point = scaling_args_no_sign
 
         scaling_args_sign_list = []
+        # creates list of arguments to try with all +/- sign combinations
         for idx in range( 2**model.dof ) :
             binary_string_of_index = f"0000000000000000{idx:b}"
 
@@ -951,6 +875,7 @@ class Optimizer:
                 new_gridpoint[bit] = arg*(1-2*int(binary_string_of_index[-1-bit]))
             scaling_args_sign_list.append(new_gridpoint)
 
+        # tests each of the +/- combinations for the best fit
         for point in scaling_args_sign_list:
             model.set_args( *point )
             temp_rchisqr = self.reduced_chi_squared_of_fit(model)
@@ -1036,6 +961,7 @@ class Optimizer:
         if plot_model is not None :
             smooth_x_for_fit = np.linspace( x_points[0], x_points[-1], 4*len(x_points))
             fit_vals = [ plot_model.eval_at(xi) for xi in smooth_x_for_fit ]
+            print(f"{fit_vals=}")
             plt.plot( smooth_x_for_fit, fit_vals, '-', color='r')
         plt.xlabel("x")
         plt.ylabel("y")
@@ -1151,6 +1077,7 @@ class Optimizer:
         print("Using smoothed data")
         raise RuntimeError
 
+        data_to_smooth = []
         return_data = []
         if n <= 1 :
             data_to_smooth = self._averaged_data
@@ -1304,7 +1231,6 @@ class Optimizer:
     def unload_pow4_function(self):
         self._primitive_function_list.remove( PrimitiveFunction.built_in("pow4") )
 
-    # TODO:
     def load_custom_functions(self):
         pass
     def unload_custom_functions(self):

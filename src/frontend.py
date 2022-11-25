@@ -912,7 +912,11 @@ class Frontend:
                 print_string += f" A exp[-(x-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
             A, sigmaA = self._optimizer.parameters[0], self._optimizer.uncertainties[0]
             mu, sigmamu = -self._optimizer.parameters[2], self._optimizer.uncertainties[2]
-            sigma = math.sqrt( -1 / (2*self._optimizer.parameters[1]) )
+            try :
+                sigma = math.sqrt( -1 / (2*self._optimizer.parameters[1]) )
+            except ValueError :
+                print(f"Can't take sqrt of \"optimal\" parameter {self._optimizer.parameters[1]:.2E}")
+                sigma = 100
             sigmasigma = abs( sigma*self._optimizer.uncertainties[1] / (2*self._optimizer.parameters[1]) )
             print_string += f"   A = {A:+.2E}  \u00B1  {sigmaA:.2E}\n"
             print_string += f"   \u03BC = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
@@ -1369,6 +1373,8 @@ class Frontend:
 
     def show_residuals_command(self):
         # TODO: this should do something different when fitting all
+        # this also doesn't make sense when using LX/LY
+        #    -- the residuals plot looks good but I don't think the normality tests are working
         if self._showing_fit_all_image :
             pass
         residuals = []
@@ -1376,7 +1382,7 @@ class Frontend:
             print("Residuals_command: you shouldn't be here, quitting")
             raise SystemExit
 
-        res_filepath=f"{self.get_package_path()}/plots/residuals.csv"
+        res_filepath = f"{self.get_package_path()}/plots/residuals.csv"
 
         residuals = []
 
@@ -1386,8 +1392,6 @@ class Frontend:
                 residuals.append(res)
                 res_file.write(f"{res},\n")
 
-
-
         res_handler = DataHandler(filepath=res_filepath)
         res_optimizer = Optimizer(data=res_handler.data)
 
@@ -1396,7 +1400,7 @@ class Frontend:
         sample_std_dev = math.sqrt(sample_variance)
 
         # should be counting with std from 0, not from residual_mean
-        variance_rel_zero = sum([ res** 2 for res in residuals]) / (len(residuals) - 1)
+        variance_rel_zero = sum([ res**2 for res in residuals]) / (len(residuals) - 1)
         std_dev_rel_zero = math.sqrt(variance_rel_zero)
 
         std_dev = std_dev_rel_zero
@@ -1417,8 +1421,6 @@ class Frontend:
             std_dev = sigma_from_fit
             sample_mean = x0
 
-
-
         count_ulow = sum([1 if res-sample_mean < sample_mean-2*std_dev else 0 for res in residuals])
         count_low = sum([1 if sample_mean-2*std_dev < res-sample_mean < sample_mean-std_dev else 0
                          for res in residuals])
@@ -1428,13 +1430,6 @@ class Frontend:
                           for res in residuals])
         count_uhigh = sum([1 if res-sample_mean > sample_mean + 2*std_dev else 0 for res in residuals])
 
-        # print(f" ultralow | low tail | centre | high tail | ultrahigh"
-        #       f"    {count_ulow} | {count_low} | {count_middle} | {count_high} | {count_uhigh}    "
-        #       f"    {count_ulow/len(residuals)} | {count_low/len(residuals)} | {count_middle/len(residuals)} | {count_low/len(residuals)} | {count_uhigh/len(residuals)}   ")
-
-        # if the residual was normally-distributed, the centre would account for 0.682689*N of the trials
-        # the low-tail would account for 0.1586555*N of the trials
-        # and the high-tail would also account for 0.1586555*N of the trials
 
         # if we have independent trials, a binomial distribution for a sample of size N will have 90% confidence regions
         # between kmin and kmax
