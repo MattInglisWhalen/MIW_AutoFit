@@ -190,6 +190,18 @@ def test_tree_printout():
 
     assert test_deep_tree == expected_deep_tree
 
+def test_polynomial_creation() :
+
+    poly3 = CompositeFunction.built_in("Polynomial3")
+    assert poly3.name == "pow1(Pow0+Pow1+Pow2+Pow3)"
+    assertRelativelyEqual( poly3.eval_at(0.1), (0.1**3 + 0.1**2 + 0.1 + 1))
+
+    poly10 = CompositeFunction.built_in("Polynomial10")
+    poly10.set_args(*[3,4,5,6,7,8,9,10,11,12,13])
+    assert poly10.name == "pow1(Pow0+Pow1+Pow10+Pow2+Pow3+Pow4+Pow5+Pow6+Pow7+Pow8+Pow9)"
+    assertRelativelyEqual( poly10.eval_at(0.9), 3*(0.9**10 + 4*0.9**9 + 5*0.9**8 + 6*0.9**7 + 7*0.9**6 + 8*0.9**5 +
+                                                   + 9*0.9**4  + 10*0.9**3 + 11*0.9**2 + 12*0.9 + 13 ))
+
 def test_new_stuff():
 
     pass

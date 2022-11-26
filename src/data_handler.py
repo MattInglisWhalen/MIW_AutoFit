@@ -1,12 +1,10 @@
 
 # built-in libraries
-import csv as csv
 import math
 import re as regex
 
 # external libraries
 import numpy as np
-# import xlrd as excel
 import pandas as pd
 
 # user-defined classes
@@ -55,28 +53,28 @@ class DataHandler:
             print("Please first provide start- and end-points for data ranges")
 
     @property
-    def data(self):
+    def data(self) -> list[Datum1D]:
         return self._data
     @property
-    def x_label(self):
+    def x_label(self) -> str:
         return self._x_label
     @property
-    def y_label(self):
+    def y_label(self) -> str:
         return self._y_label
     @property
-    def histogram_flag(self):
+    def histogram_flag(self) -> bool:
         return self._histogram_flag
     @property
-    def normalized(self):
+    def normalized(self) -> bool:
         return self._normalized_histogram_flag
     @property
-    def X0(self):
+    def X0(self) -> float:
         return self._X0
     @X0.setter
     def X0(self, val):
         self._X0 = val
     @property
-    def logx_flag(self):
+    def logx_flag(self) -> bool:
         return self._logx_flag
     @logx_flag.setter
     def logx_flag(self, new_flag):
@@ -126,13 +124,13 @@ class DataHandler:
         self._logx_flag = new_flag
         print(f"Finished logging x with {self._X0=}")
     @property
-    def Y0(self):
+    def Y0(self) -> float:
         return self._Y0
     @Y0.setter
     def Y0(self, val):
         self._Y0 = val
     @property
-    def logy_flag(self):
+    def logy_flag(self) -> bool:
         return self._logy_flag
     @logy_flag.setter
     def logy_flag(self, new_flag):
@@ -155,7 +153,7 @@ class DataHandler:
         print(f"Finished logging y with {self._Y0=}")
 
     @property
-    def unlogged_x_data(self):
+    def unlogged_x_data(self) -> list[float]:
         if self._logx_flag :
             # we're logging the data, so return it unlogged
             return [self._X0 * math.exp( datum.pos ) for datum in self._data ]
@@ -163,7 +161,7 @@ class DataHandler:
         return [datum.pos for datum in self._data]
 
     @property
-    def unlogged_y_data(self):
+    def unlogged_y_data(self) -> list[float]:
         if self._logy_flag :
             # we're logging the data, so return it unlogged
             return [self._Y0 * math.exp( datum.val ) for datum in self._data ]
@@ -171,7 +169,7 @@ class DataHandler:
         return [datum.val for datum in self._data]
 
     @property
-    def unlogged_sigmax_data(self):
+    def unlogged_sigmax_data(self) -> list[float]:
         if self._logx_flag :
             # we're logging the data, so return it unlogged
             if self._histogram_flag :
@@ -183,7 +181,7 @@ class DataHandler:
         # else
         return [datum.sigma_pos for datum in self._data]
     @property
-    def unlogged_sigmay_data(self):
+    def unlogged_sigmay_data(self) -> list[float]:
         if self._logy_flag :
             # we're logging the data, so return it unlogged
             return [datum.sigma_val * self._Y0 * math.exp(datum.val) for datum in self._data]
@@ -192,12 +190,12 @@ class DataHandler:
 
 
 
-    def calc_num_lines(self):
+    def calc_num_lines(self) -> int:
         self._num_lines = sum(1 for _ in open(self._filepath))
         return self._num_lines
 
     # TODO: add support for non-comma delimeters. Need to get user input
-    def calc_entries_per_line(self, delim):
+    def calc_entries_per_line(self, delim) -> int:
         with open(self._filepath) as file:
             for line in file :
                 # read the first line only
@@ -215,7 +213,7 @@ class DataHandler:
                 return self._line_width
 
     @ staticmethod
-    def cleaned_line_as_str_list(line, delim):
+    def cleaned_line_as_str_list(line, delim) -> str:
         data = regex.split(f"\s*{delim}\s*", line[:-1])
         while data[-1] == "":
             data = data[:-1]

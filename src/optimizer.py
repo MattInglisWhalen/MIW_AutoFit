@@ -468,7 +468,9 @@ class Optimizer:
         self._data = sorted(other_data)
         self.average_data()
 
-    def parameters_and_uncertainties_from_fitting(self, model = None, initial_guess = None):
+    def parameters_and_uncertainties_from_fitting(self,
+                                                  model : CompositeFunction = None,
+                                                  initial_guess : list[float]= None):
 
         if model is None:
             model = self._best_function.copy()
@@ -500,10 +502,17 @@ class Optimizer:
         # Find an initial guess for the parameters based off scaling arguments
         # The loss function there also tries to fit the data's smoothed derivatives
         if initial_guess is None :
-            initial_guess = self.find_initial_guess_scaling(model)
-            model.set_args(*initial_guess)
-        print(model.tree_as_string_with_dimensions())
-        model.print_tree()
+            if "Pow" not in model.name :
+                initial_guess = self.find_initial_guess_scaling(model)
+                model.set_args(*initial_guess)
+            else:
+                degree = model.name.count('+')
+                np_args = np.polyfit(x_points,y_points,degree)
+                leading = np_args[0]
+                trailing = np_args[1:]/leading
+                initial_guess = [leading] + list(trailing)
+                print(f"polynomial {leading=} {trailing=} {initial_guess=}")
+                model.set_args(*initial_guess)
 
         # Next, find a better guess by relaxing the error bars on the data
         # Unintuitively, this helps. Tight error bars flatten the gradients away from the global minimum,
@@ -638,9 +647,9 @@ class Optimizer:
             lower_data = self._data[:math.floor(len(self._data)/2)]
             upper_data = self._data[math.floor(len(self._data)/2):]
             self._data = lower_data
-            self.find_best_model_for_dataset()
+            self.find_best_model_for_dataset(halved=True)
             self._data = upper_data
-            self.find_best_model_for_dataset()
+            self.find_best_model_for_dataset(halved=True)
             self._data = tmp_data
 
     def async_find_best_model_for_dataset(self, start=False):

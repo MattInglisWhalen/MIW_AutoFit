@@ -620,6 +620,21 @@ class CompositeFunction:
 
     @staticmethod
     def built_in(key) -> CompositeFunction:
+
+        # TODO: really shouldn't build the dict every time you ask for a key from it
+
+        if key[:10] == "Polynomial" :
+            degree = int(key[10:])
+            if degree == 0 :
+                return CompositeFunction(prim_=PrimitiveFunction.built_in("pow0"))
+
+            new_kids_list = []
+            for d in range(degree+1) :
+                new_kid = PrimitiveFunction.built_in(f"Pow{degree-d}")
+                new_kids_list.append(new_kid)
+
+            return CompositeFunction(prim_=PrimitiveFunction.built_in("pow1"),
+                                     children_list=new_kids_list)
         return CompositeFunction.built_in_dict()[key]
 
     @property
@@ -664,6 +679,8 @@ class CompositeFunction:
                 return 4
             elif self._prim.name[:8] == "pow_neg1" :
                 return -1
+            elif self._prim.name[:3] == "Pow" :
+                return int(self._prim.name[3:])
         else :
             if self._prim.name == "pow1" :
                 return self._children_list[0].dimension
@@ -675,6 +692,8 @@ class CompositeFunction:
                 return 4*self._children_list[0].dimension
             elif self._prim.name[:8] == "pow_neg1" :
                 return -1*self._children_list[0].dimension
+            elif self._prim.name[:3] == "Pow" :
+                return int(self._prim.name[3:])*self._children_list[0].dimension
 
     @ property
     def dimension(self) -> int:

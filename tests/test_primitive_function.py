@@ -58,9 +58,15 @@ def test_prim_builtins():
         assertRelativelyEqual( test_cos.eval_at(xval), np.cos(xval) )
         assertRelativelyEqual( test_sin.eval_at(xval), np.sin(xval) )
         assertRelativelyEqual( test_exp.eval_at(xval), np.exp(xval) )
-        assertRelativelyEqual( test_log.eval_at(xval), np.log(xval*xval)/2 )
+        assertRelativelyEqual( test_log.eval_at(xval), np.log(xval) )
 
+def test_arbitrary_powers():
 
+    pow2_prim = PrimitiveFunction.built_in("Pow2")
+    assertRelativelyEqual( pow2_prim.eval_at(0.1), 0.1**2 )
+
+    pow10_prim = PrimitiveFunction.built_in("Pow10")
+    assertRelativelyEqual( pow10_prim.eval_at(0.9), 0.9**10 )
 
 
 

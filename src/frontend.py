@@ -79,8 +79,9 @@ class Frontend:
 
         # backend connections
         self._optimizer = None   # Optimizer
-        self._model_name_tkvar = None  # tk.StringVar
+        self._model_name_tkvar = tk.StringVar("")  # tk.StringVar
         self._which5_name_tkvar = None  # tk.StringVar
+        self._polynomial_degree = tk.IntVar(value=2)  # tk.IntVar
         self._current_model : CompositeFunction = None
         self._current_args = None
         self._current_uncs = None
@@ -94,7 +95,7 @@ class Frontend:
         self._brute_forcing = tk.BooleanVar(value=False)
 
         # defaults config
-        self._default_fit_type = "linear"
+        self._default_fit_type = "Linear"
         self._default_excel_x_range = None
         self._default_excel_y_range = None
         self._default_excel_sigmax_range = None
@@ -133,7 +134,7 @@ class Frontend:
                 if "#FIT_TYPE" in line :
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
-                        arg = "linear"
+                        arg = "Linear"
                     self._default_fit_type = arg
                 if "#PROCEDURAL_DEPTH" in line :
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
@@ -276,7 +277,7 @@ class Frontend:
             custom_on = int(self._use_func_dict_name_tkVar["custom"].get())
             if cos_on and sin_on and exp_on and log_on and pow_neg1_on and pow2_on and pow3_on and pow4_on and custom_on:
                 print("You shouldn't have all functions turned on for a procedural fit. Use brute-force instead.")
-                print(f"s{self.brute_forcing=} {self._default_fit_type=}")
+                print(f" {self.brute_forcing=} {self._default_fit_type=}")
             file.write(f"#COS_ON {cos_on}\n")
             file.write(f"#SIN_ON {sin_on}\n")
             file.write(f"#EXP_ON {exp_on}\n")
@@ -348,7 +349,6 @@ class Frontend:
         # right panel -- text output
         self.create_right_panel()
 
-        self.perform_tests()
 
     """
     
@@ -507,9 +507,13 @@ class Frontend:
             self._new_user_stage *= 2
 
         # add buttons to adjust fit options
-        if self._default_fit_type != "linear" and self._new_user_stage % 7 != 0 :
+        if self._default_fit_type != "Linear" and self._new_user_stage % 7 != 0 :
             self._new_user_stage *= 7
             self.create_function_dropdown()
+        # degree options for polynomial fits
+        if self._model_name_tkvar.get() == "Polynomial" and self._new_user_stage % 19 != 0 :
+            self.create_degree_up_down_buttons()
+            self._new_user_stage *= 19
         # checkbox and depth options for procedural fits
         if self._model_name_tkvar.get() == "Procedural" and self._new_user_stage % 31 != 0 :
             self.create_default_checkboxes()
@@ -521,14 +525,6 @@ class Frontend:
             self.load_new_data(new_filepaths)
             if self._showing_fit_image :
                 self.show_current_data_with_fit()
-                # self._optimizer.set_data_to(self.data_handler.data)
-                # pars, uncs = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
-                # self._current_args = pars
-                # self._current_uncs = uncs
-                # shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
-                # self.add_message(f"\n \n> For {shortpath} \n")
-                # self.print_results_to_console()
-                # self.save_show_fit_image()
                 # # TODO: load new file after already obtained a fit -- the fit all button goes away when it shouldn't
                 # # FIXED?
             else:
@@ -754,29 +750,37 @@ class Frontend:
 
         # Find the fit for the currently displayed data
         data = self.data_handler.data
-        self._optimizer = Optimizer(data=data,
+        self._optimizer = Optimizer(data = data,
                                     use_functions_dict = self.use_functions_dict(),
-                                    max_functions=self.max_functions())
+                                    max_functions = self.max_functions())
         plot_model = None
         if self._model_name_tkvar.get() == "Linear" :
             print("Fitting to linear model")
             plot_model = CompositeFunction.built_in("Linear")
             self._optimizer.parameters_and_uncertainties_from_fitting(plot_model)
+        elif self._model_name_tkvar.get() == "Polynomial" :
+            print(f"Fitting to polynomial model of degree {self._polynomial_degree.get()}")
+            plot_model = CompositeFunction.built_in(f"Polynomial{self._polynomial_degree.get()}")
+            print("Hello! Show me the beef")
+            self._optimizer.parameters_and_uncertainties_from_fitting(plot_model)
         elif self._model_name_tkvar.get() == "Gaussian" and self.data_handler.normalized:
             print("Fitting to Normal distribution")
             plot_model = CompositeFunction.built_in("Normal")
-            initial_guess = self._optimizer.find_initial_guess_scaling(plot_model)
-            self._optimizer.parameters_and_uncertainties_from_fitting(plot_model,initial_guess=initial_guess)
+            # initial_guess = self._optimizer.find_initial_guess_scaling(plot_model)
+            # self._optimizer.parameters_and_uncertainties_from_fitting(plot_model,initial_guess=initial_guess)
+            self._optimizer.parameters_and_uncertainties_from_fitting(plot_model)
         elif self._model_name_tkvar.get() == "Gaussian" :
             print("Fitting to Gaussian model")
             plot_model = CompositeFunction.built_in("Gaussian")
-            initial_guess = self._optimizer.find_initial_guess_scaling(plot_model)
-            self._optimizer.parameters_and_uncertainties_from_fitting(plot_model,initial_guess=initial_guess)
+            # initial_guess = self._optimizer.find_initial_guess_scaling(plot_model)
+            # self._optimizer.parameters_and_uncertainties_from_fitting(plot_model,initial_guess=initial_guess)
+            self._optimizer.parameters_and_uncertainties_from_fitting(plot_model)
         elif self._model_name_tkvar.get() == "Sigmoid" :
             print("Fitting to Sigmoid model")
             plot_model = CompositeFunction.built_in("Sigmoid")
-            initial_guess = self._optimizer.find_initial_guess_scaling(plot_model)
-            self._optimizer.parameters_and_uncertainties_from_fitting(plot_model,initial_guess=initial_guess)
+            # initial_guess = self._optimizer.find_initial_guess_scaling(plot_model)
+            # self._optimizer.parameters_and_uncertainties_from_fitting(plot_model,initial_guess=initial_guess)
+            self._optimizer.parameters_and_uncertainties_from_fitting(plot_model)
         elif self._model_name_tkvar.get() == "Procedural":
             print("Fitting to procedural model")
             # TODO: find fit button should now be find model
@@ -822,9 +826,12 @@ class Frontend:
             self.update_top5_dropdown()
 
         # add a dropdown list for procedural-type fits
-        if self._model_name_tkvar.get() in ["Procedural","Brute-Force"] and self._new_user_stage % 29 != 0:
-            self.create_top5_dropdown()
-            self._new_user_stage *= 29
+        if self._model_name_tkvar.get() in ["Procedural","Brute-Force"] :
+            if self._new_user_stage % 29 != 0:
+                self.create_top5_dropdown()
+                self._new_user_stage *= 29
+            else:
+                self.show_top5_dropdown()
 
         # checkbox and depth options for procedural fits
         if self._model_name_tkvar.get() == "Procedural" and self._new_user_stage % 31 != 0 :
@@ -887,6 +894,11 @@ class Frontend:
             print_string += f"   m = {m:+.2E}  \u00B1  {sigmam:.2E}\n"
             print_string += f"   b = {b:+.2E}  \u00B1  {sigmab:.2E}\n"
             print_string += f"Goodness of fit: R\U000000B2 = {self._optimizer.r_squared(self._optimizer.best_model):.4F}\n"
+        elif self._model_name_tkvar.get() == "Polynomial" :
+            if self.data_handler.logy_flag :
+                print_string += f"\n>  Polynomial fit is LY = A"
+            else :
+                print_string += f"\n>  Polynomial fit is y = A"
         elif self._model_name_tkvar.get() == "Gaussian" and self.data_handler.normalized:
             if self.data_handler.logy_flag :
                 print_string += f"\n>  Normal fit is LY ="
@@ -1085,11 +1097,12 @@ class Frontend:
         self._gui.columnconfigure(1, minsize=720)  # image panel
         middle_panel_frame = tk.Frame(master=self._gui, relief=tk.RIDGE)
         middle_panel_frame.grid(row=0, column=1, sticky='nsew')
-        self.create_image_frame()
-        self.create_data_perusal_frame()
-        self.create_fit_options_frame()
-        self.create_plot_options_frame()
-        self.create_depth_frame()
+        self.create_image_frame()           # aka image frame
+        self.create_data_perusal_frame()    # aka inspect frame
+        self.create_fit_options_frame()     # aka dropdown frame
+        self.create_plot_options_frame()    # aka log normalize frame
+        self.create_depth_frame()           # aka procedural options frame
+        self.create_polynomial_frame()      # aka polynomial frame
 
     ##
     #
@@ -1141,6 +1154,12 @@ class Frontend:
             master=self._gui.children['!frame2']
         )
         depth_frame.grid(row = 4, column=0, sticky = 'w')
+
+    def create_polynomial_frame(self):  # !frame5 : depth of procedural fits
+        depth_frame = tk.Frame(
+            master=self._gui.children['!frame2']
+        )
+        depth_frame.grid(row = 5, column=0, sticky = 'w')
 
 
     ##
@@ -1198,7 +1217,7 @@ class Frontend:
         )
         black_line_as_frame.grid(row = 2, column=0, sticky='ew')
 
-        func_list = ["Linear", "Gaussian", "Sigmoid", "Procedural", "Brute-Force"]
+        func_list = ["Linear", "Polynomial", "Gaussian", "Sigmoid", "Procedural", "Brute-Force"]
 
         self._model_name_tkvar = tk.StringVar(self._gui.children['!frame2'].children['!frame3'])
         self._model_name_tkvar.set(self._default_fit_type)
@@ -1377,7 +1396,7 @@ class Frontend:
         #    -- the residuals plot looks good but I don't think the normality tests are working
         if self._showing_fit_all_image :
             pass
-        residuals = []
+
         if self._current_model is None :
             print("Residuals_command: you shouldn't be here, quitting")
             raise SystemExit
@@ -1385,15 +1404,47 @@ class Frontend:
         res_filepath = f"{self.get_package_path()}/plots/residuals.csv"
 
         residuals = []
-
+        norm_residuals = []
         with open(file=res_filepath,mode='w') as res_file:
             for datum in self.data_handler.data:
                 res = datum.val - self._current_model.eval_at(datum.pos)
                 residuals.append(res)
+                norm_residuals.append(res/datum.sigma_val)
                 res_file.write(f"{res},\n")
 
         res_handler = DataHandler(filepath=res_filepath)
         res_optimizer = Optimizer(data=res_handler.data)
+
+        # rule of thumb
+        num_within_error_bars = sum( [1 if -1 < norm_res < 1 else 0 for norm_res in norm_residuals] )
+
+        touching_min = 0
+        while True :
+            binomial_lowweight = scipy.stats.binom.cdf(touching_min, len(residuals), 0.682689)
+            if binomial_lowweight > 0.05 :
+                break
+            touching_min += 1
+
+        touching_max = len(residuals)
+        while True :
+            binomial_highweight = 1-scipy.stats.binom.cdf(touching_max, len(residuals), 0.682689)
+            if binomial_highweight > 0.05 :
+                break
+            touching_max -= 1
+        self.add_message("\n ")
+        self.add_message(f"> By the 68% rule of thumb, the number of datapoints with error bars \n"
+                         f"   touching the line of best fit should obey {touching_min} ≤ {num_within_error_bars} ≤ {touching_max}")
+        if touching_min <= num_within_error_bars <= touching_max :
+            self.add_message("   Since this is obeyed, a very rough check has been passed that \n"
+                             "   the fit is a proper representation of the data.")
+        elif touching_min > num_within_error_bars :
+            self.add_message("   Since this undershoots the minimum expected number, it is likely that \n"
+                             "   either the fit is a poor representation of the data, or the error bars\n"
+                             "   have been underestimated.")
+        elif touching_max < num_within_error_bars :
+            self.add_message("   Since this exceeds the maximum expected number, either the data has been\n"
+                             "   generated with an exact function, or the error bars have been overestimated.\n"
+                             "   In either case, it is likely that a good model of the dataset has been found!")
 
         sample_mean = sum(residuals) / len(residuals)
         sample_variance = sum([(res - sample_mean) ** 2 for res in residuals]) / (len(residuals) - 1)
@@ -1475,11 +1526,11 @@ class Frontend:
                 break
             kmax_centre -= 1
 
-        print(f"If residuals were normally distributed, {kmin_fartail} < {count_ulow} < {kmax_fartail} ")
-        print(f"If residuals were normally distributed, {kmin_tail} < {count_low} < {kmax_tail} ")
-        print(f"If residuals were normally distributed, {kmin_centre} < {count_middle} < {kmax_centre} ")
-        print(f"If residuals were normally distributed, {kmin_tail} < {count_high} < {kmax_tail} ")
-        print(f"If residuals were normally distributed, {kmin_fartail} < {count_uhigh} < {kmax_fartail} ")
+        print(f"If residuals were normally distributed, {kmin_fartail} ≤ {count_ulow} ≤ {kmax_fartail} ")
+        print(f"If residuals were normally distributed, {kmin_tail} ≤ {count_low} ≤ {kmax_tail} ")
+        print(f"If residuals were normally distributed, {kmin_centre} ≤ {count_middle} ≤ {kmax_centre} ")
+        print(f"If residuals were normally distributed, {kmin_tail} ≤ {count_high} ≤ {kmax_tail} ")
+        print(f"If residuals were normally distributed, {kmin_fartail} ≤ {count_uhigh} ≤ {kmax_fartail} ")
         pvalue_ulow = 1 if kmin_fartail <= count_ulow <= kmax_fartail else 0.1
         pvalue_low = 1 if kmin_tail <= count_low <= kmax_tail else 0.1
         pvalue_middle = 1 if kmin_centre <= count_middle <= kmax_centre else 0.1
@@ -1519,7 +1570,7 @@ class Frontend:
         if kol_pvalue > 1e-5 :
             self.add_message(f"  Kolmogorov-Smirnov : {kol_pvalue:.5F}")
         else :
-            self.add_message(f"  Kolmogorov-SMirnov : {kol_pvalue:.2E}")
+            self.add_message(f"  Kolmogorov-Smirnov : {kol_pvalue:.2E}")
 
         # TODO: I've noticed that there's a bad interaction with all tests when logging-y
 
@@ -1637,18 +1688,25 @@ class Frontend:
 
         model_choice = self._model_name_tkvar.get()
 
+        if model_choice == "Polynomial" :
+            if self._new_user_stage % 19 != 0 :
+                self.create_degree_up_down_buttons()
+            else :
+                self.show_degree_buttons()
+        else:
+            if self._new_user_stage % 19 == 0 :
+                self.hide_degree_buttons()
+
         if model_choice != "Brute-Force" :
             self.load_defaults()
             self.brute_forcing = False
             self.hide_pause_button()
 
         if model_choice in ["Procedural", "Brute-Force"] :
-            if self._new_user_stage % 29 != 0 :
-                self.create_top5_dropdown()
-                self._new_user_stage *= 29
-            else :
-                self.show_top5_dropdown()
-                self.update_top5_dropdown()
+            if self._new_user_stage % 29 == 0 :
+                if len(self._optimizer.top5_args) > 0 :
+                    self.show_top5_dropdown()
+                    self.update_top5_dropdown()
         else:
             self.hide_top5_dropdown()
             self.fit_data_command()
@@ -2253,33 +2311,61 @@ class Frontend:
 
 
 
-    def perform_tests(self):
-
-        # print(f"{1+2j<0=}")
-        print(f"{np.real(1+2j)=} {np.imag(1+2j)=}")
-        print(f"{np.real(1)=} {np.imag(1)=}")
-
-        inner = np.sin(3 * np.pi / 2)
-        middle = PrimitiveFunction.built_in("log").eval_at(inner)
-        outer = PrimitiveFunction.built_in("exp").eval_at(middle)
-
-        print( inner, middle, outer )
-
-        test_comp = CompositeFunction(prim=PrimitiveFunction.built_in("cos"),
-                                      children_list=[PrimitiveFunction.built_in("pow0"),
-                                                     PrimitiveFunction.built_in("pow1")],
-                                      name = "first_product")
-
-        print(test_comp.name)
-
-        func1 = CompositeFunction(prim=PrimitiveFunction.built_in("pow1"))
-        func2 = CompositeFunction(prim=PrimitiveFunction.built_in("exp"),
-                                  children_list=[PrimitiveFunction.built_in("pow1")])
-        func2.set_args(*[1,-1])
-
-        prod = CompositeFunction.prod(func1, func2)
-
-        for xval in xsuite:
-            print(prod.eval_at(xval), xval * np.exp(-xval))
 
 
+    def create_degree_up_down_buttons(self):
+    # polynomial
+        degree_text = tk.Label(
+            master = self._gui.children['!frame2'].children['!frame6'],
+            text = f"Depth: {self._polynomial_degree.get()}"
+        )
+        down_button = tk.Button( self._gui.children['!frame2'].children['!frame6'],
+                                 text = "\U0001F847",
+                                 command = self.degree_down_command
+                               )
+        up_button = tk.Button( self._gui.children['!frame2'].children['!frame6'],
+                                  text = "\U0001F845",
+                                  command = self.degree_up_command
+                                )
+
+        degree_text.grid(row=0, column=0, sticky='w')
+        down_button.grid(row=0, column=1, padx=(5,0), pady=5, sticky='w')
+        up_button.grid(row=0, column=2, sticky='w')
+
+    # hides their frame, but same idea
+    def hide_degree_buttons(self):
+        if self._new_user_stage % 31 != 0 :
+            # the depth buttons haven't been created yet, no need to hide them
+            return
+        self._gui.children['!frame2'].children['!frame6'].grid_forget()
+    def show_degree_buttons(self):
+        self._gui.children['!frame2'].children['!frame6'].grid(row = 4, column=0, sticky = 'w')
+
+    def degree_down_command(self) :
+        if self._polynomial_degree.get() > 0 :
+            self._polynomial_degree.set( self._polynomial_degree.get() - 1 )
+        else :
+            self.add_message( f"> Polynomials must have a degree of at least 0\n" )
+        depth_label = self._gui.children['!frame2'].children['!frame6'].children['!label']
+        depth_label.configure(text=f"Degree: {self._polynomial_degree.get()}")
+
+    def degree_up_command(self):
+        if self._polynomial_degree.get() < len(set( [datum.pos for datum in self.data_handler.data] ))-1 :
+            self._polynomial_degree.set( self._polynomial_degree.get() + 1 )
+        else :
+            self.add_message( f"> Polynomial degree cannot exceed the number of x-positions\n" )
+        depth_label : tk.Label = self._gui.children['!frame2'].children['!frame6'].children['!label']
+        depth_label.configure(text=f"Degree: {self._polynomial_degree.get()}")
+
+    def image_frame(self):
+        return self._gui.children['!frame2'].children['!frame']
+    def inspect_frame(self):
+        return self._gui.children['!frame2'].children['!frame2']
+    def dropdown_frame(self):
+        return self._gui.children['!frame2'].children['!frame3']
+    def log_normalize_frame(self):
+        return self._gui.children['!frame2'].children['!frame4']
+    def procedural_options_frame(self):
+        return self._gui.children['!frame2'].children['!frame5']
+    def polynomial_frame(self):
+        return self._gui.children['!frame2'].children['!frame6']

@@ -5,7 +5,7 @@ block_cipher = None
 
 
 a = Analysis(
-    ['MIWautofit.py'],
+    ['MIW_autofit.py'],
     pathex=[],
     binaries=[],
     datas=[('C:/Users/Matt/Documents/GitHub/MIW_AutoFit/autofit/icon.ico','.'),
