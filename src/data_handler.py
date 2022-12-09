@@ -53,6 +53,12 @@ class DataHandler:
             print("Please first provide start- and end-points for data ranges")
 
     @property
+    def filename(self):
+        return self._filepath
+    @property
+    def shortpath(self):
+        return regex.split("/", self._filepath)[-1]
+    @property
     def data(self) -> list[Datum1D]:
         return self._data
     @property
@@ -159,7 +165,6 @@ class DataHandler:
             return [self._X0 * math.exp( datum.pos ) for datum in self._data ]
         # else
         return [datum.pos for datum in self._data]
-
     @property
     def unlogged_y_data(self) -> list[float]:
         if self._logy_flag :
@@ -231,96 +236,6 @@ class DataHandler:
             self._histogram_flag = True
         else:
             self.read_as_scatter(delim)
-
-    def read_as_histogram(self,delim):
-
-        vals = []
-        with open(self._filepath) as file:
-
-            # single line data set
-            if self._num_lines == 1:
-                for line in file:
-                    data_str = DataHandler.cleaned_line_as_str_list(line, delim)
-                    if self._header_flag:
-                        self._x_label = data_str[0]
-                        vals = [float(item) for item in data_str[1:]]
-                    else:  # no label for data
-                        self._x_label = "x"
-                        vals = [float(item) for item in data_str]
-
-            # single column dataset
-            for line_num, line in enumerate(file) :
-                data_str = DataHandler.cleaned_line_as_str_list(line, delim)
-
-                if line_num == 0 :
-                    if self._header_flag :
-                        self._x_label = data_str[0]
-                    else :  # no label for data
-                        self._x_label = "x"
-                        vals.append( float(data_str[0]) )
-                else:
-                    vals.append( float(data_str[0]) )
-        self._y_label = "N"
-        self.make_histogram_data_from_vals(vals)
-
-    def recalculate_bins(self):
-        self._data = []
-        if self._filepath[-4:] in [".xsl", "xlsx", ".ods" ]:
-            self.read_excel_as_histogram()
-        if self._filepath[-4:] in [".csv", ".txt"] :
-            self.read_as_histogram(self._delim)
-
-    def make_histogram_data_from_vals(self, vals):
-        # bin the values, with a minimum count per bin of 1, and number of bins = sqrt(count)
-        minval, maxval, count = min(vals), max(vals), len(vals)
-
-        if minval < 0 and self._logx_flag :
-            print(f"Can't x-log histogram when {minval=}<0")
-            self._logx_flag = False
-
-        if minval - math.floor(minval) < 2/count :
-            # print("Integer bolting min")
-            # if it looks like the min and max vals are bolted to an integer, use the integers as a bin boundary
-            minval = math.floor(minval)
-        if math.ceil(maxval) - maxval < 2/count :
-            # print("Integer bolting max")
-            maxval = math.floor(maxval)
-
-        num_bins = math.floor( math.sqrt(count) )
-
-        if self._logx_flag :
-            hist_counts, hist_bounds = np.histogram(vals, bins=np.geomspace(minval, maxval, num=num_bins+1) )
-            if min( hist_counts ) == 0 and self._logy_flag :
-                print("In make_histogram_data, your can't x-log for this data because you're already y-logging, "
-                      "and you can't take the log of 0.")
-                self._logx_flag = False
-        if not self.logx_flag :
-            hist_counts, hist_bounds = np.histogram(vals,  bins=np.linspace(minval, maxval, num=num_bins+1) )
-        print(f"Made histogram with bin counts {hist_counts}")
-        if 0 in hist_counts :
-            print(f"Histogram creation error with {hist_bounds=}")
-        if self._logx_flag :
-            for idx, count in enumerate(hist_counts) :
-                geom_mean = math.sqrt(hist_bounds[idx+1]*hist_bounds[idx])
-                self._data.append( Datum1D( pos = geom_mean,
-                                            val = count,
-                                            assym_sigma_pos = (geom_mean-hist_bounds[idx],hist_bounds[idx+1]-geom_mean),
-                                            sigma_val = max(math.sqrt(count),1)
-                                          )  # check that this fixing the zero-bin error not allowing fit
-                                 )
-        else:
-            for idx, count in enumerate(hist_counts) :
-                self._data.append( Datum1D( pos = ( hist_bounds[idx+1]+hist_bounds[idx] )/2,
-                                            val = count,
-                                            sigma_pos = ( hist_bounds[idx+1]-hist_bounds[idx] )/2,
-                                            sigma_val = max(math.sqrt(count),1)
-                                          )
-                                 )
-        if self._logy_flag :
-            # Funny thing with the setter of logy_flag
-            self._logy_flag = False
-            self.logy_flag = True
-
     def read_as_scatter(self,delim):
 
         with open(self._filepath) as file:
@@ -369,29 +284,124 @@ class DataHandler:
                                               sigma_val=float(data_str[3])
                                               )
                                       )
+    def read_as_histogram(self,delim):
+
+        vals = []
+        with open(self._filepath) as file:
+
+            # single line data set
+            if self._num_lines == 1:
+                for line in file:
+                    data_str = DataHandler.cleaned_line_as_str_list(line, delim)
+                    if self._header_flag:
+                        self._x_label = data_str[0]
+                        vals = [float(item) for item in data_str[1:]]
+                    else:  # no label for data
+                        self._x_label = "x"
+                        vals = [float(item) for item in data_str]
+
+            # single column dataset
+            for line_num, line in enumerate(file) :
+                data_str = DataHandler.cleaned_line_as_str_list(line, delim)
+
+                if line_num == 0 :
+                    if self._header_flag :
+                        self._x_label = data_str[0]
+                    else :  # no label for data
+                        self._x_label = "x"
+                        vals.append( float(data_str[0]) )
+                else:
+                    vals.append( float(data_str[0]) )
+        self._y_label = "N"
+        self.make_histogram_data_from_vals(vals)
+
+    def recalculate_bins(self):
+        self._data = []
+        if self._filepath[-4:] in [".xsl", "xlsx", ".ods" ]:
+            self.read_excel_as_histogram()
+        if self._filepath[-4:] in [".csv", ".txt"] :
+            self.read_as_histogram(self._delim)
+    def make_histogram_data_from_vals(self, vals):
+        # bin the values, with a minimum count per bin of 1, and number of bins = sqrt(count)
+        minval, maxval, count = min(vals), max(vals), len(vals)
+
+        if minval < 0 and self._logx_flag :
+            print(f"Can't x-log histogram when {minval=}<0")
+            self._logx_flag = False
+
+        if minval - math.floor(minval) < 2/count :
+            # print("Integer bolting min")
+            # if it looks like the min and max vals are bolted to an integer, use the integers as a bin boundary
+            minval = math.floor(minval)
+        if math.ceil(maxval) - maxval < 2/count :
+            # print("Integer bolting max")
+            maxval = math.floor(maxval)
+
+        num_bins = math.floor( math.sqrt(count) )
+
+        if self._logx_flag :
+            hist_counts, hist_bounds = np.histogram(vals, bins=np.geomspace(minval, maxval, num=num_bins+1) )
+            if min( hist_counts ) == 0 and self._logy_flag :
+                print("In make_histogram_data, your can't x-log for this data because you're already y-logging, "
+                      "and you can't take the log of 0.")
+                self._logx_flag = False
+        # this used to be         if not self.logx_flag :
+        else :
+            hist_counts, hist_bounds = np.histogram(vals,  bins=np.linspace(minval, maxval, num=num_bins+1) )
+        print(f"Made histogram with bin counts {hist_counts}")
+        if 0 in hist_counts :
+            print(f"Histogram creation error with {hist_bounds=}")
+        if self._logx_flag :
+            for idx, count in enumerate(hist_counts) :
+                geom_mean = math.sqrt(hist_bounds[idx+1]*hist_bounds[idx])
+                self._data.append( Datum1D( pos = geom_mean,
+                                            val = count,
+                                            assym_sigma_pos = (geom_mean-hist_bounds[idx],hist_bounds[idx+1]-geom_mean),
+                                            sigma_val = max(math.sqrt(count),1)
+                                          )  # check that this fixing the zero-bin error not allowing fit
+                                 )
+        else:
+            for idx, count in enumerate(hist_counts) :
+                self._data.append( Datum1D( pos = ( hist_bounds[idx+1]+hist_bounds[idx] )/2,
+                                            val = count,
+                                            sigma_pos = ( hist_bounds[idx+1]-hist_bounds[idx] )/2,
+                                            sigma_val = max(math.sqrt(count),1)
+                                          )
+                                 )
+        if self._logy_flag :
+            # Funny thing with the setter of logy_flag
+            self._logy_flag = False
+            self.logy_flag = True
 
     def set_excel_args(self, x_range_str, y_range_str=None, x_error_str = None, y_error_str = None,
                        all_sheets_flag=True):
-        print("Thank you for providing data ranges")
+        print(f"Thank you for providing data ranges {x_range_str} {y_range_str} {x_error_str} {y_error_str}")
         self._x_column_endpoints = x_range_str
         self._y_column_endpoints = y_range_str
         self._sigmax_column_endpoints = x_error_str
         self._sigmay_column_endpoints = y_error_str
         # print(self._x_column_endpoints, self._y_column_endpoints)
         self.read_excel()
-
     def set_excel_sheet_name(self, name):
         print("Thank you for providing data ranges")
         self._excel_sheet_name = name
 
+    @staticmethod
+    def valid_excel_endpoints(excel_range_str):
+        if regex.match("[A-Z][A-Z]*[0-9][0-9]*:[A-Z][A-Z]*[0-9][0-9]*]", excel_range_str) :
+            return True
+        return False
     @staticmethod
     def excel_range_as_list_of_idx_tuples(excel_vec):
         # print(f"{excel_vec} as range should be")
         if excel_vec == "" :
             # for empty range creation, e.g. empty sigma_x range
             return []
-        left, right = regex.split(f"\:", excel_vec)
-
+        try:
+            left, right = regex.split(f":", excel_vec)
+        except ValueError :
+            print(f"{excel_vec=}")
+            raise ValueError
         # print(f"{left=} {right=}")
         left_chars = regex.split( f"[0-9]", left)[0]
         left_ints = regex.split( f"[A-Z]", left)[-1]
@@ -416,7 +426,6 @@ class DataHandler:
                        for idx in range( DataHandler.excel_chars_as_idx(left_chars),
                                          DataHandler.excel_chars_as_idx(right_chars)+1  )
                    ]
-
     @staticmethod
     def excel_cell_as_idx_tuple(excel_cell_str):
 
@@ -424,7 +433,6 @@ class DataHandler:
         ints = regex.split( f"[A-Z]*", excel_cell_str)[-1]
 
         return DataHandler.excel_chars_as_idx(chars), int(ints)
-
     @staticmethod
     def excel_chars_as_idx(chars):
 
@@ -435,7 +443,6 @@ class DataHandler:
             integer += (ord(char)-64) * 26**power
             power -= 1
         return integer-1
-
     @staticmethod
     def excel_ints_as_idx(ints):
         return int(ints)-1
@@ -449,28 +456,6 @@ class DataHandler:
             self._histogram_flag = True
         else:
             self.read_excel_as_scatter()
-
-    def read_excel_as_histogram(self):
-
-        data_frame = pd.read_excel(self._filepath, self._excel_sheet_name)
-
-        print("Excel histogram chosen")
-
-        vals = []
-        for idx, loc in enumerate(DataHandler.excel_range_as_list_of_idx_tuples( self._x_column_endpoints )) :
-            val = data_frame.iloc[loc[0],loc[1]]
-            if idx == 0 and regex.search("[a-zA-Z]", str(val)) :
-                self._x_label = val
-            elif str(val) == "" :
-                print(f"Invalid value >{val}< encountered in excel workbook. ")
-                continue
-            else:
-                self._x_label = "x"
-                vals.append( val )
-        self._y_label = "N"
-        print(f"Excel histogram raw data is {vals}")
-        self.make_histogram_data_from_vals(vals)
-
     def read_excel_as_scatter(self):
 
         data_frame = pd.read_excel(self._filepath, self._excel_sheet_name, header=None)
@@ -508,7 +493,7 @@ class DataHandler:
             self._data.append( Datum1D(pos=x, val=y) )
 
         sigmaxvals = []
-        if self._sigmax_column_endpoints is not None:
+        if DataHandler.valid_excel_endpoints(self._sigmax_column_endpoints):
             for idx, loc in enumerate(DataHandler.excel_range_as_list_of_idx_tuples( self._sigmax_column_endpoints )):
                 val = data_frame.iloc[loc[0],loc[1]]
                 if idx == 0 and regex.search("[a-zA-Z]", str(val) ):
@@ -520,7 +505,7 @@ class DataHandler:
                     sigmaxvals.append(val)
 
         sigmayvals = []
-        if self._sigmay_column_endpoints is not None:
+        if DataHandler.valid_excel_endpoints(self._sigmay_column_endpoints):
             for idx, loc in enumerate(DataHandler.excel_range_as_list_of_idx_tuples( self._sigmay_column_endpoints )):
                 val = data_frame.iloc[loc[0],loc[1]]
                 if idx == 0 and regex.search("[a-zA-Z]", str(val) ):
@@ -536,9 +521,26 @@ class DataHandler:
             self._data[idx].sigma_pos = err
         for idx, err in enumerate(sigmayvals) :
             self._data[idx].sigma_val = err
+    def read_excel_as_histogram(self):
 
+        data_frame = pd.read_excel(self._filepath, self._excel_sheet_name)
 
+        print("Excel histogram chosen")
 
+        vals = []
+        for idx, loc in enumerate(DataHandler.excel_range_as_list_of_idx_tuples( self._x_column_endpoints )) :
+            val = data_frame.iloc[loc[0],loc[1]]
+            if idx == 0 and regex.search("[a-zA-Z]", str(val)) :
+                self._x_label = val
+            elif str(val) == "" :
+                print(f"Invalid value >{val}< encountered in excel workbook. ")
+                continue
+            else:
+                self._x_label = "x"
+                vals.append( val )
+        self._y_label = "N"
+        print(f"Excel histogram raw data is {vals}")
+        self.make_histogram_data_from_vals(vals)
 
     def normalize_histogram_data(self):
 

@@ -40,6 +40,7 @@ class CompositeFunction:
     while a node with no parent is the function tree as a whole.
     """
 
+    _built_in_comps_dict = {}
 
     def __init__(self,
                  children_list : Union[list[PrimitiveFunction],list[CompositeFunction]] = None,
@@ -59,13 +60,15 @@ class CompositeFunction:
         # list of (idx1, func, idx3) triplets, with the interpretation that par[idx1] = func( par[idx2 )]
         # if there are constraints, the add_child and add_brother functions should throw an error
 
-        if children_list is not None :
+        if children_list :
             for child in children_list :
                 self.add_child(child)
         if younger_brother is not None:
             self.add_younger_brother(younger_brother)
         if name == "" :
             self.build_name()
+        else :
+            self._name = name
 
 
     def __repr__(self):
@@ -169,10 +172,12 @@ class CompositeFunction:
         # don't copy parent
         for constraint in self._constraints:
             new_comp.add_constraint(constraint)
+        new_comp.name = self._name
 
         return new_comp
 
     def build_name(self):
+
         name_str = ""
         name_str += f"{self._prim.name}("
 
@@ -191,6 +196,7 @@ class CompositeFunction:
 
         if self.parent is not None:
             self.parent.build_name()
+
 
     def add_constraint(self, constraint_3tuple):
         self._constraints.append(constraint_3tuple)
@@ -228,7 +234,10 @@ class CompositeFunction:
         if self._younger_brother is not None :
             num_dof += self._younger_brother.calculate_degrees_of_freedom()
 
-        if self._name[0:3] == "pow" and len(self._children_list) > 0:
+        if self._prim.name[:4] == "sum_" :
+            # sums are special: they have no degrees of freedom by themselves
+            num_dof -= 1
+        if self._prim.name[:3] == "pow" and len(self._children_list) > 0:
             # powers are special: they lose a degree of freedom if they have children
             # e.g. A*( B*cos(x) )^2 == A*B^2*cos^2(x) == C*cos^2(x). We keep the outer one as free,
             # and the first parameter in the composition is set to unity
@@ -459,7 +468,7 @@ class CompositeFunction:
             args_as_list[idx_constrained] = func( args_as_list[idx_other] )
 
         try:
-            if self.older_brother is None:
+            if self.older_brother is None and self._prim.name != "sum_" :
                 self._prim.arg = args_as_list[it]
                 it += 1
             else :
@@ -482,12 +491,13 @@ class CompositeFunction:
             it += brother_dof
 
         if it != len(args_as_list) :
+            print(f"Trying to set {args_as_list=} in {self.name}")
             raise RuntimeError
 
     def get_args(self, skip_flag=0):
         # get all arguments normally, then pop off the ones with constraints once we get to the head
         all_args = []
-        if skip_flag :
+        if skip_flag or self._prim.name == "sum_":
             pass
         else :
             all_args.append(self._prim.arg)
@@ -512,7 +522,7 @@ class CompositeFunction:
         # untested with siblings
         # gets all nodes which are associated with a degree of freedom
         all_nodes = []
-        if skip_flag :
+        if skip_flag or self._prim.name == "sum_":
             pass
         else :
             all_nodes.append(self)
@@ -568,60 +578,68 @@ class CompositeFunction:
         self.set_args(*args)
         return self.eval_at(x)
 
-    @staticmethod
-    def built_in_dict() -> dict[str,CompositeFunction]:
 
-        built_ins = {}
+
+    @staticmethod
+    def build_built_in_dict() -> None:
 
         # linear model: m, b as parameters (roughly)
-        linear = CompositeFunction(prim_=PrimitiveFunction.built_in("pow1"),
-                                   children_list=[PrimitiveFunction.built_in("pow1"),
-                                   PrimitiveFunction.built_in("pow0")]
-                                   )
+        linear = CompositeFunction(prim_=PrimitiveFunction.built_in("sum"),
+                                          children_list=[PrimitiveFunction.built_in("pow1"),
+                                                         PrimitiveFunction.built_in("pow0")],
+                                          name="Linear")
 
         # Gaussian: A, mu, sigma as parameters (roughly)
-        gaussian_inner_negativequadratic = CompositeFunction(prim_=PrimitiveFunction.built_in("pow2_force_neg_arg"),
-                                                             children_list=[PrimitiveFunction.built_in("pow1"),
-                                                                            PrimitiveFunction.built_in("pow0")]
-                                                             )
-        gaussian = CompositeFunction(prim_=PrimitiveFunction.built_in("exp"),
+        prim_dim0_pow2_neg = PrimitiveFunction(func=PrimitiveFunction.dim0_pow2)  # sigma
+        prim_pow1_shift = PrimitiveFunction(func=PrimitiveFunction.pow1_shift)    # mu
+        gaussian_inner_negativequadratic = CompositeFunction(prim_=prim_dim0_pow2_neg,
+                                                             children_list=[prim_pow1_shift])
+        gaussian = CompositeFunction(prim_=PrimitiveFunction.built_in("exp"),     # A
                                      children_list=[gaussian_inner_negativequadratic],
                                      name="Gaussian")
 
         # Normal: mu, sigma as parameters (roughly)
-        normal = gaussian.copy()
-        normal.name = "Normal"
-        normal.add_constraint( (1,gaussian_normalization_constraint,0) )
+        prim_outer_gaussian = PrimitiveFunction(func=PrimitiveFunction.n_exp_dim2)  # sigma
+        normal = CompositeFunction(prim_=prim_outer_gaussian,
+                                   children_list=[prim_pow1_shift],                 # mu
+                                   name="Normal")
 
         # Sigmoid H/(1 + exp(-w(x-x0)) ) + F
         # aka F[ 1 + h/( 1+Bexp(-wx) ) ]
-        exp_part = CompositeFunction(prim_=PrimitiveFunction.built_in("exp"),
-                                     children_list=[PrimitiveFunction.built_in("pow1")])
-        inv_part = CompositeFunction(prim_=PrimitiveFunction.built_in("pow_neg1_force_pos_arg"),
+        prim_exp_dim1 = PrimitiveFunction(func=PrimitiveFunction.exp_dim1)            # w
+        exp_part = CompositeFunction(prim_=prim_exp_dim1,
+                                     children_list=[prim_pow1_shift])                 # x0
+        inv_part = CompositeFunction(prim_=PrimitiveFunction.built_in("pow_neg1"),    # H
                                      children_list=[PrimitiveFunction.built_in("pow0"),exp_part])
-        sigmoid = CompositeFunction(prim_=PrimitiveFunction.built_in("pow1"),
+        sigmoid = CompositeFunction(prim_=PrimitiveFunction.built_in("sum"),          # F
                                     children_list=[PrimitiveFunction.built_in("pow0"),inv_part],
                                     name="Sigmoid")
 
         # make dict entries
-        built_ins["Linear"] = linear
-        built_ins["Gaussian"] = gaussian
-        built_ins["Normal"] = normal
-        built_ins["Sigmoid"] = sigmoid
+        CompositeFunction._built_in_comps_dict["Linear"] = linear
+        CompositeFunction._built_in_comps_dict["Gaussian"] = gaussian
+        CompositeFunction._built_in_comps_dict["Normal"] = normal
+        CompositeFunction._built_in_comps_dict["Sigmoid"] = sigmoid
 
-        return built_ins
+
 
     @staticmethod
     def built_in_list() -> list[CompositeFunction]:
         built_ins = []
+        if not CompositeFunction._built_in_comps_dict :
+            CompositeFunction.build_built_in_dict()
         for key, comp in CompositeFunction.built_in_dict().items():
             built_ins.append(comp)
         return built_ins
 
     @staticmethod
-    def built_in(key) -> CompositeFunction:
+    def built_in_dict() -> dict[str,CompositeFunction]:
+        return CompositeFunction._built_in_comps_dict
 
-        # TODO: really shouldn't build the dict every time you ask for a key from it
+    @staticmethod
+    def built_in(key) -> CompositeFunction:
+        if not CompositeFunction._built_in_comps_dict :
+            CompositeFunction.build_built_in_dict()
 
         if key[:10] == "Polynomial" :
             degree = int(key[10:])
@@ -633,8 +651,9 @@ class CompositeFunction:
                 new_kid = PrimitiveFunction.built_in(f"Pow{degree-d}")
                 new_kids_list.append(new_kid)
 
-            return CompositeFunction(prim_=PrimitiveFunction.built_in("pow1"),
+            return CompositeFunction(prim_=PrimitiveFunction.built_in("sum"),
                                      children_list=new_kids_list)
+
         return CompositeFunction.built_in_dict()[key]
 
     @property
@@ -646,7 +665,13 @@ class CompositeFunction:
 
     @property
     def dimension_arg(self) -> int:
-        # untested with siblings
+
+        # special cases
+        if self._prim.name == "dim0_pow2" :
+            return 2
+        elif self._prim.name in ["pow1_shift", "exp_dim1" , "n_exp_dim2"] :
+            return 1
+
         if self._older_brother is not None :
             return 0
         if self.parent is None:
@@ -669,7 +694,7 @@ class CompositeFunction:
             return 0
 
         if self._children_list == [] :
-            if self._prim.name == "pow1" :
+            if self._prim.name[:4] == "pow1" :
                 return 1
             elif self._prim.name[:4] == "pow2" :
                 return 2
@@ -681,8 +706,10 @@ class CompositeFunction:
                 return -1
             elif self._prim.name[:3] == "Pow" :
                 return int(self._prim.name[3:])
+            elif self._prim.name == "sum_" :
+                return -100  # should never have a sum with no children
         else :
-            if self._prim.name == "pow1" :
+            if self._prim.name[:4] == "pow1" :
                 return self._children_list[0].dimension
             elif self._prim.name[:4] == "pow2" :
                 return 2*self._children_list[0].dimension
@@ -694,14 +721,14 @@ class CompositeFunction:
                 return -1*self._children_list[0].dimension
             elif self._prim.name[:3] == "Pow" :
                 return int(self._prim.name[3:])*self._children_list[0].dimension
+            elif self._prim.name == "sum_" :
+                return self._children_list[0].dimension
+
+        # probably a custom function
+        return 0
 
     @ property
     def dimension(self) -> int:
-        # untested with siblings
-        sibling_dimension = 0
-        if self.younger_brother is not None:
-            sibling_dimension = self.younger_brother.dimension_func
-        # return self.dimension_arg + self.dimension_func + sibling_dimension
         return self.dimension_arg + self.net_function_dimension_self_and_younger_siblings
 
 def sameness_constraint(x):
@@ -715,8 +742,14 @@ def gaussian_normalization_constraint(x):
 
 def do_new_things():
 
-    for x in np.arange(0,20,0.4) :
-        print(f"{x:.2F}, {5*x*x*np.exp(-x/3):.2F}")
+    import random as rng
+    sigma = 0.1
+    positions = np.arange(-20,20,0.4)
+    values = [ rng.normalvariate( mu=5/(1+np.exp(-(x-3)/7))-2.5, sigma=sigma) for x in positions]
+
+    for pos, val in zip(positions,values) :
+        print(f"{pos:.2F}, {val:.2F}, {sigma}")
+
 
 
 if __name__ == "__main__" :

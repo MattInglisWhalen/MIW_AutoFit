@@ -101,12 +101,7 @@ class PrimitiveFunction:
     @staticmethod
     def pow4(x, arg) -> float:
         return arg*x*x*x*x
-    @staticmethod
-    def pow_neg1_force_pos_arg(x, arg) -> float:
-        return arg/x if arg > 0 else 1e5
-    @staticmethod
-    def pow2_force_neg_arg(x, arg) -> float:
-        return arg*x*x if arg < 0 else 1e5
+
     @staticmethod
     def my_sin(x, arg) -> float:
         # arg^2 is needed to break the tie between A*sin(omega*t) and -A*sin(-omega*t)
@@ -119,16 +114,52 @@ class PrimitiveFunction:
     def my_exp(x, arg) -> float:
         try :
             return arg*np.exp(x)
-        except RuntimeWarning :
-            print(f"my_exp: {x} is large")
-            return 1e10
+        except RuntimeWarning:
+            print("Too big!")
+            return 1e5
 
     @staticmethod
     def my_log(x, arg) -> float:
         return arg*np.log(x)
 
+    """Variations for special functions"""
+
+    @staticmethod
+    def pow1_fpos(x, arg) -> float:  # to delete
+        return arg*x if arg > 0 else 1e5
+    @staticmethod
+    def pow1_fneg(x, arg) -> float:  # to delete
+        return arg*x if arg < 0 else 1e5
+    @staticmethod
+    def pow_neg1_fpos(x, arg) -> float:  # to delete
+        return arg/x if arg > 0 else 1e5
+    @staticmethod
+    def pow2_fneg(x, arg) -> float:  # to delete
+        return arg*x*x if arg < 0 else 1e5
+
+    # dim 2 specials
+    @staticmethod
+    def dim0_pow2(x,arg):  # for Gaussian
+        return -x**2/(2*arg**2) if arg > 0 else 1e5
+    # dim 1 specials
+    @staticmethod
+    def pow1_shift(x,arg):  # for Sigmoid
+        return x-arg
+    @staticmethod
+    def exp_dim1(x,arg) -> float:  # for Sigmoid
+        return np.exp(-x/arg) if arg > 0 else 1e5
+    @staticmethod
+    def n_exp_dim2(x,arg) -> float:  # for Normal
+        return np.exp(-x**2/(2*arg**2) )/np.sqrt(2*np.pi*arg**2) if arg > 0 else 1e5
+
+
+
     # arbitrary powers can be created using function composition (i.e using the CompositeFunction class)
     # For example x^1.5 = exp( 1.5 log(x) )
+
+    @staticmethod
+    def sum_(x, arg) -> float:  # shouldn't be added to built_in_dict
+        return x
 
 
     @staticmethod
@@ -136,22 +167,28 @@ class PrimitiveFunction:
 
         # Powers
         prim_pow_neg1 = PrimitiveFunction(func=PrimitiveFunction.pow_neg1 )
-        prim_pow_neg1_force_pos_arg = PrimitiveFunction(func=PrimitiveFunction.pow_neg1_force_pos_arg )
+        prim_pow_neg1_fpos = PrimitiveFunction(func=PrimitiveFunction.pow_neg1_fpos)
         prim_pow0 = PrimitiveFunction(func=PrimitiveFunction.pow0 )
         prim_pow1 = PrimitiveFunction(func=PrimitiveFunction.pow1 )
+        prim_pow1_fpos = PrimitiveFunction(func=PrimitiveFunction.pow1_fpos )
+        prim_pow1_fneg = PrimitiveFunction(func=PrimitiveFunction.pow1_fneg )
         prim_pow2 = PrimitiveFunction(func=PrimitiveFunction.pow2 )
-        prim_pow2_force_neg_arg = PrimitiveFunction(func=PrimitiveFunction.pow2_force_neg_arg )
+        prim_pow2_fneg = PrimitiveFunction(func=PrimitiveFunction.pow2_fneg)
         prim_pow3 = PrimitiveFunction(func=PrimitiveFunction.pow3 )
         prim_pow4 = PrimitiveFunction(func=PrimitiveFunction.pow4 )
+        prim_sum = PrimitiveFunction(func=PrimitiveFunction.sum_)
 
         PrimitiveFunction._built_in_prims_dict["pow_neg1"] = prim_pow_neg1
-        PrimitiveFunction._built_in_prims_dict["pow_neg1_force_pos_arg"] = prim_pow_neg1_force_pos_arg
+        PrimitiveFunction._built_in_prims_dict["pow_neg1_fpos"] = prim_pow_neg1_fpos
         PrimitiveFunction._built_in_prims_dict["pow0"] = prim_pow0
         PrimitiveFunction._built_in_prims_dict["pow1"] = prim_pow1
+        PrimitiveFunction._built_in_prims_dict["pow1_fpos"] = prim_pow1_fpos
+        PrimitiveFunction._built_in_prims_dict["pow1_fneg"] = prim_pow1_fneg
         PrimitiveFunction._built_in_prims_dict["pow2"] = prim_pow2
-        PrimitiveFunction._built_in_prims_dict["pow2_force_neg_arg"] = prim_pow2_force_neg_arg
+        PrimitiveFunction._built_in_prims_dict["pow2_fneg"] = prim_pow2_fneg
         PrimitiveFunction._built_in_prims_dict["pow3"] = prim_pow3
         PrimitiveFunction._built_in_prims_dict["pow4"] = prim_pow4
+        PrimitiveFunction._built_in_prims_dict["sum"] = prim_sum
 
         # Trig
         prim_sin = PrimitiveFunction(func=PrimitiveFunction.my_sin )
