@@ -49,10 +49,10 @@ def test_comp_init():
     assert test_default.younger_brother is None
     assert test_default.older_brother is None
     assert test_default.parent is None
-    assert test_default.prim.func is PrimitiveFunction.pow1
-    assert test_default.name == "pow1"
+    assert test_default.prim.func is PrimitiveFunction.sum_
+    assert test_default.name == "sum_"
     assert len(test_default.constraints) is 0
-    assert test_default.dof is 1
+    assert test_default.dof is 0
     assertRelativelyEqual(test_default.eval_at(3.14), 3.14)
 
     # composite with children
@@ -64,10 +64,10 @@ def test_comp_init():
     assert test_children.parent is None
     assert test_children.children_list[0].parent is test_children
     assert test_children.children_list[1].parent is test_children
-    assert test_children.prim.func is PrimitiveFunction.pow1
+    assert test_children.prim.func is PrimitiveFunction.sum_
     assert test_children.children_list[0].prim.func is PrimitiveFunction.pow0
     assert test_children.children_list[1].prim.func is PrimitiveFunction.pow1
-    assert test_children.name == "pow1(pow0+pow1)"
+    assert test_children.name == "sum_(pow1+pow0)"
     assert len(test_children.constraints) is 0
     assert test_children.dof is 2
     assertRelativelyEqual(test_children.eval_at(0.1), 1 + 0.1 )
@@ -85,7 +85,7 @@ def test_comp_init():
     assert test_brother.younger_brother.prim.func is PrimitiveFunction.pow1
     assert test_brother.younger_brother.children_list[0].prim.func is PrimitiveFunction.pow1
     assert test_brother.younger_brother.children_list[1].prim.func is PrimitiveFunction.pow0
-    assert test_brother.name == "my_sin·pow1(pow0+pow1)"
+    assert test_brother.name == "pow1(pow1+pow0)·my_sin"
     assert len(test_brother.constraints) is 0
     assert test_brother.dof is 2
     assertRelativelyEqual(test_brother.eval_at(0.1), np.sin(0.1)*(1+0.1))
@@ -93,24 +93,26 @@ def test_comp_init():
 def test_set_get_args():
 
     test_default = CompositeFunction()
-    test_default.set_args(*[3])
-    assertRelativelyEqual(test_default.eval_at(0.1), 3*0.1)
-    assert all([ a == b for a,b in zip(test_default.get_args(),[3]) ])
+    with pytest.raises(RuntimeError):
+        test_default.set_args(*[3])
+    assertRelativelyEqual(test_default.eval_at(0.1), 0.1)
+    assert all([ a == b for a,b in zip(test_default.get_args(),[]) ])
 
     test_children = CompositeFunction(children_list=[PrimitiveFunction.built_in("pow0"),
                                                      PrimitiveFunction.built_in("pow1")])
     test_children.set_args(*[5,7])
-    assertRelativelyEqual(test_children.eval_at(0.1), 5*(1+7*0.1))
+    assertRelativelyEqual(test_children.eval_at(0.1), (5+7*0.1))
     assertListEqual(test_children.get_args(), [5,7])
 
     # composite with younger brother
     test_brother = CompositeFunction(prim_=PrimitiveFunction.built_in("sin"),
                                      younger_brother=CompositeFunction.built_in("Linear"))
+    assert test_brother.dof == 2  # expect this to fail, need more logic for composite dof
     test_brother.set_args(*[11,13])
     assertRelativelyEqual(test_brother.eval_at(0.1), 11*np.sin(0.1)*(1*0.1+13))
     assertListEqual(test_brother.get_args(), [11,13])
 
-    # deep conposition with multiplication and summs
+    # deep composition with multiplication and sums
     test_deep_mul = CompositeFunction(prim_=PrimitiveFunction.built_in("log"),
                                       younger_brother=test_brother,
                                       children_list=[test_brother,test_brother])
@@ -151,18 +153,19 @@ def test_dims():
 
 
 def test_manip_with_constraints():
-    normal = CompositeFunction.built_in("Normal")
-    with pytest.raises(AttributeError):
-        normal.add_child(PrimitiveFunction.built_in("pow0"))
-    with pytest.raises(AttributeError):
-        normal.add_younger_brother(PrimitiveFunction.built_in("pow0"))
+    pass
+    # we don't use constraints anymore
+    # normal = CompositeFunction.built_in("Normal")
+    # with pytest.raises(AttributeError):
+    #     normal.add_child(PrimitiveFunction.built_in("pow0"))
+    # with pytest.raises(AttributeError):
+    #     normal.add_younger_brother(PrimitiveFunction.built_in("pow0"))
 
 def test_tree_printout():
 
     gaussian = CompositeFunction.built_in("Gaussian")
     gaussian_tree = gaussian.tree_as_string()
-    expected_gaussian_tree = "my_exp     ~ pow2_fneg  ~ pow1      \n" \
-                             "                        ~ pow0      "
+    expected_gaussian_tree = "my_exp     ~ dim0_pow2  ~ pow1_shift"
     assert gaussian_tree == expected_gaussian_tree
 
     # composite with younger brother
@@ -193,38 +196,23 @@ def test_tree_printout():
 def test_polynomial_creation() :
 
     poly3 = CompositeFunction.built_in("Polynomial3")
-    assert poly3.name == "pow1(Pow0+Pow1+Pow2+Pow3)"
-    assertRelativelyEqual( poly3.eval_at(0.1), (0.1**3 + 0.1**2 + 0.1 + 1))
+    assert poly3.name == "Polynomial3"
+    assert poly3.longname == "sum_(Pow0+Pow1+Pow2+Pow3)"
+    assertRelativelyEqual( poly3.eval_at(0.1), 0.1**3 + 0.1**2 + 0.1 + 1)
 
     poly10 = CompositeFunction.built_in("Polynomial10")
     poly10.set_args(*[3,4,5,6,7,8,9,10,11,12,13])
-    assert poly10.name == "pow1(Pow0+Pow1+Pow10+Pow2+Pow3+Pow4+Pow5+Pow6+Pow7+Pow8+Pow9)"
-    assertRelativelyEqual( poly10.eval_at(0.9), 3*(0.9**10 + 4*0.9**9 + 5*0.9**8 + 6*0.9**7 + 7*0.9**6 + 8*0.9**5 +
-                                                   + 9*0.9**4  + 10*0.9**3 + 11*0.9**2 + 12*0.9 + 13 ))
+    assert poly10.longname == "sum_(Pow0+Pow1+Pow10+Pow2+Pow3+Pow4+Pow5+Pow6+Pow7+Pow8+Pow9)"
+    assertRelativelyEqual( poly10.eval_at(0.9), 3*0.9**10 + 4*0.9**9 + 5*0.9**8 + 6*0.9**7 + 7*0.9**6 + 8*0.9**5 +
+                                                   + 9*0.9**4  + 10*0.9**3 + 11*0.9**2 + 12*0.9 + 13 )
 
-def test_better_linear() :
-
-    better = CompositeFunction.built_in("Linear_Better")
-    assert len(better.children_list) is 2
-    assert better.younger_brother is None
-    assert better.older_brother is None
-    assert better.parent is None
-    assert better.prim.func is PrimitiveFunction.sum_
-    assert better.name == "Linear_Better"
-    better.build_name()
-    assert better.name == "sum_(pow0+pow1)"
-    assert len(better.constraints) is 0
-    assert better.dof is 2
-    assertRelativelyEqual(better.eval_at(3.14), 3.14+1)
-    better.set_args(*[5,7])
-    assertRelativelyEqual(better.eval_at(3.14), 5*3.14+7)
-    assertListEqual(better.get_args(),[5,7])
 
 def test_dof():
 
     mult2 = CompositeFunction(prim_=PrimitiveFunction.built_in("pow1"),
                               younger_brother=PrimitiveFunction.built_in("pow1"),
                               children_list=[PrimitiveFunction.built_in("exp")])
+    assert mult2.dof == 1
     mult3 = CompositeFunction(prim_=PrimitiveFunction.built_in("exp"),
                               younger_brother=mult2)
     assert mult3.dof == 1

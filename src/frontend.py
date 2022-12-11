@@ -50,7 +50,7 @@ class Frontend:
         self._image_path = None
         self._image = None
         self._image_frame = None
-        # self._normalized_histogram_flags = []
+
         self._showing_fit_image = False  # conjugate to showing data-only image
         self._showing_fit_all_image = False
         self._bg_color = (112 / 255, 146 / 255, 190 / 255)
@@ -62,9 +62,11 @@ class Frontend:
         self._colors_console_menu : tk.Menu = None
         self._console_color  = (0,   0,   0)  # these tk colors work differently than the matplotlib colors
         self._printout_color = (0, 200,   0)
+
         # file handling
         self._filepaths = []
         self._data_handlers = []
+        self._changed_data_flag = True
 
         # text input
         self._popup_window = None
@@ -80,13 +82,17 @@ class Frontend:
 
         # backend connections
         self._optimizer = None   # Optimizer
+        self._changed_optimizer_opts_flag = True
+        self._refit_button = None
+        self._pause_button = None
         self._model_name_tkvar = tk.StringVar("")  # tk.StringVar
         self._which5_name_tkvar = None  # tk.StringVar
+        self._which_tr_id = None
         self._polynomial_degree = tk.IntVar(value=2)  # tk.IntVar
-        self._current_model : CompositeFunction = None
-        self._current_args : list[float] = None
-        self._current_uncs : list[float] = None
-        self._curr_best_red_chi_sqr : float = 1e10
+        # self._current_model : CompositeFunction = None
+        # self._current_args : list[float] = None
+        # self._current_uncs : list[float] = None
+        # self._curr_best_red_chi_sqr : float = 1e10
         self._checkbox_names_list = ["cos(x)", "sin(x)", "exp(x)", "log(x)",
                                      "1/x", "x\U000000B2", "x\U000000B3", "x\U00002074", "custom"]
         self._use_func_dict_name_tkVar = {}  # for checkboxes
@@ -116,6 +122,9 @@ class Frontend:
         self.load_defaults()
         self.print_defaults()
 
+        # Behaviour options
+        self._refit_on_click = True
+
         # Fix OS scaling
         self._gui.tk.call('tk','scaling',self._default_os_scaling)
 
@@ -126,7 +135,7 @@ class Frontend:
 
     def touch_defaults(self):
         try :
-            with open(f"{self.get_package_path()}/frontend.cfg") as file :
+            with open(f"{self.get_package_path()}/frontend.cfg") as _ :
                 return
         except FileNotFoundError :
             # os.mkdir(f"{self.get_package_path()}")
@@ -291,7 +300,7 @@ class Frontend:
             return
         with open(f"{self.get_package_path()}/frontend.cfg",'w') as file :
             file.write(f"#FIT_TYPE {self._default_fit_type}\n")
-            file.write(f"#PROCEDURAL_DEPTH {self.max_functions()}\n")
+            file.write(f"#PROCEDURAL_DEPTH {self.max_functions}\n")
             file.write(f"#EXCEL_RANGE_X {self._default_excel_x_range}\n")
             file.write(f"#EXCEL_RANGE_Y {self._default_excel_y_range}\n")
             file.write(f"#EXCEL_RANGE_SIGMA_X {self._default_excel_sigmax_range}\n")
@@ -311,7 +320,8 @@ class Frontend:
             pow3_on = int(self._use_func_dict_name_tkVar["x\U000000B3"].get())
             pow4_on = int(self._use_func_dict_name_tkVar["x\U00002074"].get())
             custom_on = int(self._use_func_dict_name_tkVar["custom"].get())
-            if cos_on and sin_on and exp_on and log_on and pow_neg1_on and pow2_on and pow3_on and pow4_on and custom_on:
+            if (cos_on and sin_on and exp_on and log_on and pow_neg1_on
+                    and pow2_on and pow3_on and pow4_on and custom_on):
                 print("You shouldn't have all functions turned on for a procedural fit. Use brute-force instead.")
                 print(f" {self.brute_forcing=} {self._default_fit_type=}")
             file.write(f"#COS_ON {cos_on}\n")
@@ -328,7 +338,7 @@ class Frontend:
             file.write(f"#OS_SCALING {self._default_os_scaling}\n")
     def print_defaults(self):
         print(f"Fit-type >{self._default_fit_type}<")
-        print(f"Procedural depth >{self.max_functions()}<")
+        print(f"Procedural depth >{self.max_functions}<")
         print(f"Excel X-Range >{self._default_excel_x_range}<")
         print(f"Excel Y-Range >{self._default_excel_y_range}<")
         print(f"Excel SigmaX-Range >{self._default_excel_sigmax_range}<")
@@ -388,7 +398,6 @@ class Frontend:
 
         # right panel -- text output
         self.create_right_panel()
-
 
     """
     
@@ -461,7 +470,6 @@ class Frontend:
         pass
     def create_tutorial_menu(self):
         pass
-
 
     """
     
@@ -553,6 +561,7 @@ class Frontend:
                     continue
                 self._new_user_stage *= 23
                 sheet_names = pd.ExcelFile(path).sheet_names
+                print(f"In this file the sheets names are {sheet_names}")
             self._default_load_file_loc = '/'.join( regex.split( f"/", path )[:-1] )
             self._filepaths.append(path)
             # self._normalized_histogram_flags.append(False)
@@ -580,6 +589,7 @@ class Frontend:
             self.show_depth_buttons()
 
         if len(new_filepaths) > 0 :
+            self._changed_data_flag = True
             self._curr_image_num = len(self._data_handlers)
             self.load_new_data(new_filepaths)
             if self._showing_fit_image :
@@ -593,7 +603,7 @@ class Frontend:
                 self._new_user_stage *= 3
             print(f"Loaded {len(new_filepaths)} files.")
 
-        #update dropdown with new chi_sqrs for the current top 5 models
+        # update dropdown with new chi_sqrs for the current top 5 models, but according to the original parameters
         if self._model_name_tkvar.get() in ["Procedural", "Brute-Force"] :
             self.update_top5_chisqrs()
 
@@ -659,11 +669,14 @@ class Frontend:
         dialog_box.bind('<Return>', self.close_dialog_box_command_excel)
         dialog_box.focus_force()
 
-        explanation_label = tk.Label(master=exp_frame, text="\nThese settings will apply to all .xls, .xlsx, and .ods files")
+        explanation_label = tk.Label(master=exp_frame, text="\nThese settings will apply to all "
+                                                            ".xls, .xlsx, and .ods files")
         explanation_label.grid(row=0,column=0,sticky='w')
 
         self._popup_window = dialog_box
         self._gui.wait_window(dialog_box)
+
+    # noinspection PyUnusedLocal
     def close_dialog_box_command_excel(self, bind_command=None):
 
         if self._popup_window is None :
@@ -680,6 +693,8 @@ class Frontend:
 
         self.save_defaults()
         self._popup_window.destroy()
+
+    # noinspection PyUnusedLocal
     def close_dialog_box_command_custom_function(self, bind_command=None):
 
         if self._popup_window is None :
@@ -736,7 +751,9 @@ class Frontend:
         form_example_data.insert(0,"np.atan(x)*np.exp(-x*x)")
         form_example_data.grid(row=3,column=1, sticky='w')
 
-        explanation_label = tk.Label(master=exp_frame, text="\nSupports numpy functions. Avoid special characters and spaces.")
+        explanation_label = tk.Label(master=exp_frame, text="\nSupports numpy functions. Avoid special characters "
+                                                            "and spaces. The first letter of the name should come "
+                                                            "before 's' in the alphabet.")
         explanation_label.grid(row=4,column=0,sticky='w')
 
         close_dialog_button = tk.Button(
@@ -756,56 +773,49 @@ class Frontend:
         # add dropdown for option to select different fit models
         self.show_function_dropdown()
 
+        self.update_optimizer()
+
         # Find the fit for the currently displayed data
-        data = self.data_handler.data
-        self._optimizer = Optimizer(data = data,
-                                    use_functions_dict = self.use_functions_dict(),
-                                    max_functions = self.max_functions())
         if self._model_name_tkvar.get() in ["Procedural", "Brute-Force"] :
-            if self._current_model is not None :
-                self._optimizer.query_add_to_top5(self._current_model,
-                                                  self._current_args,
-                                                  self._current_uncs,
-                                                  self._curr_best_red_chi_sqr)
-        for name, form in zip(regex.split(' ',self._custom_function_names),
-                              regex.split(' ',self._custom_function_forms) ) :
-            self._optimizer.add_primitive_to_list(name, form)
+            if self.current_model is not None :
+                self.optimizer.query_add_to_top5(self.current_model, self.current_covariance)
 
         if self._model_name_tkvar.get() == "Linear" :
             print("Fitting to linear model")
             plot_model = CompositeFunction.built_in("Linear")
-            self._optimizer.parameters_and_uncertainties_from_fitting(plot_model)
+            self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkvar.get() == "Polynomial" :
             print(f"Fitting to polynomial model of degree {self._polynomial_degree.get()}")
             plot_model = CompositeFunction.built_in(f"Polynomial{self._polynomial_degree.get()}")
-            self._optimizer.parameters_and_uncertainties_from_fitting(plot_model)
+            self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkvar.get() == "Gaussian" and self.data_handler.normalized:
             print("Fitting to Normal distribution")
             plot_model = CompositeFunction.built_in("Normal")
-            self._optimizer.parameters_and_uncertainties_from_fitting(plot_model)
+            self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkvar.get() == "Gaussian" :
             print("Fitting to Gaussian model")
             plot_model = CompositeFunction.built_in("Gaussian")
-            self._optimizer.parameters_and_uncertainties_from_fitting(plot_model)
+            self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkvar.get() == "Sigmoid" :
             print("Fitting to Sigmoid model")
             plot_model = CompositeFunction.built_in("Sigmoid")
-            self._optimizer.parameters_and_uncertainties_from_fitting(plot_model)
+            self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkvar.get() == "Procedural":
             print("Fitting to procedural model")
-            self._optimizer.find_best_model_for_dataset()
+            self.optimizer.find_best_model_for_dataset()
         elif self._model_name_tkvar.get() == "Brute-Force":
             print("Brute forcing a procedural model")
             self.brute_forcing = True
             for name in self._checkbox_names_list:
                 self._use_func_dict_name_tkVar[name].set(value=True)
                 # pass
-            self._optimizer.load_non_defaults_from(self.use_functions_dict())
-            self._optimizer.async_find_best_model_for_dataset(start=True)
+            self.optimizer.load_non_defaults_from(self.use_functions_dict)
+            self.optimizer.async_find_best_model_for_dataset(start=True)
         else:
             print(f"Invalid model name {self._model_name_tkvar.get()}")
             pass
-        self.update_currents()
+
+        self.make_top_shown()
         self.save_show_fit_image()
 
         # add fit all button if there's more than one file
@@ -815,44 +825,45 @@ class Frontend:
         self.create_residuals_button()
 
         # print out the parameters on the right
-        shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
-        self.add_message(f"\n \n> For {shortpath} \n")
+        self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
         self.print_results_to_console()
         self._default_fit_type = self._model_name_tkvar.get()
         self.save_defaults()
 
-
+        # degree changes for Polynomial
+        if self._model_name_tkvar.get() == "Polynomial" :
+            self.show_degree_buttons()
+        else :
+            self.hide_degree_buttons()
 
         # add a dropdown list for procedural-type fits
         if self._model_name_tkvar.get() in ["Procedural","Brute-Force"] :
-            self.add_message("Two\n")
             self.update_top5_dropdown()
-            self.add_message("One\n")
             self.show_top5_dropdown()
-            self.add_message("Three\n")
+            self.show_custom_function_button()
+        else :
+            self.hide_top5_dropdown()
+            self.hide_custom_function_button()
 
-        # checkbox and depth options for procedural fits
+        # checkbox, depth options, and custom function for procedural fits
         if self._model_name_tkvar.get() == "Procedural" :
             self.show_default_checkboxes()
             self.show_depth_buttons()
-
-        if self._model_name_tkvar.get() == "Procedural" :
-            self.show_custom_function_button()
+        else:
+            self.hide_default_checkboxes()
+            self.hide_depth_buttons()
 
         # add status updates for brute-force fits
         if self._model_name_tkvar.get() == "Brute-Force" :
             self.show_pause_button()
+        else:
+            self.hide_pause_button()
 
         if self.brute_forcing :
             self.begin_brute_loop()
     def fit_all_command(self, quiet=False):
 
-        # self.add_message("\n \n> Fitting all datasets\n")
-
-        # if self._optimizer is None :
-        #     # have to first find an optimal model
-        #     self.add_message("> Finding optimal model for current dataset\n")
-        #     self.fit_data_command()
+        self.add_message("\n \n> Fitting all datasets\n")
 
         # need to log all datasets if the current one is logged, and unlog if they ARE logged
         for handler in self._data_handlers :
@@ -876,7 +887,6 @@ class Frontend:
                 handler.logy_flag = True
             elif not self.data_handler.logy_flag and handler.logy_flag :
                 handler.logy_flag = False
-            # TODO: test that this works
 
         # need to normalize all datasets if the current one is normalized
         if any([handler.normalized for handler in self._data_handlers]) and not self.data_handler.normalized:
@@ -890,18 +900,14 @@ class Frontend:
         list_of_uncertainties = []
         for handler in self._data_handlers :
             data = handler.data
-            self._optimizer.set_data_to(data)
+            self.optimizer.set_data_to(data)
             # does the following line actually use the chosen model?
             print(f"{[datum.val for datum in data]}")
-            pars, uncertainties = self._optimizer.parameters_and_uncertainties_from_fitting(model=self._current_model,
-                                                                                            initial_guess=self._current_model.get_args())
-            list_of_args.append(pars)
-            list_of_uncertainties.append(uncertainties)
-            print(f"Fit pars = {pars}")
-            # self._current_model.set_args(*pars)
-            # self.save_show_fit_image(model=self._current_model)
-
-        # TODO : might need to do special things with the special functions ti get the appropriate average parameters
+            self.optimizer.fit_this_and_get_model_and_covariance(model_=self.current_model,
+                                                                 initial_guess=self.current_model.args)
+            list_of_args.append(self.optimizer.shown_parameters)
+            list_of_uncertainties.append(self.optimizer.shown_uncertainties)
+            print(f"Fit pars = {self.optimizer.shown_parameters}")
 
         means = []
         uncs = []
@@ -924,13 +930,10 @@ class Frontend:
             means.append(mean)
             uncs.append(math.sqrt(effective_variance))
 
-        self._current_args = means
-        self._current_uncs = uncs
-        self._current_model.set_args(*means)
+        fit_all_model = self.current_model.copy()
+        fit_all_model.args = means
 
-        self.save_show_fit_all(model=self._current_model, args_list = list_of_args)
-
-        # TODO: figure out what to do with the left/right arrows and the numbers
+        self.save_show_fit_all(model=fit_all_model, args_list=list_of_args)
 
         if not quiet :
             self.add_message("\n \n> Average parameters from fitting all datasets:\n")
@@ -1056,21 +1059,21 @@ class Frontend:
         # should also auto-pause when red chi sqr reaches ~1. Same for procedural, to avoid overfitting
         # (the linear data is a good example of fits that become infinitesimally better with more parameters)
         if self.brute_forcing :
-            status = self._optimizer.async_find_best_model_for_dataset()
+            status = self.optimizer.async_find_best_model_for_dataset()
             if status == "Done" :
                 self.brute_forcing = False
                 print("End of brute-forcing reached")
-            self.update_currents()
+            # self.update_currents()
             self.update_top5_dropdown()
-            if self._curr_best_red_chi_sqr != self._optimizer.top5_rx_sqrs[0] :
+            if self.current_rchisqr != self._optimizer.top5_rchisqrs[0] :
                 self.save_show_fit_image()
-                self._curr_best_red_chi_sqr = self._optimizer.top5_rx_sqrs[0]
+                self.current_rchisqr = self._optimizer.top5_rchisqrs[0]
             self._gui.after(1, self.maintain_brute_loop)
         self.update_pause_button()
 
     def print_results_to_console(self):
         print_string = ""
-        if self._model_name_tkvar.get() == "Linear" :
+        if self.current_model.name == "Linear" :
             if self.data_handler.logy_flag :
                 print_string += f"\n>  Linear fit is LY ="
             else :
@@ -1079,58 +1082,59 @@ class Frontend:
                 print_string += f" m LX + b with\n"
             else :
                 print_string += f" m x + b with\n"
-            # this used to be self._optimizer.parameters[0] but that didn't work with fit_all
-            # so now this is self._current_args
-            args, uncs = self._current_args, self._current_uncs
+            args, uncs = self.current_args, self.current_uncs
             m, sigmam = args[0], uncs[0]
             b, sigmab = args[1], uncs[1]
             # the uncertainty for linear regression is also very well-studied, so
             # this should be a test case for uncertainty values
             print_string += f"   m = {m:+.2E}  \u00B1  {sigmam:.2E}\n"
             print_string += f"   b = {b:+.2E}  \u00B1  {sigmab:.2E}\n"
+            # TODO: this needs to do something more complicated when fitting all
             print_string += f"Goodness of fit: R\U000000B2 = " \
-                           f"{self._optimizer.r_squared(self._optimizer.best_model):.4F}"
+                           f"{self._optimizer.r_squared(self.current_model):.4F}"
             print_string += f"  ,  \U0001D6D8{sup(2)}/dof = "       \
-                            f"{self._optimizer.reduced_chi_squared_of_fit(self._optimizer.best_model):.2F}\n"
-        elif self._model_name_tkvar.get() == "Polynomial" :
+                            f"{self._optimizer.reduced_chi_squared_of_fit(self.current_model):.2F}\n"
+        elif self.current_model.name[:10] == "Polynomial" :
             deg = self._polynomial_degree.get()
-            args = self._current_args
-            uncs = self._current_uncs if deg < self.max_poly_degree() else [0 for _ in range(deg+1)]
+            args = self.current_args
+            uncs = self.current_uncs if deg < self.max_poly_degree() else [0 for _ in range(deg+1)]
             if self.data_handler.logy_flag :
                 print_string += f"\n>  Polynomial fit is LY = "
             else:
-                print_string += f"\n>  Polynomial fit is y = C{sub(deg)}x{sup(deg)}"
+                print_string += f"\n>  Polynomial fit is y = "
             if self.data_handler.logx_flag :
-                for n in range(deg+1):
-                    print_string += f"+C{sub(deg - n)}LX{sup(deg - n)}"
+                for n in range(deg):
+                    print_string += f"C{sub(deg-n)}LX{sup(deg - n)}+"
             else:
                 for n in range(deg) :
-                    print_string += f"+C{sub(deg-n)}x{sup(deg-n)}"
-
-            print_string += f"\n   where the constants are"
+                    print_string += f"C{sub(deg-n)}x{sup(deg-n)}+"
+            print_string += f"C{sub(0)}\n   where the constants are"
             for n in range(deg+1) :
                 val, sig = args[n], uncs[n]
                 print_string += f"\n   C{sub(deg-n)} = {val:+.2E}  \u00B1  {sig:+.2E}\n"
             print_string += f"Goodness of fit: \U0001D6D8{sup(2)}/dof = "       \
-                            f"{self._optimizer.reduced_chi_squared_of_fit(self._optimizer.best_model):.2F}\n"
-        elif self._model_name_tkvar.get() == "Gaussian" and self.data_handler.normalized:
-            args, uncs = self._current_args, self._current_uncs
+                            f"{self._optimizer.reduced_chi_squared_of_fit(self.current_model):.2F}\n"
+        elif self.current_model.name in ["Gaussian","Normal"] and self.data_handler.normalized:
+            args, uncs = self.current_args, self.current_uncs
             if self.data_handler.logy_flag :
                 print_string += f"\n>  Normal fit is LY ="
             else :
                 print_string += f"\n>  Normal fit is y ="
             if self.data_handler.logx_flag :
-                print_string += f" 1/\u221A(2\u03C0\u03C3\U000000B2) exp[-(LX-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
+                print_string += f" 1/\u221A(2\u03C0\u03C3\U000000B2) " \
+                                f"exp[-(LX-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
             else :
-                print_string += f" 1/\u221A(2\u03C0\u03C3\U000000B2) exp[-(x-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
+                print_string += f" 1/\u221A(2\u03C0\u03C3\U000000B2) " \
+                                f"exp[-(x-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
             sigma, sigmasigma = args[0], uncs[0]
             mu,    sigmamu    = args[1], uncs[1]
             print_string += f"   \u03BC = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
             print_string += f"   \u03C3 =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
             print_string += f"Goodness of fit: \U0001D6D8{sup(2)}/dof = "       \
-                            f"{self._optimizer.reduced_chi_squared_of_fit(self._optimizer.best_model):.2F}\n"
-        elif self._model_name_tkvar.get() == "Gaussian" :
-            args, uncs = self._current_args, self._current_uncs
+                            f"{self._optimizer.reduced_chi_squared_of_fit(self.current_model):.2F}\n"
+            print([datum.val for datum in self.data_handler.data])
+        elif self.current_model.name == "Gaussian" :
+            args, uncs = self.current_args, self.current_uncs
             if self.data_handler.logy_flag :
                 print_string += f"\n>  Gaussian fit is LY ="
             else :
@@ -1147,14 +1151,14 @@ class Frontend:
             print_string += f"   \u03BC = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
             print_string += f"   \u03C3 =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
             print_string += f"Goodness of fit: \U0001D6D8{sup(2)}/dof = "       \
-                            f"{self._optimizer.reduced_chi_squared_of_fit(self._optimizer.best_model):.2F}\n"
-        elif self._model_name_tkvar.get() == "Sigmoid" :
-            args, uncs = self._current_args, self._current_uncs
+                            f"{self.current_rchisqr:.2F}\n"
+        elif self.current_model.name == "Sigmoid" :
+            args, uncs = self.current_args, self.current_uncs
             # print_string += f"  Sigmoid fit is y = F + H/(1 + exp[-(x-x0)/w] )\n"
             if self.data_handler.logy_flag :
                 print_string += f"\n>  Sigmoid fit is LY ="
             else :
-                print_string += f"\n>  {self._current_model.name} fit is y ="
+                print_string += f"\n>  {self.current_model.name} fit is y ="
             if self.data_handler.logx_flag :
                 print_string += f" F + H/(1 + exp[-(LX-x0)/w] ) with\n"
             else :
@@ -1169,39 +1173,41 @@ class Frontend:
             print_string += f"   w  =  {w:.2E}  \u00B1  {sigmaW:.2E}\n"
             print_string += f"   x0 = {x0:+.2E}  \u00B1  {sigmax0:.2E}\n"
             print_string += f"Goodness of fit: \U0001D6D8{sup(2)}/dof = "       \
-                            f"{self._optimizer.reduced_chi_squared_of_fit(self._optimizer.best_model):.2F}\n"
+                            f"{self.current_rchisqr:.2F}\n"
         elif self._model_name_tkvar.get() == "Procedural":
             if self.data_handler.logy_flag :
-                print_string += f"\n> Selected model is LY = {self._current_model.name}"
+                print_string += f"\n> Selected model is LY = {self.current_model.name}"
             else :
-                print_string += f"\n> Selected model is y = {self._current_model.name}"
+                print_string += f"\n> Selected model is y = {self.current_model.name}"
             if self.data_handler.logx_flag :
-                print_string += f"(LX) w/ {self._current_model.dof} dof and where\n"
+                print_string += f"(LX) w/ {self.current_model.dof} dof and where\n"
             else :
-                print_string += f"(x) w/ {self._current_model.dof} dof and where\n"
-            for idx, (par, unc) in enumerate(zip(self._current_args, self._current_uncs)):
+                print_string += f"(x) w/ {self.current_model.dof} dof and where\n"
+            for idx, (par, unc) in enumerate(zip(self.current_args, self.current_uncs)):
                 print_string += f"  c{idx} =  {par:+.2E}  \u00B1  {unc:.2E}\n"
             print_string += f"\n \n> This has \U0001D6D8{sup(2)}/dof = " \
-                            f"{self._optimizer.reduced_chi_squared_of_fit(self._current_model):.2F}," \
+                            f"{self.current_rchisqr:.2F}," \
                             f" and as a tree, this is \n"
-            print_string += self._current_model.tree_as_string_with_args() + "\n"
+            print_string += self.current_model.tree_as_string_with_args() + "\n"
         elif self._model_name_tkvar.get() == "Brute-Force":
             if self.data_handler.logy_flag :
-                print_string += f"\n> Model is LY = {self._current_model.name}"
+                print_string += f"\n> Model is LY = {self.current_model.name}"
             else :
-                print_string += f"\n> Model is y = {self._current_model.name}"
+                print_string += f"\n> Model is y = {self.current_model.name}"
             if self.data_handler.logx_flag :
-                print_string += f"(LX) w/ {self._current_model.dof} dof and where\n"
+                print_string += f"(LX) w/ {self.current_model.dof} dof and where\n"
             else :
-                print_string += f"(x) w/ {self._current_model.dof} dof and where\n"
-            for idx, (par, unc) in enumerate(zip(self._current_args, self._current_uncs)):
+                print_string += f"(x) w/ {self.current_model.dof} dof and where\n"
+            for idx, (par, unc) in enumerate(zip(self.current_args, self.current_uncs)):
                 print_string += f"  c{idx} =  {par:+.2E}  \u00B1  {unc:.2E}\n"
             print_string += "\n \n> As a tree, this is \n"
-            print_string += self._current_model.tree_as_string_with_args() + "\n"
+            print_string += self.current_model.tree_as_string_with_args() + "\n"
         else:
-            pass
+            print(self.data_handler.normalized)
+            raise EnvironmentError
         if self.data_handler.logy_flag and self.data_handler.logx_flag:
-            print_string += f"Keep in mind that LY = log(y/{self.data_handler.Y0:.2E}) and LX = log(x/{self.data_handler.X0:.2E})\n"
+            print_string += f"Keep in mind that LY = log(y/{self.data_handler.Y0:.2E}) " \
+                            f"and LX = log(x/{self.data_handler.X0:.2E})\n"
         elif self.data_handler.logy_flag :
             print_string += f"Keep in mind that LY = log(y/{self.data_handler.Y0:.2E})\n"
         elif self.data_handler.logx_flag :
@@ -1278,7 +1284,8 @@ class Frontend:
 
         # TODO: also make a save figure button
 
-        inspect_bar = self._gui.children['!frame2'].children['!frame2'].children['!frame']
+        # inspect_bar
+        self._gui.children['!frame2'].children['!frame2'].children['!frame']
 
         data_perusal_button = tk.Button(
             master = self._gui.children['!frame2'].children['!frame2'].children['!frame'],
@@ -1327,10 +1334,12 @@ class Frontend:
         self._curr_image_num  = (self._curr_image_num + 1) % len(self._data_handlers)
         self.image_change_command()
     def image_change_command(self):
+        self._changed_data_flag = True
         self._showing_fit_all_image = False
 
         if self._showing_fit_image :
             self.show_current_data_with_fit()
+            # self.set_which5_no_trace(f"{self.current_rchisqr:.2F}: {self.current_model.name}")
         else:
             self.show_current_data()
 
@@ -1359,11 +1368,11 @@ class Frontend:
         #    --   maybe it's because we aren't normalizing the residuals histogram?
 
 
-        if self._current_model is None :
+        if self.current_model is None :
             print("Residuals_command: you shouldn't be here, quitting")
             raise SystemExit
         else :
-            print(f"\n\n\n\n\n\n\nShowing residuals relative to {self._current_model.name}")
+            print(f"\n\n\n\n\n\n\nShowing residuals relative to {self.current_model.name}")
 
         res_filepath = f"{self.get_package_path()}/plots/residuals.csv"
 
@@ -1373,14 +1382,14 @@ class Frontend:
             if self._showing_fit_all_image:
                 for handler in self._data_handlers :
                     for datum in handler.data:
-                        res = datum.val - self._current_model.eval_at(datum.pos)
+                        res = datum.val - self.current_model.eval_at(datum.pos)
                         residuals.append(res)
                         norm_residuals.append(res / datum.sigma_val)
                         res_file.write(f"{res},\n")
             else :
                 for datum in self.data_handler.data:
-                    print(datum)
-                    res = datum.val - self._current_model.eval_at(datum.pos)
+                    # print(datum)
+                    res = datum.val - self.current_model.eval_at(datum.pos)
                     residuals.append(res)
                     norm_residuals.append(res/datum.sigma_val)
                     res_file.write(f"{res},\n")
@@ -1404,21 +1413,26 @@ class Frontend:
             if binomial_highweight > 0.05 :
                 break
             touching_max -= 1
-        self.add_message("\n ")
-        self.add_message(f"> By the 68% rule of thumb, the number of datapoints with error bars \n"
-                         f"   touching the line of best fit should obey {touching_min} ≤ {num_within_error_bars} ≤ {touching_max}")
-        if touching_min <= num_within_error_bars <= touching_max :
-            self.add_message("   Since this is obeyed, a very rough check has been passed that \n"
-                             "   the fit is a proper representation of the data.")
-        elif touching_min > num_within_error_bars :
-            self.add_message("   Since this undershoots the minimum expected number, it is likely that either \n"
-                             "     • the fit is a poor representation of the data\n"
-                             "     • the error bars have been underestimated\n"
-                             "     • you are fitting multiple datasets\n")
-        elif touching_max < num_within_error_bars :
-            self.add_message("   Since this exceeds the maximum expected number, either the data has been\n"
-                             "   generated with an exact function, or the error bars have been overestimated.\n"
-                             "   In either case, it is likely that a good model of the dataset has been found!")
+
+        if any( np.isinf(norm_residuals) ) :
+            print("Can't do rule of thumb!")
+        else:
+            self.add_message("\n ")
+            self.add_message(f"> By the 68% rule of thumb, the number of datapoints with error bars \n"
+                             f"   touching the line of best fit should obey "
+                             f"{touching_min} ≤ {num_within_error_bars} ≤ {touching_max}")
+            if touching_min <= num_within_error_bars <= touching_max :
+                self.add_message("   Since this is obeyed, a very rough check has been passed that \n"
+                                 "   the fit is a proper representation of the data.")
+            elif touching_min > num_within_error_bars :
+                self.add_message("   Since this undershoots the minimum expected number, it is likely that either \n"
+                                 "     • the fit is a poor representation of the data\n"
+                                 "     • the error bars have been underestimated\n"
+                                 "     • you are fitting multiple datasets\n")
+            elif touching_max < num_within_error_bars :
+                self.add_message("   Since this exceeds the maximum expected number, either the data has been\n"
+                                 "   generated with an exact function, or the error bars have been overestimated.\n"
+                                 "   In either case, it is likely that a good model of the dataset has been found!")
 
         sample_mean = sum(residuals) / len(residuals)
         sample_variance = sum([(res - sample_mean) ** 2 for res in residuals]) / (len(residuals) - 1)
@@ -1433,9 +1447,9 @@ class Frontend:
 
         # actually, you should be using the mean and sigma according to the *fit*
         if len(res_handler.data) >= 4 :  # shouldn't fit a gaussian to 3 points
-            pars, uncs = res_optimizer.parameters_and_uncertainties_from_fitting(model=CompositeFunction.built_in("Gaussian"))
-            A, sigma, x0 = pars
-            sigmaA, sigmasigma, sigmax0 = uncs
+            res_optimizer.fit_this_and_get_model_and_covariance(model_=CompositeFunction.built_in("Gaussian"))
+            A, sigma, x0 = res_optimizer.shown_parameters
+            sigmaA, sigmasigma, sigmax0 = res_optimizer.shown_uncertainties
             print(f"Mean from fit: {x0} +- {sigmax0}")
             print(f"Sigma from fit: {sigma} +- {sigmasigma} "
                   f"... sample standard deviation: {sample_std_dev}"            )
@@ -1447,9 +1461,10 @@ class Frontend:
             sigma = np_residuals.std() if np_residuals.std() != 0 else 1
             count = len(residuals)
             manual_gaussian = CompositeFunction.built_in("Gaussian")
-            manual_gaussian.set_args( count/np.sqrt(2*np.pi*sigma**2), sigma, mu)
-            print(count/np.sqrt(2*np.pi*sigma**2), sigma, mu)
-            res_optimizer.best_model = manual_gaussian
+            manual_gaussian.set_args( count*res_handler.bin_width()/np.sqrt(2*np.pi*sigma**2), sigma, mu)
+            print(f"{res_handler.bin_width()=}")
+            print(count*res_handler.bin_width()/np.sqrt(2*np.pi*sigma**2), sigma, mu)
+            res_optimizer.shown_model = manual_gaussian
 
 
 
@@ -1602,6 +1617,8 @@ class Frontend:
         function_dropdown.grid(row=0, column=0)
 
         self._model_name_tkvar.trace('w', self.function_dropdown_trace)
+
+    # noinspection PyUnusedLocal
     def function_dropdown_trace(self,*args):
 
         model_choice = self._model_name_tkvar.get()
@@ -1639,12 +1656,8 @@ class Frontend:
             return
         self._new_user_stage *= 29
 
-        # top 5 fits quick list
-
-        # print("Creating", self._gui.children['!frame2'].children['!frame3'].children)
-
         top5_list = [ f"{rx_sqr:.2F}: {name}" for rx_sqr, name
-                      in zip(self._optimizer.top5_rx_sqrs, self._optimizer.top5_names)]
+                      in zip(self._optimizer.top5_rchisqrs, self._optimizer.top5_names)]
 
         self._which5_name_tkvar = tk.StringVar(self._gui.children['!frame2'].children['!frame3'])
         self._which5_name_tkvar.set("Top 5")
@@ -1657,68 +1670,102 @@ class Frontend:
         top5_dropdown.configure(width=45)
         top5_dropdown.grid(row=0, column=1)
 
-        self._which5_name_tkvar.trace('w', self.which5_dropdown_trace)
+        self._which_tr_id = self._which5_name_tkvar.trace('w', self.which5_dropdown_trace)
+        self.create_refit_button()
+    def set_which5_no_trace(self, arg):
+        self._which5_name_tkvar.trace_vdelete('w', self._which_tr_id)
+        self._which5_name_tkvar.set(arg)
+        self._which_tr_id = self._which5_name_tkvar.trace('w', self.which5_dropdown_trace)
     def which5_dropdown_trace(self,*args):
         which5_choice = self._which5_name_tkvar.get()
         print(f"Changed top5_dropdown to {which5_choice}")
         # show the fit of the selected model
-        rx_sqr, model_name = regex.split(f" ", which5_choice)
+        rchisqr, model_name = regex.split(f" ", which5_choice)
         try :
-            selected_model_idx = self._optimizer.top5_names.index(model_name)
+            selected_model_idx = self.optimizer.top5_names.index(model_name)
         except ValueError :
-            print(f"{model_name=} is not in {self._optimizer.top5_names}")
+            print(f"{model_name=} is not in {self.optimizer.top5_names}")
             selected_model_idx = 0
-        self._current_model = self._optimizer.top5_models[selected_model_idx]
-        self._current_args = self._optimizer.top5_args[selected_model_idx]
-        self._current_uncs = self._optimizer.top5_uncertainties[selected_model_idx]
-        self.save_show_fit_image()
-        self.show_current_data_with_fit()
 
-        # self._optimizer.update_top5_model_with_new_data(self.data_handler.data, self._current_model)
-        # self.update_top5_dropdown()
-        self.update_top5_chisqrs()
-        print(f"Now it's {self._which5_name_tkvar.get()}")
-        print(self._optimizer.reduced_chi_squared_of_fit(self._current_model))
-        print([self._current_model.eval_at(x) for x in [1,2,3,4,5,6]])
-        print(self.data_handler.shortpath)
+        self.current_model = self.optimizer.top5_models[selected_model_idx]
+        self.current_covariance = self.optimizer.top5_covariances[selected_model_idx]
+        self.current_rchisqr = self.optimizer.top5_rchisqrs[selected_model_idx]
+
+        # also update the fit of the current model
+        if self._refit_on_click and self._changed_data_flag :
+            print("||| REFIT ON CLICK |||")
+            self.show_current_data_with_fit(do_halving=True)
+            # self.optimizer.update_top5_rchisqrs_for_new_data_single_model(self.data_handler.data, self.current_model)
+            # self.update_top5_dropdown()
+            return
+
+        self.save_show_fit_image()
         self.print_results_to_console()
     def update_top5_dropdown(self):
-
+        # uses the top5 models and rchiqrs in self.optimizer to populate the list
         if self._new_user_stage % 29 != 0 :
             return
 
-        # print("Updating", self._gui.children['!frame2'].children['!frame3'].children)
+        # update options
         top5_dropdown : tk.OptionMenu = self._gui.children['!frame2'].children['!frame3'].children['!optionmenu2']
-
         top5_dropdown['menu'].delete(0,tk.END)
         top5_list = [f"{rx_sqr:.2F}: {name}" for rx_sqr, name
-                     in zip(self._optimizer.top5_rx_sqrs, self._optimizer.top5_names)]
+                     in zip(self.optimizer.top5_rchisqrs, self.optimizer.top5_names)]
         for label in top5_list :
+            # noinspection PyProtectedMember
             top5_dropdown['menu'].add_command(label=label, command=tk._setit(self._which5_name_tkvar, label))
 
-        # update the dropdown label whenever the drawn model is different from the label model
-        selected_model_idx = self._optimizer.top5_names.index(self._current_model.name)
-        chisqr = self._optimizer.top5_rx_sqrs[selected_model_idx]
-        name = self._optimizer.top5_names[selected_model_idx]
-        self._which5_name_tkvar.set(f"{chisqr:.2F}: {name}")
+        # update label
+        # selected_model_idx = self.optimizer.top5_names.index(self.current_model.name)
+        # chisqr = self.optimizer.top5_rchisqrs[selected_model_idx]
+        # name = self.optimizer.top5_names[selected_model_idx]
+        # self.set_which5_no_trace(f"{chisqr:.2F}: {name}")
+        self.set_which5_no_trace(f"{self.current_rchisqr:.2F}: {self.current_model.name}")
     def update_top5_chisqrs(self):
+        # uses the current top5 models to find rchisqrs when overlaid on new data
         # this is a very slow routine for a background process
         if self._new_user_stage % 29 != 0 :
             return
-        self._optimizer.update_top5_with_new_data(self.data_handler.data)
+        self.optimizer.update_top5_rchisqrs_for_new_data(self.data_handler.data)
         self.update_top5_dropdown()
+        # self.set_which5_no_trace(f"{self.current_rchisqr:.2F}: {self.current_model.name}")
     def hide_top5_dropdown(self):
         if self._new_user_stage % 29 != 0 :
             return
         top5_dropdown = self._gui.children['!frame2'].children['!frame3'].children['!optionmenu2']
         top5_dropdown.grid_forget()
+        self.hide_refit_button()
     def show_top5_dropdown(self):
         if self._new_user_stage % 29 != 0 :
             self.create_top5_dropdown()
             return
         top5_dropdown = self._gui.children['!frame2'].children['!frame3'].children['!optionmenu2']
         top5_dropdown.grid(row=0, column=1)
+        self.show_refit_button()
 
+    def create_refit_button(self):
+        if self._new_user_stage % 43 == 0 :
+            return
+        self._new_user_stage *= 43
+
+        self._refit_button = tk.Button(
+            self._gui.children['!frame2'].children['!frame3'],
+            text="Refit",
+            command=self.refit_command
+        )
+        self._refit_button.grid(row=0, column=3, padx=5, pady=5, sticky='w')
+    def refit_command(self):
+        self.show_current_data_with_fit()
+        self.set_which5_no_trace(f"{self.current_rchisqr:.2F}: {self.current_model.name}")
+    def hide_refit_button(self):
+        if self._new_user_stage % 43 != 0 :
+            return
+        self._refit_button.grid_forget()
+    def show_refit_button(self):
+        if self._new_user_stage % 43 != 0 :
+            self.create_refit_button()
+            return
+        self._refit_button.grid(row=0, column=3, padx=5, pady=5, sticky = 'w')
     def show_log_buttons(self):
         if self._new_user_stage % 13 == 0 :
             return
@@ -1748,10 +1795,11 @@ class Frontend:
 
         self.update_logx_relief()
 
-        if self._optimizer is not None:
-            self._optimizer.set_data_to(self.data_handler.data)
+        self._changed_data_flag = True
+        self.update_optimizer()
+
         if self._showing_fit_image :
-            self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+            self.optimizer.parameters_and_uncertainties_from_fitting(self.current_model)
             self.save_show_fit_image()
         else:
             self.show_current_data()
@@ -1766,8 +1814,9 @@ class Frontend:
 
         self.update_logy_relief()
 
-        if self._optimizer is not None:
-            self._optimizer.set_data_to(self.data_handler.data)
+        self._changed_data_flag = True
+        self.update_optimizer()
+
         if self._showing_fit_image:
             self.show_current_data_with_fit()
         else:
@@ -1777,7 +1826,7 @@ class Frontend:
     def update_logx_relief(self):
         if self._new_user_stage % 13 != 0 :
             return
-        button: tk.Button = self._gui.children['!frame2'].children['!frame4'].children['!button']
+        button: tk.Button = tk.Button(self._gui.children['!frame2'].children['!frame4'].children['!button'])
         if self.data_handler.logx_flag :
             button.configure(relief=tk.SUNKEN)
             self.hide_normalize_button()
@@ -1816,6 +1865,7 @@ class Frontend:
             self.show_current_data_with_fit()
         else:
             self.show_current_data()
+        self._changed_data_flag = True
     def hide_normalize_button(self):
         if self._new_user_stage % 17 != 0 :
             return
@@ -1873,7 +1923,7 @@ class Frontend:
 
 
     def update_data_select(self):
-        text_label = self._gui.children['!frame2'].children['!frame2'].children['!frame'].children['!label']
+        text_label : tk.Label = self._gui.children['!frame2'].children['!frame2'].children['!frame'].children['!label']
         if self._showing_fit_all_image :
             text_label.configure(text=f"-/{len(self._data_handlers)}")
         else:
@@ -1884,9 +1934,10 @@ class Frontend:
     def save_show_fit_image(self, model = None):
 
         if model is not None:
+            raise EnvironmentError
             plot_model = model.copy()
         else:
-            plot_model = self._current_model
+            plot_model = self.current_model.copy()
 
         handler = self.data_handler
 
@@ -1945,8 +1996,6 @@ class Frontend:
             axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
         axes.set_facecolor(self._bg_color)
 
-        # print( np.array(axes.spines['top'].get_spine_transform()) )
-
         min_X, max_X = min(x_points), max(x_points)
         min_Y, max_Y = min(y_points), max(y_points)
         #  tx is the proportion between xmin and xmax where the zero lies
@@ -1969,12 +2018,12 @@ class Frontend:
     def save_show_fit_all(self, model, args_list):
 
         plt.close()
-        avg_pars = model.get_args()
+        avg_pars = model.args
 
         if model is not None:
             plot_model = model.copy()
         else:
-            plot_model = self._current_model
+            plot_model = self.current_model
 
         num_sets = len(self._data_handlers)
         abs_minX, abs_minY = 1e5, 1e5
@@ -1994,7 +2043,7 @@ class Frontend:
 
             sum_len += len(x_points)
             smooth_x_for_fit = np.linspace( x_points[0], x_points[-1], 4*len(x_points))
-            plot_model.set_args(*args)
+            plot_model.args = args
             if handler.logx_flag and handler.logy_flag :
                 fit_vals = [ plot_model.eval_at(xi, X0 = handler.X0, Y0 = handler.Y0)
                              for xi in smooth_x_for_fit ]
@@ -2030,7 +2079,7 @@ class Frontend:
             plt.draw()
 
         # also add average fit
-        plot_model.set_args(*avg_pars)
+        plot_model.args = avg_pars
         smooth_x_for_fit = np.linspace(abs_minX, abs_maxX, sum_len)
         if self.data_handler.logx_flag and self.data_handler.logy_flag:
             fit_vals = [plot_model.eval_at(xi, X0=self.data_handler.X0, Y0=self.data_handler.Y0)
@@ -2102,22 +2151,22 @@ class Frontend:
         self._showing_fit_image = True
         self._showing_fit_all_image = True
     # this fits the data again, unlike save_show_fit
-    def show_current_data_with_fit(self, quiet=False):
-        self._optimizer.set_data_to(self.data_handler.data)
-        if self._current_model.name == "Normal" and not self.data_handler.normalized:
+    def show_current_data_with_fit(self, quiet=False, do_halving=False):
+
+        self.update_optimizer()
+
+        if self.current_model.name == "Normal" and not self.data_handler.normalized:
             self.fit_data_command()
             return
-        elif self._current_model.name == "Gaussian" and self.data_handler.normalized:
+        elif self.current_model.name == "Gaussian" and self.data_handler.normalized:
             self.fit_data_command()
             return
 
-        pars, uncs = self._optimizer.parameters_and_uncertainties_from_fitting(self._current_model)
+        # changes optimizer's _shown variables
+        self.optimizer.fit_this_and_get_model_and_covariance(self.current_model, do_halving=do_halving)
 
-        self._current_args = pars
-        self._current_uncs = uncs
         if not quiet:
-            shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
-            self.add_message(f"\n \n> For {shortpath} \n")
+            self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
             self.print_results_to_console()
         self.save_show_fit_image()
 
@@ -2165,6 +2214,7 @@ class Frontend:
             self._polynomial_degree.set(self._polynomial_degree.get() + 1)
         else:
             self.add_message(f"> Polynomial degree cannot exceed the number of x-positions\n")
+        # noinspection PyTypeChecker
         depth_label: tk.Label = self._gui.children['!frame2'].children['!frame6'].children['!label']
         depth_label.configure(text=f"Degree: {self._polynomial_degree.get()}")
     def max_poly_degree(self):
@@ -2210,7 +2260,8 @@ class Frontend:
             checkbox_n = self._gui.children['!frame2'].children['!frame3'].children[f"!checkbutton{idx+2}"]
             checkbox_n.grid(row=idx+2, column=0, sticky='w')
     def checkbox_on_off_command(self):
-        pass
+        print("Activated re-build of composite list")
+        self._changed_optimizer_opts_flag = True
 
     def create_depth_up_down_buttons(self):
         # duplication taken care of with % 31 i.e. default_checkboxes
@@ -2235,8 +2286,8 @@ class Frontend:
             return
         self._gui.children['!frame2'].children['!frame5'].grid_forget()
     def show_depth_buttons(self):
-        if self._new_user_stage % 31 == 0 :
-            self.create_depth_up_down_buttons()
+        if self._new_user_stage % 31 != 0 :
+            self.create_default_checkboxes()
             return
         self._gui.children['!frame2'].children['!frame5'].grid(row = 4, column=0, sticky = 'w')
     def depth_down_command(self) :
@@ -2246,48 +2297,47 @@ class Frontend:
             self.add_message( f"> Must have a depth of at least 1\n" )
         depth_label = self._gui.children['!frame2'].children['!frame5'].children['!label']
         depth_label.configure(text=f"Depth: {self._max_functions_tkInt.get()}")
+        self._changed_optimizer_opts_flag = True
     def depth_up_command(self):
         if self._max_functions_tkInt.get() < 7 :
             self._max_functions_tkInt.set( self._max_functions_tkInt.get() + 1 )
         else :
             self.add_message( f"> Cannot exceed a depth of 7\n" )
+        # noinspection PyTypeChecker
         depth_label : tk.Label = self._gui.children['!frame2'].children['!frame5'].children['!label']
         depth_label.configure(text=f"Depth: {self._max_functions_tkInt.get()}")
+        self._changed_optimizer_opts_flag = True
 
     def create_pause_button(self):
         if self._new_user_stage % 37 == 0 :
             return
         self._new_user_stage *= 37
 
-        pause_button = tk.Button( self._gui.children['!frame2'].children['!frame3'],
+        self._pause_button = tk.Button( self._gui.children['!frame2'].children['!frame3'],
                                   text = "Pause",
                                   command = self.pause_command
                                )
-        pause_button.grid(row=0, column=2, padx=(5,0), sticky='w')
-        pause_button.configure(width=8)
+        self._pause_button.grid(row=0, column=2, padx=(5,0), sticky='w')
+        self._pause_button.configure(width=8)
     def hide_pause_button(self):
         if self._new_user_stage % 37 != 0 :
             return
-        print(f"Hide pause button: {self._gui.children['!frame2'].children['!frame3'].children}")
-        pause_button = self._gui.children['!frame2'].children['!frame3'].children['!button']
-        pause_button.grid_forget()
+        # print(f"Hide pause button: {self._gui.children['!frame2'].children['!frame3'].children}")
+        self._pause_button.grid_forget()
     def show_pause_button(self):
         if self._new_user_stage % 37 != 0 :
             self.create_pause_button()
             return
-
-        pause_button = self._gui.children['!frame2'].children['!frame3'].children['!button']
-        pause_button.grid(row=0, column=2, padx=(5,0), pady=5, sticky='w')
+        self._pause_button.grid(row=0, column=2, padx=(5,0), pady=5, sticky='w')
         self.update_pause_button()
     def update_pause_button(self):
         if self._new_user_stage % 37 != 0 :
             return
 
-        pause_button : tk.Button = self._gui.children['!frame2'].children['!frame3'].children['!button']
         if self.brute_forcing :
-            pause_button.configure(text="Pause")
+            self._pause_button.configure(text="Pause")
         else :
-            pause_button.configure(text="Go")
+            self._pause_button.configure(text="Go")
     def pause_command(self):
         if self.brute_forcing :
             self.brute_forcing = False
@@ -2308,7 +2358,7 @@ class Frontend:
 
     def create_right_panel(self):
         self._gui.columnconfigure(2, minsize=700, weight=1)  # image panel
-        console_frame = tk.Frame(master=self._gui, bg=hex(self._console_color))
+        console_frame = tk.Frame(master=self._gui, bg=hexx(self._console_color))
         console_frame.grid(row=0, column=2, sticky='news')
         self.add_message("> Welcome to MIW's AutoFit!")
         self.create_colors_console_menu()
@@ -2349,8 +2399,8 @@ class Frontend:
             if line == "" :
                 continue
             new_message_label = tk.Label(master=text_frame, text=line,
-                                         bg=hex(self._console_color),
-                                         fg=hex(self._printout_color), font=("consolas",12))
+                                         bg=hexx(self._console_color),
+                                         fg=hexx(self._printout_color), font=("consolas", 12))
             new_message_label.grid(row=self._num_messages_ever, column=0, sticky=tk.W)
             self._num_messages += 1
             self._num_messages_ever += 1
@@ -2401,15 +2451,10 @@ class Frontend:
                 print(f"""Frontend init: python script {__file__} is not in the AutoFit package's directory.""")
 
         return loc
-
-    @property
-    def data_handler(self):
-        return self._data_handlers[self._curr_image_num]
     def show_current_data(self):
         self.show_data(self._curr_image_num)
         self._showing_fit_image = False
         self._showing_fit_all_image = False
-
     def update_image(self):
         if self._showing_fit_all_image :
             self.fit_all_command()
@@ -2418,6 +2463,10 @@ class Frontend:
         else:
             if self._image_path != f"{self.get_package_path()}/splash.png" :
                 self.show_current_data()
+
+    @property
+    def data_handler(self):
+        return self._data_handlers[self._curr_image_num]
     @property
     def brute_forcing(self):
         return self._brute_forcing.get()
@@ -2425,8 +2474,62 @@ class Frontend:
     def brute_forcing(self, val):
         self._brute_forcing.set(val)
 
+    def update_optimizer(self):
+        if self.optimizer is None :
+            self.optimizer = Optimizer(data=self.data_handler.data,
+                                       use_functions_dict=self.use_functions_dict,
+                                       max_functions=self.max_functions)
+        if self._changed_optimizer_opts_flag :  # max depth, changed dict
+            self.optimizer.update_opts(use_functions_dict=self.use_functions_dict, max_functions=self.max_functions)
+            for name, form in zip(regex.split(' ', self._custom_function_names),
+                                  regex.split(' ', self._custom_function_forms)):
+                info_str = self._optimizer.add_primitive_to_list(name, form)
+                if info_str != "" :
+                    self.add_message(f"\n{info_str}\n")
+            self._changed_optimizer_opts_flag = False
+        if self._changed_data_flag :
+            self.optimizer.set_data_to(self.data_handler.data)
+            self._changed_data_flag = False
+    @property
+    def optimizer(self):
+        return self._optimizer
+    @optimizer.setter
+    def optimizer(self, other):
+        self._optimizer = other
+    def make_top_shown(self):
+        if self._model_name_tkvar.get() in ["Procedural", "Brute-Force"]:
+            self.optimizer.shown_model = self.optimizer.top_model
+            self.optimizer.shown_covariance = self.optimizer.top_cov
+            self.optimizer.shown_rchisqr = self.optimizer.top_rchisqr
+    @property
+    def current_model(self):
+        return self.optimizer.shown_model
+    @current_model.setter
+    def current_model(self, other):
+        self.optimizer.shown_model = other
+    @property
+    def current_args(self):
+        return self.optimizer.shown_parameters
+    @property
+    def current_uncs(self):
+        return self.optimizer.shown_uncertainties
+    @property
+    def current_covariance(self):
+        return self.optimizer.shown_covariance
+    @current_covariance.setter
+    def current_covariance(self, other):
+        self.optimizer.shown_covariance = other
+    @property
+    def current_rchisqr(self):
+        return self.optimizer.shown_rchisqr
+    @current_rchisqr.setter
+    def current_rchisqr(self, other):
+        self.optimizer.shown_rchisqr = other
+
+    @property
     def use_functions_dict(self):
         return { key : tkBoolVar.get() for key, tkBoolVar in self._use_func_dict_name_tkVar.items() }
+    @property
     def max_functions(self):
         return self._max_functions_tkInt.get()
 
@@ -2536,16 +2639,17 @@ class Frontend:
     def polynomial_frame(self):
         return self._gui.children['!frame2'].children['!frame6']
 
-    def update_currents(self):
-        if self._optimizer is None :
-            return
-        if self._optimizer.best_model is None :
-            return
-        self._current_model = self._optimizer.best_model
-        # used to be optimizer.parameters
-        self._current_args = self._current_model.get_args()
-        self._current_uncs = self._optimizer.uncertainties
-        self._curr_best_red_chi_sqr = self._optimizer.best_rchisqr
+    # def update_currents(self):
+    #     if self._optimizer is None :
+    #         return
+    #     if self._optimizer.shown_model is None :
+    #         return
+    #     self._current_model = self._optimizer.shown_model
+    #     # used to be optimizer.parameters
+    #     self._current_args = self._current_model.get_args()
+    #     self._current_uncs = self._optimizer.shown_uncertainties
+    #     self._curr_best_red_chi_sqr = self._optimizer.shown_rchisqr
+
 
 
 def sup(s: int) :
@@ -2581,7 +2685,7 @@ def sub(s: int) :
     for char in s_str:
         ret_str += subs_dict[char]
     return ret_str
-def hex(vec) -> str :
+def hexx(vec) -> str :
     hex_str = "#"
     for c255 in vec :
         to_add = f"{int(c255):x}"

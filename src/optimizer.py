@@ -16,6 +16,7 @@ from autofit.src.datum1D import Datum1D
 from autofit.src.primitive_function import PrimitiveFunction
 from autofit.src.composite_function import CompositeFunction
 
+
 """
 This Optimizer class creates a list of possible fit functions. 
 Using scipy's curve-fit function, each of the possible fit functions are fit to the data provided.
@@ -38,17 +39,14 @@ class Optimizer:
                                     # so multiple measurements at each x-value are collapsed into a single value
 
         # fit results
-        self._best_function = None          # a CompositeFunction
-        self._best_args = None              # the arguments (parameters) of best_function CompositeFunction
-        self._best_args_uncertainty = None  # the uncorrelated uncertainties of the arguments
-        self._best_red_chi_sqr = 1e5
+        self._shown_model = None          # a CompositeFunction
+        self._shown_covariance = None
+        self._shown_rchisqr = 1e5
 
         # top 5 models and their data
-        self._top_5_models = []
-        self._top_5_args = []
-        self._top_5_uncertainties = []
-        self._top_5_names = [""]
-        self._top_5_red_chi_squareds = [1e5]  # [1e5  for _ in range(5)]
+        self._top5_models = []
+        self._top5_covariances = []
+        self._top5_rchisqrs = [1e5]  # [1e5  for _ in range(5)]
 
         # function construction parameters
         self._max_functions = max_functions
@@ -56,7 +54,7 @@ class Optimizer:
         self._primitive_names_list = []
 
         # useful auxiliary varibles
-        self._temp_function = None      # a CompositeFunction
+        self._temp_function : CompositeFunction = None      # for ?
         self._cos_freq_list = None
         self._sin_freq_list = None
         self._cos_freq_list_dup = None
@@ -76,151 +74,173 @@ class Optimizer:
         self._composite_generator = None
         self._gen_idx = -1
 
+        self._regen_composite_flag = True
+
     def __repr__(self):
         pass
 
     @property
-    def best_model(self):
-        return self._best_function
-    @best_model.setter
-    def best_model(self, other):
-        self._best_function = other
+    def shown_model(self) -> CompositeFunction:
+        return self._shown_model
+    @shown_model.setter
+    def shown_model(self, other):
+        self._shown_model = other
     @property
-    def parameters(self):
-        raise RuntimeWarning
-        print("Should you really be doing this?")
-        return self._best_args
-    @parameters.setter
-    def parameters(self, vals_list):
-        self._best_args = vals_list
-        self._best_function.set_args(*vals_list)
+    def shown_parameters(self) -> list[float]:
+        return self._shown_model.args
+    @shown_parameters.setter
+    def shown_parameters(self, args_list):
+        self._shown_model.args = args_list
     @property
-    def uncertainties(self):
-        return self._best_args_uncertainty
-    @uncertainties.setter
-    def uncertainties(self, uncs_list):
-        self._best_args_uncertainty = uncs_list
+    def shown_uncertainties(self) -> list[float]:
+        return list(np.sqrt(np.diagonal(self._shown_covariance)))
     @property
-    def best_rchisqr(self):
-        return self._best_red_chi_sqr
+    def shown_covariance(self):
+        return self._shown_covariance
+    @shown_covariance.setter
+    def shown_covariance(self, cov_np):
+        self._shown_covariance = cov_np
+    @property
+    def shown_rchisqr(self):
+        return self._shown_rchisqr
+    @shown_rchisqr.setter
+    def shown_rchisqr(self, val):
+        self._shown_rchisqr = val
+
     @property
     def top5_models(self):
-        return self._top_5_models
+        return self._top5_models
+    @top5_models.setter
+    def top5_models(self, other):
+        self._top5_models = other
+    @property
+    def top_model(self):
+        return self.top5_models[0]
     @property
     def top5_args(self):
-        return self._top_5_args
+        return [model.args for model in self.top5_models]
+    @property
+    def top_args(self):
+        return self.top5_args[0]
     @property
     def top5_uncertainties(self):
-        return self._top_5_uncertainties
+        return [list(np.sqrt(np.diagonal(covariance))) for covariance in self._top5_covariances]
+    @property
+    def top_uncs(self):
+        return self.top5_uncertainties[0]
+    @property
+    def top5_covariances(self):
+        return self._top5_covariances
+    @top5_covariances.setter
+    def top5_covariances(self, other):
+        self._top5_covariances = other
+    @property
+    def top_cov(self):
+        return self.top5_covariances[0]
     @property
     def top5_names(self):
-        return self._top_5_names
+        return [model.name for model in self._top5_models]
     @property
-    def top5_rx_sqrs(self):
-        return self._top_5_red_chi_squareds
+    def top_name(self):
+        return self.top5_names[0]
+    @property
+    def top5_rchisqrs(self):
+        return self._top5_rchisqrs
+    @top5_rchisqrs.setter
+    def top5_rchisqrs(self, other):
+        self._top5_rchisqrs = other
+    @property
+    def top_rchisqr(self):
+        return self.top5_rchisqrs[0]
 
     @property
-    def top5_ACC(self):
-        Akaikes = []
-        for model in self._top_5_models :
-            Akaikes.append( self.Akaike_criterion(model) )
-        return Akaikes
-    @property
-    def top5_ACCc(self):
-        CorrectedAkaikes = []
-        for model in self._top_5_models :
-            CorrectedAkaikes.append( self.Akaike_criterion_corrected(model) )
-        return CorrectedAkaikes
-    @property
-    def top5_BCC(self):
-        bayeses = []
-        for model in self._top_5_models :
-            bayeses.append( self.Bayes_criterion(model) )
-        return bayeses
-    @property
-    def top5_HQC(self):
-        HannanQuinns = []
-        for model in self._top_5_models :
-            HannanQuinns.append( self.HannanQuinn_criterion(model) )
-        return HannanQuinns
+    def composite_function_list(self):
+        return self._composite_function_list
+    @composite_function_list.setter
+    def composite_function_list(self, comp_list):
+        self._composite_function_list = comp_list
 
-    def update_top5_model_with_new_data(self, new_data, chosen_model):
-        self._data = new_data
+    def update_opts(self, use_functions_dict, max_functions: int):
+        self._use_functions_dict = use_functions_dict
+        self._max_functions = max_functions
+        self._regen_composite_flag = True
+
+    # def update_top5_rchisqrs_for_new_data_single_model(self, new_data, chosen_model):
+    #     self.set_data_to(new_data)
+    #     for idx, model in enumerate(self.top5_models) :
+    #         if model.name == chosen_model.name :
+    #             self.top5_rchisqrs[idx] = self.reduced_chi_squared_of_fit(model)
+    def update_top5_rchisqrs_for_new_data(self, new_data):
+        self.set_data_to(new_data)
         for idx, model in enumerate(self.top5_models) :
-            if model.name == chosen_model.name :
-                self._top_5_red_chi_squareds[idx] = self.reduced_chi_squared_of_fit(model)
-    def update_top5_with_new_data(self, new_data):
-        self._data = new_data
-        for idx, model in enumerate(self.top5_models) :
-            # self.parameters_and_uncertainties_from_fitting(model)
-            self._top_5_red_chi_squareds[idx] = self.reduced_chi_squared_of_fit(model)
-        # self.parameters_and_uncertainties_from_fitting(last_model)
+            self.top5_rchisqrs[idx] = self.reduced_chi_squared_of_fit(model)
 
-    def query_add_to_top5(self, model : CompositeFunction,
-                                pars: list[float],
-                                uncertainties: list[float],
-                                red_chi_squared: float):
-        # don't trsut them!
-        red_chi_squared = self.reduced_chi_squared_of_fit(model)
-        if len(self._top_5_models) > 5 and red_chi_squared > self._top_5_red_chi_squareds[-1] :
+    # changes top5 lists, does not change _shown variables
+    def query_add_to_top5(self, model: CompositeFunction, covariance):
+
+        rchisqr = self.reduced_chi_squared_of_fit(model)
+        print(f"Querying {rchisqr} for {model.name}")
+        if rchisqr > self.top5_rchisqrs[-1] :
             return
-        if model.name in self.top5_names :
-            return
-        for idx, chi_sqr in enumerate(self._top_5_red_chi_squareds) :
-            if self.modified_chi_sqr_for_believability(model) < self._top_5_red_chi_squareds[idx] :
-                self._top_5_models.insert(idx, model.copy())
-                self._top_5_args.insert(idx, pars)
-                self._top_5_uncertainties.insert(idx, uncertainties)
-                self._top_5_names.insert(idx, model.name)
-                self._top_5_red_chi_squareds.insert(idx, red_chi_squared)
 
-                self._top_5_models = self._top_5_models[:5]
-                self._top_5_args = self._top_5_args[:5]
-                self._top_5_uncertainties = self._top_5_uncertainties[:5]
-                self._top_5_names = self._top_5_names[:5]
-                self._top_5_red_chi_squareds = self._top_5_red_chi_squareds[:5]
+        for idx, (topper, chisqr) in enumerate(zip( self.top5_models[:],self.top5_rchisqrs[:] )):
+            if model.longname == topper.longname :
+                if chisqr <= rchisqr :
+                    return
+                del self.top5_models[idx]
+                del self.top5_covariances[idx]
+                del self.top5_rchisqrs[idx]
+                # self.top5_models.remove( self.top5_models[idx] )
+                # self.top5_covariances.remove( self.top5_covariances[idx] )
+                # self.top5_rchisqrs.remove( self.top5_rchisqrs[idx])
+                break
 
-                print(f"New top {idx} with red_chisqr={red_chi_squared:.2F}: "
-                      f"{model=} with pars={pars} \u00B1 {uncertainties}")
+        # print(f"Passed basic check, trying to add {rchisqr} to {self._top5_rchisqrs}")
+        for idx, chi_sqr in enumerate(self._top5_rchisqrs[:]) :
+            if self.modified_chi_sqr_for_believability(model) < self._top5_rchisqrs[idx] :
+                self.top5_models.insert(idx, model.copy())
+                self.top5_covariances.insert(idx, covariance)
+                self.top5_rchisqrs.insert(idx, rchisqr)
+
+                self.top5_models = self._top5_models[:5]
+                self.top5_covariances = self._top5_covariances[:5]
+                self.top5_rchisqrs = self._top5_rchisqrs[:5]
+
+                print(f"New top {idx} with red_chisqr={rchisqr:.2F}: "
+                      f"{model=} with pars={model.args} \u00B1 {std(covariance)}")
                 model.print_tree()
 
                 # also check any parameters for being "equivalent" to zero. If so, remove the d.o.f.
                 # and add the new function to the top5 list
-                for ndx, (arg, unc) in enumerate( zip(pars,uncertainties) ) :
+                for ndx, (arg, unc) in enumerate( zip(model.args,std(covariance)) ) :
                     if abs(arg) < 2*unc :  # 95% confidence level arg is not different from zero
                         print("Zero arg detected: new trimmed model is")
-                        reduced_model = model.submodel_without_node_idx(n=ndx)
-                        if reduced_model != -1 :
-                            reduced_model.print_tree()
-
-                            pars, uncs = self.parameters_and_uncertainties_from_fitting(
-                                model=reduced_model,initial_guess=reduced_model.get_args()
-                            )
-                            reduced_model.set_args(*pars)
-                            new_red_chi_squared = self.reduced_chi_squared_of_fit(model=reduced_model)
-                            self.query_add_to_top5(model=reduced_model,
-                                                   pars=pars,
-                                                   uncertainties=uncs,
-                                                   red_chi_squared=new_red_chi_squared
-                                                   )
-                        else:
+                        reduced_model = model.submodel_without_node_idx(ndx)
+                        if ( reduced_model is None or self.fails_rules(reduced_model) or
+                                (reduced_model.prim.name == "sum_" and reduced_model.num_children() == 0) ):
                             print("Can't reduce the model")
+                            continue
+                        reduced_model.set_submodel_of_zero_idx(model,ndx)
+                        reduced_model.print_tree()
+                        # this method changes shown models
+                        improved_reduced, improved_cov = self.fit_this_and_get_model_and_covariance(
+                                                            model_=reduced_model,initial_guess=reduced_model.args
+                                                         )
+                        self.query_add_to_top5(model=improved_reduced, covariance=improved_cov)
                         break
-
-                # if self._top_5_red_chi_squareds[-1] > 9e4 and self._top_5_red_chi_squareds[0] < 9e4 :
-                #     self._top_5_red_chi_squareds.pop(-1)
-                #     self.top5_names.pop(-1)
-
-                self._best_function = self._top_5_models[0]
-                self._best_args = self._top_5_args[0]
-                self._best_args_uncertainty = self._top_5_uncertainties[0]
-                self._best_red_chi_sqr = self._top_5_red_chi_squareds[0]
                 return
 
-    def models_left(self):
-        return len(self._composite_function_list)
+    # update for which reason?
+    # def update_resort_top5_rchisqr(self):
+    #     self._top5_rchisqrs = [1e5 for _ in self._top5_rchisqrs]
+    #     for model, cov in zip(self._top5_models[:], self._top5_covariances[:]) :
+    #         self.query_add_to_top5(model=model,covariance=cov)
+
 
     def composite_function_generator(self, depth):
+
+        for model in CompositeFunction.built_in_list() :
+            yield model
 
         self._primitive_names_list = [iprim.name for iprim in self._primitive_function_list]
 
@@ -236,21 +256,19 @@ class Optimizer:
                     for iprim in self._primitive_function_list:
                         new_comp = icomp.copy()
                         new_comp.get_node_with_index(idescendent).add_child(iprim)
-                        new_comp.build_name()
+                        new_comp.build_longname()
                         yield new_comp
 
                         new_mul = icomp.copy()
                         new_mul.get_node_with_index(idescendent).add_younger_brother(iprim)
-                        new_mul.build_name()
+                        new_mul.build_longname()
                         yield new_mul
-
     def valid_composite_function_generator(self, depth):
 
         all_comps_at_depth = self.composite_function_generator(depth)
         for icomp in all_comps_at_depth :
-            if self.passes_rules(icomp):
+            if not self.fails_rules(icomp):
                 yield icomp
-
     def all_valid_composites_generator(self):
         for idepth in range(7):
             for icomp in self.valid_composite_function_generator(depth=idepth):
@@ -259,40 +277,54 @@ class Optimizer:
 
     # TODO: make a generator version of this e.g. [] -> ()
     def build_composite_function_list(self):
+        # the benefit of using this is that you can generate it once, and if the options don't change you don't need
+        # to generate it again. Follow that logic
+        if not self._regen_composite_flag :
+            return
+        self._regen_composite_flag = False
 
-        # self.add_primitive_to_list(name="my_tanh",functional_form="np.tanh(x)")
-        # self.add_primitive_to_list(name="my_tanh", functional_form="x if 0>1 else PrimitiveFunction._built_in_prims_dict.clear()")
-
-        # start with simple primitives
+        # start with simple primitives in a sum
         self._composite_function_list = []
         for iprim in self._primitive_function_list:
-            new_comp = CompositeFunction(prim_=iprim)
+            new_comp = CompositeFunction(prim_=PrimitiveFunction.built_in("sum"),
+                                         children_list=[iprim])
             self._composite_function_list.append(new_comp)
 
-        if DEBUG :
-            cos_comp = CompositeFunction(prim_=PrimitiveFunction.built_in("cos"),
-                                         children_list=[PrimitiveFunction.built_in("pow1")])
-            sin_comp = CompositeFunction(prim_=PrimitiveFunction.built_in("sin"),
-                                         children_list=[PrimitiveFunction.built_in("pow1")])
-            debug_comp = CompositeFunction(prim_=PrimitiveFunction.built_in("pow1"),
-                                           children_list=[cos_comp,sin_comp])
-            self._composite_function_list.append(debug_comp)
-
-        for _ in range(self._max_functions-1) :
-            new_list = self._composite_function_list.copy()
-            for icomp in self._composite_function_list[:]:
+        last_list = self._composite_function_list
+        for depth in range(self._max_functions-1) :
+            new_list = []
+            for icomp in last_list:
                 for idescendent in range(icomp.num_nodes()):
-                    for iprim in self._primitive_function_list:
+                    for iprim in self._primitive_function_list[:]:
+
                         new_comp = icomp.copy()
-                        new_comp.get_node_with_index(idescendent).add_child(iprim)
-                        new_comp.build_name()
-                        new_list.append(new_comp)
+                        sum_node = new_comp.get_node_with_index(idescendent)
+                        # the naming already sorts the multiplication and summing parts by descrinding order,
+                        # so why not just build that in
+                        if sum_node.num_children() > 0 and iprim.name > sum_node.children_list[-1].prim.name  :
+                            pass
+                        else:
+                            if sum_node.prim.name in ["my_sin","my_cos"] and iprim.name in ["my_sin","my_cos"] :
+                                pass  # speedup for double trig
+                            elif sum_node.prim.name == "my_log" and iprim.name in ["my_log","my_exp"] :
+                                pass
+                            elif sum_node.prim.name == "my_exp" and iprim.name == "my_exp" :
+                                pass
+                            else:
+                                sum_node.add_child(iprim, update_name=True)
+                                new_list.append(new_comp)
 
                         new_mul = icomp.copy()
-                        new_mul.get_node_with_index(idescendent).add_younger_brother(iprim)
-                        new_mul.build_name()
-                        new_list.append(new_mul)
-            self._composite_function_list = new_list.copy()
+                        mul_node = new_mul.get_node_with_index(idescendent)
+                        if mul_node.prim.name >= iprim.name :
+                            if mul_node.prim.name == "my_exp" and iprim.name == "my_exp" :
+                                pass # speedup for multiplied exps
+                            else :
+                                mul_node.add_younger_brother(iprim, update_name=True)
+                                new_list.append(new_mul)
+
+            self._composite_function_list.extend( new_list )
+            last_list = new_list
 
         for comp in CompositeFunction.built_in_list():
             self._composite_function_list.append(comp.copy())
@@ -304,8 +336,6 @@ class Optimizer:
         for icomp in self._composite_function_list:
             print(icomp)
         print("|----------------\n")
-
-
     def trim_composite_function_list(self):
         # Finds and removes duplicates
         # Performs basic algebra to recognize simpler forms with fewer parameters
@@ -323,139 +353,146 @@ class Optimizer:
             if idx % 50 == 0 :
                 print(f"{idx}/{num_comps}")
 
-            if not self.passes_rules(icomp) :
+            # if self.fails_rules(icomp) :
+            if self.validate_fails(icomp) :
                 self._composite_function_list.remove(icomp)
 
         # remove duplicates using a dict{}
         self._composite_function_list = list(
             { icomp.__repr__() : icomp for icomp in self._composite_function_list[:] }.values()
         )
+    def fails_rules(self, icomp):
 
-    def passes_rules(self, icomp):
-
-        remove_flag = 0
         name = icomp.name
+
+        """
+        I imagine non-regex is faster than regex
+        """
+
+        if icomp.prim.name == "sum_" and icomp.num_children() < 2 and icomp.younger_brother is not None :
+            return 1
+        # trig inside trig is too complex, and very (very) rarely occurs in applications
+        if icomp.has_double_trigness() or icomp.has_double_expness() or icomp.has_double_logness():
+            return 29
+        # sins, cosines, exps, and logs never have angular frequency or decay parameters exactly 1
+        # all unitless-argument functions start with my_
+        if icomp.has_argless_explike() :
+            return 43
+        # pow1 with composition of exactly one term
+        if icomp.has_trivial_pow1():
+            return 13*17
+        # pow1 used as a sub-sum inside head sum
+        for child in icomp.children_list:
+            if child.prim.name == "pow1" and child.num_children() > 0 and child.younger_brother is None and child.older_brother is None :
+                return 97
+
+
 
         # composition of a constant function is wrong
         if regex.search(f"pow0\(", name):
-            remove_flag = 2
+            return 2
         if regex.search(f"\(pow0\)", name):
-            remove_flag = 3
-
-        # composition of powers with no sum is wrong
+            return 3
+        # composition of powers with no sum is wrong -- not strictly true -- think of log^2(Ax+B)
         if regex.search(f"pow[0-9]\(pow[a-z0-9_·]*\)", name):
-            remove_flag = 5
+            return 5
+
 
         # repeated reciprocal is wrong
         if regex.search(f"pow_neg1\(pow_neg1\)", name):
-            remove_flag = 7
+            return 7
             # and deeper
         if regex.search(f"pow_neg1\(pow_neg1\([a-z0-9_+]*]\)\)", name):
-            remove_flag = 7
+            return 7
 
         # trivial reciprocal is wrong
         if regex.search(f"pow_neg1\(pow1\)", name):
-            remove_flag = 11
+            return 11
 
-        # composition of pow1 with no sum is wrong
-        if regex.search(f"pow1\([a-z0-9_]*\)", name):
-            remove_flag = 13
 
-        # deeper composition of pow1 with no sum is wrong
-        for prim_name1 in self._primitive_names_list:
-            for prim_name2 in self._primitive_names_list:
-                if regex.search(f"pow1\({prim_name1}\({prim_name2}\)\)", name):
-                    remove_flag = 17
 
         # sum of pow1 with composition following is wrong
         if regex.search(f"\+pow1\(", name):
-            remove_flag = 19
+            return 19
 
         # sum of the same function (without further composition) is wrong
         for prim_name in self._primitive_names_list:
             if regex.search(f"{prim_name}[a-z0-9_+]*{prim_name}", name):
-                remove_flag = 23
+                return 23
 
-        # trig inside trig is too complex, and very (very) rarely occurs in applications
-        if icomp.has_double_trigness():
-            remove_flag = 29
-        if icomp.has_double_expness():
-            remove_flag = 29
-        if icomp.has_double_logness():
-            remove_flag = 29
 
-        if name[0:4] == "pow1" and icomp.num_children() == 1:
-            remove_flag = 31
 
         # pow0+log(...) is a duplicate since A + Blog( Cf(x) ) = B log( exp(A/B) Cf(x) ) = log(f)
         if regex.search(f"pow0\+my_log\([a-z0-9_]*\)", name) \
                 or regex.search(f"my_log\([a-z0-9_]*\)\+pow0", name):
-            remove_flag = 37
+            return 37
 
-        # sins, cosines, exps, and logs never have angular frequency or decay parameters exactly 1
-        # all unitless-argument functions start with my_
-        if regex.search(f"my_[a-z]*[+·)]", name):
-            if regex.search(f"my_exp\(my_log\)", name) :
-                # the one exception in order to get power laws
-                pass
-            else:
-                remove_flag = 43
+
 
         # trivial composition should just be straight sums
         if regex.search(f"\(pow1\(", name) or regex.search(f"\+pow1\(", name):
-            remove_flag = 47
+            return 47
 
         # more more exp algebra: Alog( Bexp(Cx) ) = AlogB + ACx = pow1(pow0+pow1)
         if regex.search(f"my_log\(my_exp\(pow1\)\)", name):
-            remove_flag = 53
+            return 53
 
         # reciprocal exponent is already an exponent pow_neg1(exp) == my_exp(pow1)
         if regex.search(f"pow_neg1\(my_exp\)", name):
-            remove_flag = 61
+            return 61
         # and again but deeper
         if regex.search(f"pow_neg1\(my_exp\([a-z0-9_+]*\)\)", name):
-            remove_flag = 61
+            return 61
 
         # log of "higher" powers is the same as log(pow1)
         if regex.search(f"my_log\(pow[a-z2-9_]*\)", name) or regex.search(f"my_log\(pow_neg1\)", name):
-            remove_flag = 67
+            return 67
 
         # exp(pow0+...) is just exp(...)
         if regex.search(f"my_exp\(pow0", name) or regex.search(f"my_exp\([a-z0-9_+·]*pow0", name):
-            remove_flag = 71
+            return 71
 
         # log(1/f+g) or log( (f+g)^n )is the same as log(f+g)
         if regex.search(f"my_log\(pow[a-z0-9_]*\([a-z0-9_+]*\)\)", name):
-            remove_flag = 73
+            return 73
 
         # pow3(exp(...)) is just exp(3...)
         if regex.search(f"pow[a-z0-9_]*\(my_exp\([a-z0-9_+]*\)\)", name):
-            remove_flag = 83
+            return 83
 
         """
         Multiplicative rules
         """
         if regex.search(f"pow0·", name) or regex.search(f"·pow0", name):
-            remove_flag = 1000 + 2
+            return 1000 + 2
 
         if regex.search(f"my_exp·my_exp",name):
-            remove_flag = 1000 + 3
+            return 1000 + 3
 
-        """
-        Checks
-        """
+        return 0
 
-        if name == "my_exp(my_log)" and remove_flag:
-            print(f"\n\n>>> Why did we remove {name=} at {remove_flag=} <<<\n\n")
-            raise SystemExit
+    def validate_fails(self, icomp):
 
-        if name == "pow1(my_cos(pow1)+my_sin(pow1))" and remove_flag:
-            print(f"\n\n>>> Why did we remove {name=} at {remove_flag=} <<<\n\n")
-            raise SystemExit
+        name = icomp.name
+        remove_flag = self.fails_rules(icomp)
 
-        if name == "pow_neg1" and remove_flag:
-            print(f"\n\n>>> Why did we remove {name=} with {remove_flag=} <<<\n\n")
-            raise SystemExit
+        # second check on the fails we did or didnt experience
+        good_list = ["my_exp(my_log)",
+                     "pow1(my_cos(pow1)+my_sin(pow1))",
+                     "pow_neg1",
+                     "sum_(pow0)",
+                     "sum_(pow1)",
+                     "pow1",
+                     "pow0",
+                     "pow1·pow1",
+                     "pow1·sum_(pow0+pow1·pow1)",
+                     "pow1·pow1(pow0+pow1)",
+                     "my_exp(my_log)+my_exp(my_log)"]
+
+        for good in good_list :
+            if name == good and remove_flag:
+                print(f"\n\n>>> Why did we remove {name=} at {remove_flag=} <<<\n\n")
+                raise SystemExit
 
         if name == "pow1(pow0+pow0)" and not remove_flag:
             print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=23 <<<\n\n")
@@ -475,15 +512,19 @@ class Optimizer:
             print(icomp.has_double_expness())
             raise SystemExit
 
-        if remove_flag :
-            return False
-        # else :
-        return True
+        if name == "my_exp(pow1)·my_exp(pow1)" :
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=?? <<<\n\n")
+            raise RuntimeWarning
+
+        return remove_flag
 
     def add_primitive_to_list(self, name, functional_form) -> str:
+        # For adding one's own Primitive Functions to the built-in list
+
         if self._use_functions_dict["custom"] != 1 :
             return ""
-        # For adding one's own Primitive Functions to the built-in list
+        if name in [prim.name for prim in self._primitive_function_list ] :
+            return ""
 
         # print(f"\n{name} {functional_form}")
         if regex.search("\\\\",functional_form) or regex.search("\n",functional_form)\
@@ -506,72 +547,80 @@ class Optimizer:
         self._primitive_function_list.append( PrimitiveFunction.built_in(name) )
 
         return ""
-
     def set_data_to(self, other_data):
         self._data = sorted(other_data)
         self.average_data()
 
-    def parameters_and_uncertainties_from_fitting(self, model : CompositeFunction = None,
-                                                        initial_guess : list[float] = None):
-
-
-        if model is None:
-            model = self._best_function.copy()
-            model.print_tree()
-
-        # print(f"Fitting {model.name} and setting its parameters")
+    # does not change self._data
+    def fit_setup(self, fourier_condition = True) -> (list[float], list[float], list[float], bool):
 
         x_points = []
         y_points = []
         sigma_points = []
 
         use_errors = True
-        y_range = max([datum.val for datum in self._data])-min([datum.val for datum in self._data])
+        y_range = max([datum.val for datum in self._data]) - min([datum.val for datum in self._data])
         for datum in self._data:
             x_points.append(datum.pos)
             y_points.append(datum.val)
             if datum.sigma_val < 1e-10:
-                # print(" >>> NO UNCERTAINTY <<< ")
                 use_errors = False
-                sigma_points.append(y_range/10)
-                datum.sigma_val = y_range/10
+                sigma_points.append(y_range / 10)
+                # datum.sigma_val = y_range/10  # if you want chi_sqr() to work for zero-error data, you need this
             else:
                 sigma_points.append(datum.sigma_val)
 
-        if model.num_trig() > 0 and initial_guess is None:
+        # do an FFT if there's a sin/cosine --
+        # we zero-out the average height of the data to remove the 0-frequency mode as a contribution
+        # then to pass in the dominant frequencies as arguments to the initial guess
+        if fourier_condition :
             self.create_cos_sin_frequency_lists()
 
+        return x_points, y_points, sigma_points, use_errors
+
+    # does not change input model_
+    # changes _shown variables
+    # does not change top5 lists
+    def fit_loop(self, model_, x_points, y_points, sigma_points, use_errors,
+                       initial_guess = None, info_string = ""):
+
+        model = model_.copy()
+
+        if model.num_trig() > 0 and initial_guess is None:
+            self._cos_freq_list_dup = self._cos_freq_list.copy()
+            self._sin_freq_list_dup = self._sin_freq_list.copy()
+
+        print(f"\nFitting {model=}")
+        print(model.tree_as_string_with_dimensions())
+
+        if model.num_trig() > 0:
             self._cos_freq_list_dup = self._cos_freq_list.copy()
             self._sin_freq_list_dup = self._sin_freq_list.copy()
 
         # Find an initial guess for the parameters based off scaling arguments
-        # The loss function there also tries to fit the data's smoothed derivatives
         if initial_guess is None :
             if "Pow" not in model.name :
                 initial_guess = self.find_initial_guess_scaling(model)
-                # initial_guess = self.find_initial_guess_scaling_better(model)
-                model.set_args(*initial_guess)
             else:
                 degree = model.name.count('+')
                 np_args = np.polyfit(x_points,y_points,degree)
                 leading = np_args[0]
                 trailing = np_args[1:]/leading
                 initial_guess = [leading] + list(trailing)
-                model.set_args(*initial_guess)
+
+        print(f"{info_string}Scaling guess: {initial_guess}")
 
         # Next, find a better guess by relaxing the error bars on the data
         # Unintuitively, this helps. Tight error bars flatten the gradients away from the global minimum,
         # and so relaxed error bars help point towards global minima
         try:
-            better_guess, better_unc = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
-                                                 p0=initial_guess, maxfev=5000, method='lm')
+            better_guess, better_cov = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
+                                        p0=initial_guess, maxfev=5000, method='lm')
         except RuntimeError:
-            print("Couldn't find optimal parameters for a better guess.")
-            self._best_args = initial_guess
-            self._best_args_uncertainty = [1e5 for _ in range(model.dof)]
-            model.set_args(*self._best_args)
-            self._best_function = model.copy()
-            return self._best_args, self._best_args_uncertainty
+            print("Couldn't find optimal parameters for better guess.")
+            model.args = list(initial_guess)
+            return model, np.array([1e5 for _ in range(len(initial_guess)**2)]).reshape(len(initial_guess),len(initial_guess))
+        print(f"{info_string}Better guess: {better_guess}")
 
         # Finally, use the better guess to find the true minimum with the true error bars
         try:
@@ -579,155 +628,118 @@ class Optimizer:
                                         sigma=sigma_points, absolute_sigma=use_errors,
                                         p0=better_guess, maxfev=5000)
         except RuntimeError:
-            print("Couldn't find optimal parameters for the final fit. ")
-            self._best_args = better_guess
-            self._best_args_uncertainty = better_unc
-            return self._best_args, self._best_args_uncertainty
+            print("Couldn't find optimal parameters for final fit.")
+            model.args = list(better_guess)
+            return model, better_cov
 
-        # print(initial_guess)
-        # print(better_guess)
-        # print(np_pars)
+        print(f"{info_string}Final guess: {np_pars}")
+        model.args = list(np_pars)
+        return model, np_cov
 
-        pars = list(np_pars)
-        uncertainties = np.sqrt(np.diagonal(np_cov)).tolist()
-        model.set_args(*pars)  # ignore iterable
+    # does not change input model_
+    # changes _shown variables
+    # does not change top5 lists
+    def fit_this_and_get_model_and_covariance(self, model_ : CompositeFunction,
+                                                    initial_guess = None,
+                                                    do_halving = False, halved = 0):
 
-        # TODO: best_function is either outdated or needs a name change
-        self._best_function = model.copy()
-        self._best_args = pars  # have to do this because the model's stored parameters change for some reason
-        self._best_args_uncertainty = uncertainties
-        self._best_red_chi_sqr = self.reduced_chi_squared_of_fit(model, use_errors)
+        model = model_.copy()
 
-        return pars, uncertainties
+        x_points, y_points, sigma_points, use_errors = self.fit_setup()
 
-    def find_best_model_for_dataset(self, halved=False):
+        fitted_model, fitted_cov = self.fit_loop(model_=model, initial_guess=initial_guess,
+                                                 x_points=x_points,y_points=y_points,sigma_points=sigma_points,
+                                                 use_errors=use_errors)
+
+        self._shown_model = fitted_model
+        self._shown_covariance = fitted_cov
+        self._shown_rchisqr = self.reduced_chi_squared_of_fit(fitted_model)
+
+        if self._shown_rchisqr > 5 and len(self._data) > 20 and do_halving:
+            print(" "*halved*4 + f"It is unlikely that we have found the correct model... "
+                                 f"halving the dataset to {math.floor(len(self._data)/2)}")
+
+            lower_data = self._data[:math.floor(len(self._data)/2)]
+            lower_optimizer = Optimizer(data=lower_data)
+            lower_optimizer.fit_this_and_get_model_and_covariance(model_=model, do_halving=True, halved=halved + 1)
+            lower_rchisqr = self.reduced_chi_squared_of_fit(lower_optimizer.shown_model)
+            if lower_rchisqr < self._shown_rchisqr :
+                self._shown_model = lower_optimizer.shown_model
+                self._shown_covariance = lower_optimizer.shown_covariance
+                self._shown_rchisqr = lower_rchisqr
+
+            upper_data = self._data[math.floor(len(self._data)/2):]
+            upper_optimizer = Optimizer(data=upper_data)
+            upper_optimizer.fit_this_and_get_model_and_covariance(model_=model, do_halving=True, halved=halved + 1)
+            upper_rchisqr = self.reduced_chi_squared_of_fit(upper_optimizer.shown_model)
+            if lower_rchisqr < self._shown_rchisqr :
+                self._shown_model = upper_optimizer.shown_model
+                self._shown_covariance = upper_optimizer.shown_covariance
+                self._shown_rchisqr = upper_rchisqr
+
+        return self.shown_model, self.shown_covariance
+
+    # changes top5
+    # changes _shown variables
+    def find_best_model_for_dataset(self, halved=0):
 
         if not halved :
             self.build_composite_function_list()
-        self.create_cos_sin_frequency_lists()
 
-        x_points = []
-        y_points = []
-        sigma_points = []
-
-        use_errors = True
-
-        y_range = max([datum.val for datum in self._data])-min([datum.val for datum in self._data])
-        for datum in self._data :
-            x_points.append( datum.pos )
-            y_points.append( datum.val )
-            if datum.sigma_val < 1e-10 :
-                use_errors = False
-                sigma_points.append( y_range/10 )
-                datum.sigma_val = y_range/10
-            else:
-                sigma_points.append( datum.sigma_val )
+        x_points, y_points, sigma_points, use_errors = self.fit_setup()
 
         num_models = len(self._composite_function_list)
         for idx, model in enumerate(self._composite_function_list) :
 
-            print(f"\nFitting {model=}")
-            print(model.tree_as_string_with_dimensions())
+            fitted_model, fitted_cov = self.fit_loop(model_=model,
+                                                     x_points=x_points, y_points=y_points, sigma_points=sigma_points,
+                                                     use_errors=use_errors,info_string=f"{idx+1}/{num_models} ")
 
-            # do an FFT if there's a sin/cosine --
-            # we zero-out the average height of the data to remove the 0-frequency mode as a contribution
-            # then to pass in the dominant frequencies as arguments to the initial guess
-            if model.num_trig() > 0 :
-                self._cos_freq_list_dup = self._cos_freq_list.copy()
-                self._sin_freq_list_dup = self._sin_freq_list.copy()
-
-            # Find an initial guess for the parameters based off of scaling arguments
-            initial_guess = self.find_initial_guess_scaling(model)
-            # if model.name == "my_sin(my_exp(pow1))" :
-            #     initial_guess = (13,0.51,0.11)
-
-            model.set_args(*initial_guess)
-            print(f"{idx+1}/{num_models} Scaling guess: {initial_guess}")
+            self.query_add_to_top5(model=fitted_model, covariance=fitted_cov)
 
 
 
-            # Next, find a better guess by relaxing the error bars on the data
-            # Unintuitively, this helps. Tight error bars flatten the gradients away from the global minimum,
-            # and so relaxed error bars help point towards global minima
-            try:
-                better_guess, _ = curve_fit( model.scipy_func, xdata=x_points, ydata=y_points,
-                                             p0=initial_guess, maxfev=5000, method='lm')
-            except RuntimeError :
-                print("Couldn't find optimal parameters. Continuing on...")
-                continue
-            print(f"{idx+1}/{num_models} Better guess: {better_guess}")
 
-            # Finally, use the better guess to find the true minimum with the true error bars
-            try:
-                np_pars, np_cov = curve_fit( model.scipy_func, xdata=x_points, ydata=y_points,
-                                             sigma=sigma_points, absolute_sigma=use_errors,
-                                             p0=better_guess, maxfev=5000)
-            except RuntimeError :
-                print("Couldn't find optimal parameters. Continuing on...")
-                continue
-            print(f"{idx+1}/{num_models} Final guess: {np_pars}")
+        print(f"\nBest models are {[m.name for m in self.top5_models]} with "
+              f"associated reduced chi-squareds {self.top5_rchisqrs}")
 
-            pars = list(np_pars)
-            uncertainties = np.sqrt(np.diagonal(np_cov)).tolist()
-            model.set_args( *pars )     # ignore iterable
-            # could also try setting uncertainties, and you'd get a relatively simple way to find error bands
+        print(f"\nBest model is {self.top_model} "
+              f"\n with args {self.top_args} += {self.top_uncs} "
+              f"\n and reduced chi-sqr {self.top_rchisqr}")
+        self.top_model.print_tree()
 
-            # goodness of fit: reduced chi_R^2 = chi^2 / (N-k) should be close to 1
-            red_chisqr = self.reduced_chi_squared_of_fit(model, use_errors)
-
-            self.query_add_to_top5(model=model, pars=pars, uncertainties=uncertainties, red_chi_squared=red_chisqr)
-
-
-        print(f"\nBest models are {self._top_5_models} with "
-              f"associated reduced chi-squareds {self._top_5_red_chi_squareds}")
-
-        # self._best_function = self._top_5_models[0]
-        # self._best_args = self._top_5_args[0]
-        # self._best_args_uncertainty = self._top_5_uncertainties[0]
-        # self._best_red_chi_sqr = self._top_5_red_chi_squareds[0]
-        print(f"\nBest model is {self._best_function} "
-              f"\n with args {self._best_args} += {self._best_args_uncertainty} "
-              f"\n and reduced chi-sqr {self._best_red_chi_sqr}")
-        self._best_function.set_args( *self._best_args )  # ignore iterable
-        self._best_function.print_tree()
-
-        if self._best_red_chi_sqr > 10 and len(self._data) > 20:
+        if self.top_rchisqr > 5 and len(self._data) > 20:
+            # if a better model is found here it will probably underestimate the actual rchisqr since
+            # it will only calculate based on half the data
             print("It is unlikely that we have found the correct model... halving the dataset")
-            tmp_data = self._data.copy()
             lower_data = self._data[:math.floor(len(self._data)/2)]
-            upper_data = self._data[math.floor(len(self._data)/2):]
-            self._data = lower_data
-            self.find_best_model_for_dataset(halved=True)
-            self._data = upper_data
-            self.find_best_model_for_dataset(halved=True)
-            self._data = tmp_data
+            lower_optimizer = Optimizer(data=lower_data,
+                                        use_functions_dict=self._use_functions_dict,
+                                        max_functions=self._max_functions)
+            lower_optimizer.composite_function_list = self._composite_function_list
+            lower_optimizer.find_best_model_for_dataset()
+            for l_model, l_cov in zip(lower_optimizer.top5_models,lower_optimizer.top5_covariances) :
+                self.query_add_to_top5(model=l_model,covariance=l_cov)
 
+            upper_data = self._data[math.floor(len(self._data)/2):]
+            upper_optimizer = Optimizer(data=upper_data,
+                                        use_functions_dict=self._use_functions_dict,
+                                        max_functions=self._max_functions)
+            upper_optimizer.composite_function_list = self._composite_function_list
+            upper_optimizer.find_best_model_for_dataset()
+            for u_model, u_cov in zip(upper_optimizer.top5_models,upper_optimizer.top5_covariances) :
+                self.query_add_to_top5(model=u_model,covariance=u_cov)
+    # changes top5
+    # changes _shown variables
     def async_find_best_model_for_dataset(self, start=False):
 
-        x_points = []
-        y_points = []
-        sigma_points = []
-
-        use_errors = True
         done_flag = 0
-
-        y_range = max([datum.val for datum in self._data])-min([datum.val for datum in self._data])
-        for datum in self._data :
-            x_points.append( datum.pos )
-            y_points.append( datum.val )
-            if datum.sigma_val < 1e-5 :
-                use_errors = False
-                sigma_points.append( y_range/10 )
-                datum.sigma_val = y_range/10
-            else:
-                sigma_points.append( datum.sigma_val )
-
-        if start :
+        if start:
             self._composite_generator = self.all_valid_composites_generator()
-            self.create_cos_sin_frequency_lists()
+
+        x_points, y_points, sigma_points, use_errors = self.fit_setup(fourier_condition=start)
 
         batch_size = 10
-
         for idx in range(batch_size) :
 
             try:
@@ -736,61 +748,16 @@ class Optimizer:
                 done_flag = 1
                 break
 
-            print(f"\nFitting {model=}")
-            print(model.tree_as_string_with_dimensions())
+            fitted_model, fitted_cov = self.fit_loop(model_=model,
+                                                     x_points=x_points, y_points=y_points, sigma_points=sigma_points,
+                                                     use_errors=use_errors, info_string=f"Async {idx}/{self._gen_idx+1} ")
 
-            # do an FFT if there's a sin/cosine --
-            # we zero-out the average height of the data to remove the 0-frequency mode as a contribution
-            # then to pass in the dominant frequencies as arguments to the initial guess
-            if model.num_trig() > 0:
-                self._cos_freq_list_dup = self._cos_freq_list.copy()
-                self._sin_freq_list_dup = self._sin_freq_list.copy()
+            self.query_add_to_top5(model=fitted_model, covariance=fitted_cov)
 
-            # Find an initial guess for the parameters based off of scaling arguments
-            initial_guess = self.find_initial_guess_scaling(model)
-            model.set_args(*initial_guess)
-            print(f"Async {self._gen_idx+1} -- Scaling guess: {initial_guess}")
 
-            # Next, find a better guess by relaxing the error bars on the data
-            # Unintuitively, this helps. Tight error bars flatten the gradients away from the global minimum,
-            # and so relaxed error bars help point towards global minima
-            try:
-                better_guess, _ = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
-                                            p0=initial_guess, maxfev=5000, method='lm')
-            except RuntimeError:
-                print("Couldn't find optimal parameters. Continuing on...")
-                continue
-            print(f"Async {self._gen_idx+1} -- Better guess: {better_guess}")
-
-            # Finally, use the better guess to find the true minimum with the true error bars
-            try:
-                np_pars, np_cov = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
-                                            sigma=sigma_points, absolute_sigma=use_errors,
-                                            p0=better_guess, maxfev=5000)
-            except RuntimeError:
-                print("Couldn't find optimal parameters. Continuing on...")
-                continue
-            print(f"Async {self._gen_idx+1} -- Final guess: {np_pars}")
-
-            pars = np_pars.tolist()
-            uncertainties = np.sqrt(np.diagonal(np_cov)).tolist()
-            model.set_args(*pars)  # ignore iterable
-            # could also try setting uncertainties, and you'd get a relatively simple way to find error bands
-
-            # goodness of fit: reduced chi_R^2 = chi^2 / (N-k) should be close to 1
-            red_chisqr = self.reduced_chi_squared_of_fit(model, use_errors)
-
-            self.query_add_to_top5(model=model, pars=pars, uncertainties=uncertainties, red_chi_squared=red_chisqr)
-
-        self._best_function = self._top_5_models[0]
-        self._best_args = self._top_5_args[0]
-        self._best_args_uncertainty = self._top_5_uncertainties[0]
-        self._best_red_chi_sqr = self._top_5_red_chi_squareds[0]
-        print(f"\nBest model is {self._best_function} "
-              f"\n with args {self._best_args} += {self._best_args_uncertainty} "
-              f"\n and reduced chi-sqr {self._best_red_chi_sqr}")
-        self._best_function.set_args(*self._best_args)  # ignore iterable
-        self._best_function.print_tree()
+        self.shown_model = self.top5_models[0]
+        self.shown_covariance = self.top5_covariances[0]
+        self.shown_rchisqr = self.top5_rchisqrs[0]
 
         if done_flag :
             return "Done"
@@ -856,7 +823,6 @@ class Optimizer:
             for i in range(7) :
                 test_func.set_args(2*np.abs(pos_Ynu[argmax]), 2*math.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) )
                 sin_rchisqr_list.append( self.reduced_chi_squared_of_fit(model=test_func) )
-                # print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={sin_rchisqr_list[-1]}")
 
             # should only do this if we find a minimum
             min_idx, min_val = np.argmin(sin_rchisqr_list[1:-1]), min(sin_rchisqr_list[1:-1])  # don't look at endpoints
@@ -866,12 +832,9 @@ class Optimizer:
                     # we found a minimum
                     best_freq = pos_nu[argmax]+delta_nu*(list_idx-3)/3
                     best_rchisqr = min_val
-                    # print(f"Found sin minimum with {best_freq*2*math.pi} {best_rchisqr=}")
                 else :
                     best_freq = pos_nu[argmax]
                     best_rchisqr = min_val
-                    # print(f"NO  SIN  MINIMUM   so {best_freq=} {best_rchisqr=}")
-                # print(f"Best sin omega is {2*math.pi*best_freq} with {best_rchisqr=} at idx {list_idx}")
 
             # now with cosine
             test_func = CompositeFunction(prim_=PrimitiveFunction.built_in("cos"),
@@ -880,7 +843,6 @@ class Optimizer:
             for i in range(7):
                 test_func.set_args( 2*np.abs(pos_Ynu[argmax]), 2*math.pi*(pos_nu[argmax] + delta_nu*(i-3) / 3) )
                 cos_rchisqr_list.append(self.reduced_chi_squared_of_fit(model=test_func))
-                # print(f"{argmax=} omega={2*math.pi*(pos_nu[argmax] + delta_nu*(i-3)/3)} {i=} rchisqr={cos_rchisqr_list[-1]}")
 
             # should only do this if we find a minimum
             min_idx, min_val = np.argmin(cos_rchisqr_list[1:-1]), min(cos_rchisqr_list[1:-1])  # don't look at endpoints
@@ -890,17 +852,11 @@ class Optimizer:
                 if min_val < cos_rchisqr_list[list_idx - 1] and min_val < cos_rchisqr_list[list_idx + 1]:
                     # we found a minimum
                     best_freq = pos_nu[argmax] + delta_nu*(list_idx-3)/3
-                    best_rchisqr = min_val
-                    # print(f"Found cos minimum with {best_freq*2*math.pi} {best_rchisqr=}")
                 else:
                     best_freq = pos_nu[argmax]
-                    best_rchisqr = min_val
-                    # print(f"NO  COS  MINIMUM   so {best_freq=} {best_rchisqr=}")
-                # print(f"So better fit is cos where omega is {2*math.pi*best_freq} with {best_rchisqr=}")
             else :
                 pass
-                # print("Nothing better in cosine")
-            #print(" ")
+
 
             if is_sin :
                 # print(f"Adding {best_freq} to sin")
@@ -910,36 +866,6 @@ class Optimizer:
                 self._cos_freq_list.append(best_freq)
             pos_Ynu = np.delete(pos_Ynu, argmax)
             pos_nu = np.delete(pos_nu, argmax)
-
-        # print("Done fourier decomp")
-
-    """
-    def find_initial_guess_scaling_better(self, model):
-
-        scaling_args_no_sign = self.find_set_initial_guess_scaling(model)
-
-        # the above args, with sizes based on scaling, could each be positive or negative. Find the best one (of 2^dof)
-        best_rchisqr = self.reduced_chi_squared_of_fit(model)
-        best_grid_point = scaling_args_no_sign
-
-        # instead of 3^dof, try 1+2*dof combinations
-        for arg_idx in range(model.dof) :
-            new_gridpoint = best_grid_point.copy()
-            for choice in range(2) :
-                # try each arg negative, and zero
-                new_gridpoint[arg_idx] = scaling_args_no_sign[arg_idx]*(-choice)
-                model.set_args(*new_gridpoint)
-                temp_rchisqr = self.reduced_chi_squared_of_fit(model)
-
-                if temp_rchisqr < best_rchisqr:
-                    best_rchisqr = temp_rchisqr
-                    best_grid_point = new_gridpoint
-
-        model.set_args( *best_grid_point )
-
-        return best_grid_point
-    """
-
     def find_initial_guess_scaling(self, model):
 
         scaling_args_no_sign = self.find_set_initial_guess_scaling(model)
@@ -959,13 +885,26 @@ class Optimizer:
             scaling_args_sign_list.append(new_gridpoint)
 
         # tests each of the +/- combinations for the best fit
+        # also keep running sums of weigthed points, to try their average at the end
+        weighted_point = [ 0 for _ in scaling_args_no_sign ]
+        weighted_norm = 0
         for point in scaling_args_sign_list:
             model.set_args( *point )
             temp_rchisqr = self.reduced_chi_squared_of_fit(model)
-            # print(f"In find_initial_guess scaling {temp_rchisqr} {point=} ")
+            weighted_point = list_sums_weights(weighted_point,point,1,1/temp_rchisqr)
+            weighted_norm += 1/temp_rchisqr
             if temp_rchisqr < best_rchisqr :
                 best_rchisqr = temp_rchisqr
                 best_grid_point = point
+
+        # test how good the weighted gridpoint is
+        weighted_point_norm = list_sums_weights(weighted_point,[0 for _ in scaling_args_no_sign],1/weighted_norm,1)
+        model.set_args(*weighted_point_norm)
+        temp_rchisqr = self.reduced_chi_squared_of_fit(model)
+        if temp_rchisqr < best_rchisqr and model.num_trig() < 1:  # don't want to mess up frequencies
+            best_grid_point = weighted_point_norm
+            # best_rchisqr = temp_rchisqr
+            # print(f"Using weighted {best_rchisqr=} {best_grid_point}")
 
         model.set_args( *best_grid_point )
         # model.print_tree()
@@ -992,10 +931,13 @@ class Optimizer:
         ymul = 1
 
         # overrides
-        if composite.parent is None or (composite.parent.prim.name == "sum_" and composite.parent.parent is None) :
-            # function of this node A*func(x) should scale like y
+        if composite.parent is None :
+            if composite.prim.name[:2] != "n_" and composite.prim.name != "sum_" :
+                ymul = charDiffY
+            else:
+                pass
+        elif composite.parent.prim.name == "sum_" and composite.parent.parent is None:
             ymul = charDiffY
-            # ymul = charAvY
         elif composite.parent.prim.name == "my_cos" :
             # in cos( Aexp(Lx) ), for small x the inner composition goes like A + ALx
             # = f(0) + x f'(0) and here f'(0) should correspond to the largest fourier component
@@ -1023,12 +965,6 @@ class Optimizer:
                     xmul = ( 2*math.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
                 else:  # misassigned cosine frequency
                     xmul = ( 2*math.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
-        elif composite.prim.name == "my_exp" :
-            xmul = np.exp( charAvX / charDiffX )
-        else:
-            if composite.parent.parent is None and composite.parent.prim.name == "pow1" :
-                # print(f"Setting ymul={charDiffY / charAvY}")
-                ymul = charDiffY / charAvY
 
         composite.prim.arg = xmul * ymul
 
@@ -1050,7 +986,7 @@ class Optimizer:
         if model is not None:
             plot_model = model.copy()
         else:
-            plot_model = self._best_function
+            plot_model = self._shown_model
 
 
 
@@ -1073,71 +1009,34 @@ class Optimizer:
         # print("Optimizer show fit: here once")
         plt.show(block=pause_on_image)
 
-    # This loss function is used for an initial fit -- we minimize residuals of both the function's position
-    # AND the function's derivative
-    # The uncertainties and exact fit are unnecessary for an initial guess
-    def loss_function(self, par_tuple):
-        self._temp_function.set_args(*par_tuple)
-        r_sqr = 0
-        for datum in self.smoothed_data(n=1) :
-            r_sqr += ( self._temp_function.eval_at(datum.pos) - datum.val )**2
-        for deriv in self.deriv_on_n_smoothed(n=3) :
-            r_sqr += ( self._temp_function.eval_deriv_at(deriv.pos) - deriv.val )**2
-        return r_sqr
+    def inferred_error_bar_size(self) -> float:
+        return ( max([datum.val for datum in self._data]) - min([datum.val for datum in self._data]) )/10
+        # return np.array([datum.val - model.eval_at(datum.pos) for datum in self._data]).std()
+    def chi_squared_of_fit(self,model) -> float:
+        if any( [datum.sigma_val < 1e-5 for datum in self._data] ) :
+            sumsqr = sum([ (model.eval_at(datum.pos)-datum.val)**2 for datum in self._data ])
+            return sumsqr / self.inferred_error_bar_size()**2
 
-    def chi_squared_of_fit(self,model):
-        chisqr = 0
-        for datum in self._data :
-            chisqr += ( model.eval_at(datum.pos) - datum.val )**2 / (datum.sigma_val + 1e-5)**2
-        return chisqr
-    def reduced_chi_squared_of_fit(self,model, use_erros=False):
+        return sum([ (model.eval_at(datum.pos)-datum.val)**2 / datum.sigma_val**2 for datum in self._data ])
+    def reduced_chi_squared_of_fit(self,model) -> float:
         k = model.dof
         N = len(self._data)
         return self.chi_squared_of_fit(model) / (N-k) if N > k else 1e5
-
     def modified_chi_sqr_for_believability(self, model):
-        k = model.dof
-        N = len(self._data)
         avg_grid_spacing = (self._data[-1].pos - self._data[0].pos) / len(self._data)
         for idx in range(model.num_nodes()):
             node = model.get_node_with_index(idx)
             if node.parent is not None and node.parent.prim.name in ["my_sin", "my_cos"] :
                 if node.prim.arg > 10*avg_grid_spacing :
                     print("LIAR! FREQUENCY EXTRAVAGENT")
-                    return self.chi_squared_of_fit(model) * (node.prim.arg/avg_grid_spacing)**2 / (N - k) if N > k else 1e5
-        return self.chi_squared_of_fit(model) / (N - k) if N > k else 1e5
+                    return self.reduced_chi_squared_of_fit(model) * (node.prim.arg/avg_grid_spacing)**2
+        return self.reduced_chi_squared_of_fit(model)
 
     def r_squared(self, model):
         mean = sum( [datum.val for datum in self._data] )/len(self._data)
         variance_data = sum( [ (datum.val-mean)**2 for datum in self._data ] )/len(self._data)
         variance_fit = sum( [ (datum.val-model.eval_at(datum.pos))**2 for datum in self._data ] )/len(self._data)
         return 1 - variance_fit/variance_data
-
-    # the AIC is equivalent, for normally distributed residuals, to the least chi squared
-    def Akaike_criterion(self, model):
-        AIC = self.chi_squared_of_fit(model)
-        return AIC
-    # correction for small datasets, fixes overfitting
-    def Akaike_criterion_corrected(self, model):
-        k = model.dof
-        N = len(self._data)
-        AICc = self.chi_squared_of_fit(model) + 2*k*(k+1)/(N-k-1) if N > k + 1 else 1e5
-        return AICc
-    # the same as AIC but penalizes additional parameters more heavily for larger datasets
-    def Bayes_criterion(self, model):
-        k = model.dof
-        N = len(self._data)
-        AIC = self.Akaike_criterion(model)
-        BIC = AIC + k*math.log(N) - 2*k
-        return BIC
-    # agrees with AIC at small datasets, but punishes less strongly than Bayes at large N
-    def HannanQuinn_criterion(self, model):
-        k = model.dof
-        N = len(self._data)
-        AIC = self.Akaike_criterion(model)
-        HQIC = AIC + 2*k*math.log( math.log(N) ) - 2*k
-        return HQIC
-
 
     def smoothed_data(self, n=1):
 
@@ -1160,7 +1059,6 @@ class Optimizer:
                                        + (data_to_smooth[idx].sigma_val/2)**2 )
             return_data.append( Datum1D(pos= new_pos, val=new_val, sigma_pos=new_sigma_pos, sigma_val=new_sigma_val) )
         return return_data
-
     def deriv_on_n_smoothed(self, n=1):
 
         # this assumes that data is sequential, i.e. that there are no repeated measurements for each x position
@@ -1186,10 +1084,9 @@ class Optimizer:
             return_deriv.append(Datum1D(pos=new_pos, val=new_deriv, sigma_pos=new_sigma_pos, sigma_val=new_sigma_deriv))
 
         return return_deriv
-
-    # this is only used to find an initial guess for the data, and so more sophisticated techniques like
-    # weighted means is not reqired
     def average_data(self):
+        # this is only used to find an initial guess for the data, and so more sophisticated techniques like
+        # weighted means is not reqired
 
         # get means and number of pos-instances into dict
         sum_val_dict = defaultdict(float)
@@ -1238,10 +1135,10 @@ class Optimizer:
                                 )
         self._averaged_data = sorted(averaged_data)
 
+
     def load_default_functions(self):
         self._primitive_function_list.extend( [ PrimitiveFunction.built_in("pow0"),
                                                 PrimitiveFunction.built_in("pow1") ] )
-
     def load_non_defaults_from(self,use_functions_dict) :
         for key, use_function in use_functions_dict.items():
             if key == "cos(x)" and use_function:
@@ -1302,3 +1199,15 @@ class Optimizer:
         pass
     def unload_custom_functions(self):
         pass
+
+
+def std(cov):
+    return list(np.sqrt(np.diagonal(cov)))
+
+def list_sums_weights(l1,l2,w1,w2) -> list[float]:
+    if len(l1) != len(l2) :
+        return []
+    sum_list = []
+    for val1, val2 in zip(l1,l2) :
+        sum_list.append(val1*w1+val2*w2)
+    return sum_list

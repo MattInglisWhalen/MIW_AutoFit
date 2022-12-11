@@ -88,7 +88,10 @@ class PrimitiveFunction:
             return 1e5
     @staticmethod
     def pow0(x, arg) -> float:
-        return arg*x**0
+        try :
+            return arg*x**0
+        except TypeError:
+            print(f"{arg=} {x=}")
     @staticmethod
     def pow1(x, arg) -> float:
         return arg*x
@@ -147,7 +150,7 @@ class PrimitiveFunction:
         return x-arg
     @staticmethod
     def exp_dim1(x,arg) -> float:  # for Sigmoid
-        return np.exp(-x/arg) if arg > 0 else 1e5
+        return np.exp(-x/arg) if arg > 0 else 0
     @staticmethod
     def n_exp_dim2(x,arg) -> float:  # for Normal
         return np.exp(-x**2/(2*arg**2) )/np.sqrt(2*np.pi*arg**2) if arg > 0 else 1e5

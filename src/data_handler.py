@@ -53,10 +53,10 @@ class DataHandler:
             print("Please first provide start- and end-points for data ranges")
 
     @property
-    def filename(self):
+    def filename(self) -> str:
         return self._filepath
     @property
-    def shortpath(self):
+    def shortpath(self) -> str:
         return regex.split("/", self._filepath)[-1]
     @property
     def data(self) -> list[Datum1D]:
@@ -315,6 +315,13 @@ class DataHandler:
         self._y_label = "N"
         self.make_histogram_data_from_vals(vals)
 
+    def bin_width(self) -> float:
+        if not self.histogram_flag :
+            return -1
+        if self.logx_flag :
+            return -1
+        if len(self._data) > 1 :
+            return self._data[1].pos - self._data[0].pos
     def recalculate_bins(self):
         self._data = []
         if self._filepath[-4:] in [".xsl", "xlsx", ".ods" ]:
@@ -373,6 +380,7 @@ class DataHandler:
             self._logy_flag = False
             self.logy_flag = True
 
+    # TODO: make use of all_sheets_flag to go through all sheets in the excel file
     def set_excel_args(self, x_range_str, y_range_str=None, x_error_str = None, y_error_str = None,
                        all_sheets_flag=True):
         print(f"Thank you for providing data ranges {x_range_str} {y_range_str} {x_error_str} {y_error_str}")
@@ -387,7 +395,7 @@ class DataHandler:
         self._excel_sheet_name = name
 
     @staticmethod
-    def valid_excel_endpoints(excel_range_str):
+    def valid_excel_endpoints(excel_range_str) -> bool:
         if regex.match("[A-Z][A-Z]*[0-9][0-9]*:[A-Z][A-Z]*[0-9][0-9]*]", excel_range_str) :
             return True
         return False
@@ -434,7 +442,7 @@ class DataHandler:
 
         return DataHandler.excel_chars_as_idx(chars), int(ints)
     @staticmethod
-    def excel_chars_as_idx(chars):
+    def excel_chars_as_idx(chars) -> int:
 
         length = len(chars)
         power = length-1
@@ -444,13 +452,10 @@ class DataHandler:
             power -= 1
         return integer-1
     @staticmethod
-    def excel_ints_as_idx(ints):
+    def excel_ints_as_idx(ints) -> int:
         return int(ints)-1
 
     def read_excel(self):
-
-
-
         if self._y_column_endpoints == "" :
             self.read_excel_as_histogram()
             self._histogram_flag = True
