@@ -402,6 +402,27 @@ class CompositeFunction:
     Metadata for tree trimming
     """
 
+    @property
+    def depth(self):
+        if self.num_children() < 1 :
+            return 0
+        curr_max = 0
+        for child in self._children_list :
+            child_depth = max( [bro.depth for bro in child.self_and_all_youngers() ] )
+            if curr_max < child_depth :
+                curr_max = child_depth
+        return 1 + curr_max
+
+    @property
+    def width(self):
+        if self.num_children() == 0 :
+            if self.younger_brother is not None :
+                return 1+self.younger_brother.width
+            return 1
+        if self.younger_brother is None:
+            return sum([child.width for child in self._children_list])
+        return self.younger_brother.width + sum([child.width for child in self._children_list])
+
     def has_trig_children(self):
         for child in self._children_list :
             if "sin" in child.name or "cos" in child.name :
@@ -456,10 +477,22 @@ class CompositeFunction:
             return self._younger_brother.has_double_logness()
         return False
 
+    def self_and_all_youngers(self):
+        brothers_list = [self]
+        if self.younger_brother is not None:
+            brothers_list.extend( self.younger_brother.self_and_all_youngers() )
+        return brothers_list
+
     def has_argless_explike(self):
         if self.prim.name in ["my_cos","my_sin","my_exp","my_log"] and self.num_children() < 1 :
-            if self.parent is not None and self.prim.name == "my_log" and self.parent.prim.name == "my_exp" :
-                return False
+            if self.prim.name == "my_log" and self.parent is not None :
+                if self.parent.prim.name == "my_exp" :
+                    return False
+                # elif (self.parent.prim.name[:3] == "pow"
+                #         and self.parent.parent is not None
+                #         and self.parent.parent.prim.name == "my_exp"):
+                else :
+                    return True
             return True
         if any([child.has_argless_explike() for child in self._children_list]) :
             return True
@@ -467,12 +500,64 @@ class CompositeFunction:
             return self.younger_brother.has_argless_explike()
         return False
     def has_trivial_pow1(self):
-        if self.prim.name == "pow1" and self.num_children() == 1 :
+        if self.prim.name == "pow1" and (self.num_children() == 1
+                                         or (self.num_children() > 1 and self.younger_brother is None)) :
             return True
         if any([child.has_trivial_pow1() for child in self._children_list]) :
             return True
         if self.younger_brother is not None :
             return self.younger_brother.has_trivial_pow1()
+        return False
+    def has_repeated_reciprocal(self):
+        if self.prim.name == "pow_neg1" and self.num_children() == 1 :
+            child = self.children_list[0]
+            if any( bro.prim.name in ["pow_neg1","my_exp"] for bro in child.self_and_all_youngers() ) :
+                return True
+        if any([child.has_repeated_reciprocal() for child in self._children_list]) :
+            return True
+        if self.younger_brother is not None :
+            return self.younger_brother.has_repeated_reciprocal()
+        return False
+    def has_reciprocal_cancel_pospow(self):
+        if (self.prim.name == "pow_neg1" and self.younger_brother is not None
+                and self.younger_brother.prim.name in ["pow1","pow2","pow3","pow4"]
+                and self.younger_brother.num_children() < 1):
+            return True
+        if any([child.has_reciprocal_cancel_pospow() for child in self._children_list]) :
+            return True
+        if self.younger_brother is not None :
+            return self.younger_brother.has_reciprocal_cancel_pospow()
+        return False
+    def has_log_with_odd_power(self):
+        if (self.prim.name == "my_log" and self.num_children() == 1
+                and self.children_list[0].prim.name in ["pow_neg1","pow3"] ):
+            child = self.children_list[0]
+            if (child.younger_brother is None or
+                    (child.younger_brother.prim.name in ["pow_neg1","pow3"]  # log(pow_neg1 . pow_neg1) = log(pow1^2)
+                     and child.younger_brother.younger_brother is None) ):
+                return True
+        if any([child.has_log_with_odd_power() for child in self._children_list]) :
+            return True
+        if self.younger_brother is not None :
+            return self.younger_brother.has_log_with_odd_power()
+        return False
+    def has_pow_with_no_sum(self):  # exludes cos, sin, log
+        if (self.prim.name[:3] == "pow" and self.num_children() == 1
+                and self.children_list[0].prim.name[:4] in ["my_e","pow0","pow1","pow_","pow2","pow3","pow4"]
+                and self.children_list[0].younger_brother is None):
+                return True
+        if any([child.has_pow_with_no_sum() for child in self._children_list]) :
+            return True
+        if self.younger_brother is not None :
+            return self.younger_brother.has_pow_with_no_sum()
+        return False
+    def has_exp_with_pow0(self):
+        if self.prim.name == "my_exp" and "pow0" in [icomp.prim.name for icomp in self._children_list]:
+                return True
+        if any([child.has_exp_with_pow0() for child in self._children_list]) :
+            return True
+        if self.younger_brother is not None :
+            return self.younger_brother.has_exp_with_pow0()
         return False
 
     def num_children(self):
@@ -581,8 +666,6 @@ class CompositeFunction:
 
         return all_args
 
-
-
     def construct_model_from_name(self, given_name):
         # should be able to construct a model purely from a name given as a string
         pass
@@ -594,7 +677,7 @@ class CompositeFunction:
             raise NotImplementedError
 
         new_model = self.copy()
-        new_model.shortname = "Trimmed_" + new_model.shortname
+        new_model.shortname = "Trimmed_" + new_model.name
         node_to_remove = (new_model.get_nodes_with_freedom())[n]
 
         # untested with siblings

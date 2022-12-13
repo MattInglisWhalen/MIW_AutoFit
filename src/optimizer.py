@@ -24,11 +24,10 @@ This class will then determine which of the functions is the best model for the 
 as a discriminator. The model which achieves a reduced chi-squared closest to 1 [in practice, the model which minimizes
 ( log rchi^2 )^2 ] is chosen to be the "best" model
 """
-DEBUG = False
 
 class Optimizer:
 
-    def __init__(self, data=None, use_functions_dict = None, max_functions=3):
+    def __init__(self, data=None, use_functions_dict = None, max_functions=3, regen=True):
 
         print("New optimizer created")
 
@@ -64,17 +63,18 @@ class Optimizer:
             self._data = sorted(data)  # list of Datum1D. Sort makes the data monotone increasing in x-value
             self.average_data()
 
-        self.load_default_functions()
+
         if use_functions_dict is None:
             use_functions_dict = {}
-        self._use_functions_dict = use_functions_dict
-        self.load_non_defaults_from(use_functions_dict)
+        self._use_functions_dict : dict[str,bool] = use_functions_dict
+        self.load_default_functions()
+        self.load_non_defaults_to_primitive_function_list()
 
         self._composite_function_list = []
         self._composite_generator = None
         self._gen_idx = -1
 
-        self._regen_composite_flag = True
+        self._regen_composite_flag = regen
 
     def __repr__(self):
         pass
@@ -101,32 +101,32 @@ class Optimizer:
     def shown_covariance(self, cov_np):
         self._shown_covariance = cov_np
     @property
-    def shown_rchisqr(self):
+    def shown_rchisqr(self) -> float:
         return self._shown_rchisqr
     @shown_rchisqr.setter
     def shown_rchisqr(self, val):
         self._shown_rchisqr = val
 
     @property
-    def top5_models(self):
+    def top5_models(self) -> list[CompositeFunction]:
         return self._top5_models
     @top5_models.setter
     def top5_models(self, other):
         self._top5_models = other
     @property
-    def top_model(self):
+    def top_model(self) -> CompositeFunction:
         return self.top5_models[0]
     @property
-    def top5_args(self):
+    def top5_args(self) -> list[list[float]]:
         return [model.args for model in self.top5_models]
     @property
-    def top_args(self):
+    def top_args(self) -> list[float]:
         return self.top5_args[0]
     @property
-    def top5_uncertainties(self):
+    def top5_uncertainties(self) -> list[list[float]]:
         return [list(np.sqrt(np.diagonal(covariance))) for covariance in self._top5_covariances]
     @property
-    def top_uncs(self):
+    def top_uncs(self) -> list[float]:
         return self.top5_uncertainties[0]
     @property
     def top5_covariances(self):
@@ -138,13 +138,13 @@ class Optimizer:
     def top_cov(self):
         return self.top5_covariances[0]
     @property
-    def top5_names(self):
+    def top5_names(self) -> list[str]:
         return [model.name for model in self._top5_models]
     @property
-    def top_name(self):
+    def top_name(self) -> str:
         return self.top5_names[0]
     @property
-    def top5_rchisqrs(self):
+    def top5_rchisqrs(self) -> list[float]:
         return self._top5_rchisqrs
     @top5_rchisqrs.setter
     def top5_rchisqrs(self, other):
@@ -160,9 +160,15 @@ class Optimizer:
     def composite_function_list(self, comp_list):
         self._composite_function_list = comp_list
 
-    def update_opts(self, use_functions_dict, max_functions: int):
+    def update_opts(self, use_functions_dict: dict[str,bool], max_functions: int):
+
         self._use_functions_dict = use_functions_dict
         self._max_functions = max_functions
+
+        self._primitive_function_list = []
+        self.load_default_functions()
+        self.load_non_defaults_to_primitive_function_list()
+
         self._regen_composite_flag = True
 
     # def update_top5_rchisqrs_for_new_data_single_model(self, new_data, chosen_model):
@@ -176,24 +182,61 @@ class Optimizer:
             self.top5_rchisqrs[idx] = self.reduced_chi_squared_of_fit(model)
 
     # changes top5 lists, does not change _shown variables
+    # EXCEPT: via fit_this_and_get_model_and_covariance
     def query_add_to_top5(self, model: CompositeFunction, covariance):
 
         rchisqr = self.reduced_chi_squared_of_fit(model)
-        print(f"Querying {rchisqr} for {model.name}")
+        print(f"Querying {rchisqr:.2F} for {model.name}")
         if rchisqr > self.top5_rchisqrs[-1] :
             return
 
         for idx, (topper, chisqr) in enumerate(zip( self.top5_models[:],self.top5_rchisqrs[:] )):
-            if model.longname == topper.longname :
+            # comparing with names
+            if model.longname == topper.longname:
                 if chisqr <= rchisqr :
                     return
                 del self.top5_models[idx]
                 del self.top5_covariances[idx]
                 del self.top5_rchisqrs[idx]
-                # self.top5_models.remove( self.top5_models[idx] )
-                # self.top5_covariances.remove( self.top5_covariances[idx] )
-                # self.top5_rchisqrs.remove( self.top5_rchisqrs[idx])
                 break
+            # comparing with rchisqr -- can probably get rid of the loop below in favour of this by itself
+            if abs(rchisqr - chisqr) > 1e-5 :
+                continue
+            # comparing with values -- for no good to make sure that it's literally the same function
+            effective_sameness = False
+            test_point = self._data[0].pos
+            while test_point < self._data[-1].pos :
+                if abs( ( model.eval_at(test_point) - topper.eval_at(test_point) )
+                                                    /
+                        ( model.eval_at(test_point) + topper.eval_at(test_point) ) ) < 1e-5 :
+                    effective_sameness = True
+                    print("Query: Effectively the same!")
+                    break
+                test_point *= 1.618
+            if effective_sameness :
+                # dof should trump all
+                if topper.dof < model.dof :
+                    print(f"Booting out contender {model.name} with dof {model.dof} in favour of {topper.name} with dof {topper.dof}")
+                    return
+                # depth should then be preferred
+                if topper.depth > model.depth :
+                    print(f"Booting out contender {model.name} with depth {model.width} in favour of {topper.name} with depth {topper.width}")
+                    return
+                # width should then be minimized
+                if topper.width < model.width :
+                    print(f"Booting out contender {model.name} with width {model.width} in favour of {topper.name} with width {topper.width}")
+                    return
+                if topper.dof == model.dof and topper.depth == model.depth and topper.width == model.width :
+                    print(f"Booting out contender {model.name} in favour of {topper.name}, both with with dof, depth, width {topper.dof} {topper.depth} {topper.width}")
+                    # default is to keep the first one added
+                    return
+                print(f"Booting out {topper.name} in favour of contender {model.name}")
+                del self.top5_models[idx]
+                del self.top5_covariances[idx]
+                del self.top5_rchisqrs[idx]
+                break
+                # after dof, depth should trump all
+
 
         # print(f"Passed basic check, trying to add {rchisqr} to {self._top5_rchisqrs}")
         for idx, chi_sqr in enumerate(self._top5_rchisqrs[:]) :
@@ -206,8 +249,11 @@ class Optimizer:
                 self.top5_covariances = self._top5_covariances[:5]
                 self.top5_rchisqrs = self._top5_rchisqrs[:5]
 
+                par_str_list = [f"{arg:.3F}" for arg in model.args]
+                unc_str_list = [f"{unc:.3F}" for unc in std(covariance)]
+
                 print(f"New top {idx} with red_chisqr={rchisqr:.2F}: "
-                      f"{model=} with pars={model.args} \u00B1 {std(covariance)}")
+                      f"{model=} with pars=[" + ', '.join(par_str_list) + "] \u00B1 [" + ', '.join(unc_str_list) )
                 model.print_tree()
 
                 # also check any parameters for being "equivalent" to zero. If so, remove the d.o.f.
@@ -224,7 +270,8 @@ class Optimizer:
                         reduced_model.print_tree()
                         # this method changes shown models
                         improved_reduced, improved_cov = self.fit_this_and_get_model_and_covariance(
-                                                            model_=reduced_model,initial_guess=reduced_model.args
+                                                            model_=reduced_model,initial_guess=reduced_model.args,
+                                                            change_shown = False
                                                          )
                         self.query_add_to_top5(model=improved_reduced, covariance=improved_cov)
                         break
@@ -237,32 +284,54 @@ class Optimizer:
     #         self.query_add_to_top5(model=model,covariance=cov)
 
 
-    def composite_function_generator(self, depth):
-
-        for model in CompositeFunction.built_in_list() :
-            yield model
+    def composite_function_generator(self, depth, regen_built_ins = True):
 
         self._primitive_names_list = [iprim.name for iprim in self._primitive_function_list]
 
-        if depth <= 1 :
+        if depth == 0 :
+            if regen_built_ins :
+                print(self._primitive_names_list)
+                print("Starting new generator at 0 depth")
+                self._gen_idx = 0
+                for model in CompositeFunction.built_in_list() :
+                    yield model
+
             for iprim in self._primitive_function_list:
-                new_comp = CompositeFunction(prim_=iprim)
+                new_comp = CompositeFunction(prim_=PrimitiveFunction.built_in("sum"),
+                                             children_list=[iprim])
                 yield new_comp
 
         else :
-            head_gen = self.composite_function_generator( depth = depth-1 )
+            head_gen = self.composite_function_generator( depth = depth-1 , regen_built_ins=False)
             for icomp in head_gen :
                 for idescendent in range(icomp.num_nodes()):
                     for iprim in self._primitive_function_list:
-                        new_comp = icomp.copy()
-                        new_comp.get_node_with_index(idescendent).add_child(iprim)
-                        new_comp.build_longname()
-                        yield new_comp
 
+                        # sums
+                        new_comp = icomp.copy()
+                        sum_node = new_comp.get_node_with_index(idescendent)
+                        if sum_node.num_children() > 0 and iprim.name > sum_node.children_list[-1].prim.name  :
+                            pass
+                        else:
+                            if sum_node.prim.name in ["my_sin","my_cos"] and iprim.name in ["my_sin","my_cos"] :
+                                pass  # speedup for double trig
+                            elif sum_node.prim.name == "my_log" and iprim.name in ["my_log","my_exp"] :
+                                pass
+                            elif sum_node.prim.name == "my_exp" and iprim.name in ["my_exp","pow0"] :
+                                pass
+                            else:
+                                sum_node.add_child(iprim, update_name=True)
+                                yield new_comp
+
+                        # factors
                         new_mul = icomp.copy()
-                        new_mul.get_node_with_index(idescendent).add_younger_brother(iprim)
-                        new_mul.build_longname()
-                        yield new_mul
+                        mul_node = new_mul.get_node_with_index(idescendent)
+                        if mul_node.prim.name >= iprim.name :
+                            if mul_node.prim.name == "my_exp" and iprim.name in ["my_exp","pow0"] :
+                                pass  # speedup for multiplied exps
+                            else :
+                                mul_node.add_younger_brother(iprim, update_name=True)
+                                yield new_mul
     def valid_composite_function_generator(self, depth):
 
         all_comps_at_depth = self.composite_function_generator(depth)
@@ -281,6 +350,8 @@ class Optimizer:
         # to generate it again. Follow that logic
         if not self._regen_composite_flag :
             return
+        print(f"{self._regen_composite_flag}, so regenerating composite list with {self._max_functions} "
+              f"and {[prim.name for prim in self._primitive_function_list]}")
         self._regen_composite_flag = False
 
         # start with simple primitives in a sum
@@ -299,7 +370,7 @@ class Optimizer:
 
                         new_comp = icomp.copy()
                         sum_node = new_comp.get_node_with_index(idescendent)
-                        # the naming already sorts the multiplication and summing parts by descrinding order,
+                        # the naming already sorts the multiplication and summing parts by descending order,
                         # so why not just build that in
                         if sum_node.num_children() > 0 and iprim.name > sum_node.children_list[-1].prim.name  :
                             pass
@@ -308,7 +379,7 @@ class Optimizer:
                                 pass  # speedup for double trig
                             elif sum_node.prim.name == "my_log" and iprim.name in ["my_log","my_exp"] :
                                 pass
-                            elif sum_node.prim.name == "my_exp" and iprim.name == "my_exp" :
+                            elif sum_node.prim.name == "my_exp" and iprim.name in ["my_exp","pow0"] :
                                 pass
                             else:
                                 sum_node.add_child(iprim, update_name=True)
@@ -317,8 +388,8 @@ class Optimizer:
                         new_mul = icomp.copy()
                         mul_node = new_mul.get_node_with_index(idescendent)
                         if mul_node.prim.name >= iprim.name :
-                            if mul_node.prim.name == "my_exp" and iprim.name == "my_exp" :
-                                pass # speedup for multiplied exps
+                            if mul_node.prim.name == "my_exp" and iprim.name in ["my_exp","pow0"] :
+                                pass  # speedup for multiplied exps
                             else :
                                 mul_node.add_younger_brother(iprim, update_name=True)
                                 new_list.append(new_mul)
@@ -385,7 +456,28 @@ class Optimizer:
         for child in icomp.children_list:
             if child.prim.name == "pow1" and child.num_children() > 0 and child.younger_brother is None and child.older_brother is None :
                 return 97
+        # trivial composition should just be straight sums  -- not sure if this regex applies anymore with multiplication
+        # if regex.search(f"\(pow1\(", name) or regex.search(f"\+pow1\(", name):
+        #     return 47
 
+        # repeated reciprocal is wrong
+        if icomp.has_repeated_reciprocal() :
+            return 7
+        # pow1 times pow1,2,3,4 is wrong
+        if icomp.has_reciprocal_cancel_pospow() :
+            return 61
+        # if regex.search(f"pow_neg1\(pow_neg1\)", name):
+        #     return 7
+        #     # and deeper
+        # if regex.search(f"pow_neg1\(pow_neg1\([a-z0-9_+]*]\)\)", name):
+        #     return 7
+        if icomp.has_log_with_odd_power() :
+            return 67
+        # composition of powers with no sum is wrong -- not strictly true -- think of log^2(Ax+B)
+        # if regex.search(f"pow[0-9]\(pow[a-z0-9_·]*\)", name):
+        #     return 5
+        if icomp.has_pow_with_no_sum():
+            return 5
 
 
         # composition of a constant function is wrong
@@ -396,65 +488,30 @@ class Optimizer:
         # composition of powers with no sum is wrong -- not strictly true -- think of log^2(Ax+B)
         if regex.search(f"pow[0-9]\(pow[a-z0-9_·]*\)", name):
             return 5
-
-
-        # repeated reciprocal is wrong
-        if regex.search(f"pow_neg1\(pow_neg1\)", name):
-            return 7
-            # and deeper
-        if regex.search(f"pow_neg1\(pow_neg1\([a-z0-9_+]*]\)\)", name):
-            return 7
-
         # trivial reciprocal is wrong
         if regex.search(f"pow_neg1\(pow1\)", name):
             return 11
-
-
-
-        # sum of pow1 with composition following is wrong
-        if regex.search(f"\+pow1\(", name):
-            return 19
 
         # sum of the same function (without further composition) is wrong
         for prim_name in self._primitive_names_list:
             if regex.search(f"{prim_name}[a-z0-9_+]*{prim_name}", name):
                 return 23
 
-
-
         # pow0+log(...) is a duplicate since A + Blog( Cf(x) ) = B log( exp(A/B) Cf(x) ) = log(f)
         if regex.search(f"pow0\+my_log\([a-z0-9_]*\)", name) \
                 or regex.search(f"my_log\([a-z0-9_]*\)\+pow0", name):
             return 37
 
+        # more more exp algebra: Alog( Bexp(Cx) ) = AlogB + ACx = pow0+pow1
+        # if regex.search(f"my_log\(my_exp\(pow1\)\)", name):
+        #     raise EnvironmentError
+        #     return 53
 
 
-        # trivial composition should just be straight sums
-        if regex.search(f"\(pow1\(", name) or regex.search(f"\+pow1\(", name):
-            return 47
 
-        # more more exp algebra: Alog( Bexp(Cx) ) = AlogB + ACx = pow1(pow0+pow1)
-        if regex.search(f"my_log\(my_exp\(pow1\)\)", name):
-            return 53
-
-        # reciprocal exponent is already an exponent pow_neg1(exp) == my_exp(pow1)
-        if regex.search(f"pow_neg1\(my_exp\)", name):
-            return 61
-        # and again but deeper
-        if regex.search(f"pow_neg1\(my_exp\([a-z0-9_+]*\)\)", name):
-            return 61
-
-        # log of "higher" powers is the same as log(pow1)
-        if regex.search(f"my_log\(pow[a-z2-9_]*\)", name) or regex.search(f"my_log\(pow_neg1\)", name):
-            return 67
-
-        # exp(pow0+...) is just exp(...)
-        if regex.search(f"my_exp\(pow0", name) or regex.search(f"my_exp\([a-z0-9_+·]*pow0", name):
-            return 71
-
-        # log(1/f+g) or log( (f+g)^n )is the same as log(f+g)
-        if regex.search(f"my_log\(pow[a-z0-9_]*\([a-z0-9_+]*\)\)", name):
-            return 73
+        # log(1/f+g) or log( (f+g)^n )is the same as log(f+g) -- again, not strictly true
+        # if regex.search(f"my_log\(pow[a-z0-9_]*\([a-z0-9_+]*\)\)", name):
+        #     return 73
 
         # pow3(exp(...)) is just exp(3...)
         if regex.search(f"pow[a-z0-9_]*\(my_exp\([a-z0-9_+]*\)\)", name):
@@ -465,9 +522,6 @@ class Optimizer:
         """
         if regex.search(f"pow0·", name) or regex.search(f"·pow0", name):
             return 1000 + 2
-
-        if regex.search(f"my_exp·my_exp",name):
-            return 1000 + 3
 
         return 0
 
@@ -487,7 +541,9 @@ class Optimizer:
                      "pow1·pow1",
                      "pow1·sum_(pow0+pow1·pow1)",
                      "pow1·pow1(pow0+pow1)",
-                     "my_exp(my_log)+my_exp(my_log)"]
+                     "my_exp(my_log)+my_exp(my_log)",
+                     # "my_exp(pow2(my_log))",
+                     "my_sin(pow0+my_exp(pow1))"]
 
         for good in good_list :
             if name == good and remove_flag:
@@ -521,6 +577,7 @@ class Optimizer:
     def add_primitive_to_list(self, name, functional_form) -> str:
         # For adding one's own Primitive Functions to the built-in list
 
+        print(self._use_functions_dict["custom"] , self._primitive_function_list)
         if self._use_functions_dict["custom"] != 1 :
             return ""
         if name in [prim.name for prim in self._primitive_function_list ] :
@@ -538,13 +595,11 @@ class Optimizer:
         code_str += f"dict = PrimitiveFunction.built_in_dict()\n"
         code_str += f"dict[\"{name}\"] = new_prim\n"
 
-        # print(f">{code_str}<")
         exec(code_str)
 
-        # for key, item in PrimitiveFunction.built_in_dict().items() :
-        #     print(f"{key}, {item}, {item.eval_at(1.5)}")
-
         self._primitive_function_list.append( PrimitiveFunction.built_in(name) )
+
+        print(self._use_functions_dict["custom"] , self._primitive_function_list)
 
         return ""
     def set_data_to(self, other_data):
@@ -637,10 +692,10 @@ class Optimizer:
         return model, np_cov
 
     # does not change input model_
-    # changes _shown variables
+    # changes _shown variables, unless toggled off
     # does not change top5 lists
     def fit_this_and_get_model_and_covariance(self, model_ : CompositeFunction,
-                                                    initial_guess = None,
+                                                    initial_guess = None, change_shown = True,
                                                     do_halving = False, halved = 0):
 
         model = model_.copy()
@@ -650,38 +705,42 @@ class Optimizer:
         fitted_model, fitted_cov = self.fit_loop(model_=model, initial_guess=initial_guess,
                                                  x_points=x_points,y_points=y_points,sigma_points=sigma_points,
                                                  use_errors=use_errors)
+        fitted_rchisqr = self.reduced_chi_squared_of_fit(fitted_model)
 
-        self._shown_model = fitted_model
-        self._shown_covariance = fitted_cov
-        self._shown_rchisqr = self.reduced_chi_squared_of_fit(fitted_model)
-
-        if self._shown_rchisqr > 5 and len(self._data) > 20 and do_halving:
+        if self._shown_rchisqr > 10 and len(self._data) > 20 and do_halving:
             print(" "*halved*4 + f"It is unlikely that we have found the correct model... "
                                  f"halving the dataset to {math.floor(len(self._data)/2)}")
 
             lower_data = self._data[:math.floor(len(self._data)/2)]
             lower_optimizer = Optimizer(data=lower_data)
-            lower_optimizer.fit_this_and_get_model_and_covariance(model_=model, do_halving=True, halved=halved + 1)
+            lower_optimizer.fit_this_and_get_model_and_covariance(model_=model,change_shown=True,
+                                                                  do_halving=True, halved=halved + 1)
             lower_rchisqr = self.reduced_chi_squared_of_fit(lower_optimizer.shown_model)
             if lower_rchisqr < self._shown_rchisqr :
-                self._shown_model = lower_optimizer.shown_model
-                self._shown_covariance = lower_optimizer.shown_covariance
-                self._shown_rchisqr = lower_rchisqr
+                fitted_model = lower_optimizer.shown_model
+                fitted_cov = lower_optimizer.shown_covariance
+                fitted_rchisqr = lower_rchisqr
 
             upper_data = self._data[math.floor(len(self._data)/2):]
             upper_optimizer = Optimizer(data=upper_data)
-            upper_optimizer.fit_this_and_get_model_and_covariance(model_=model, do_halving=True, halved=halved + 1)
+            upper_optimizer.fit_this_and_get_model_and_covariance(model_=model,change_shown=True,
+                                                                  do_halving=True, halved=halved + 1)
             upper_rchisqr = self.reduced_chi_squared_of_fit(upper_optimizer.shown_model)
             if lower_rchisqr < self._shown_rchisqr :
-                self._shown_model = upper_optimizer.shown_model
-                self._shown_covariance = upper_optimizer.shown_covariance
-                self._shown_rchisqr = upper_rchisqr
+                fitted_model = upper_optimizer.shown_model
+                fitted_cov = upper_optimizer.shown_covariance
+                fitted_rchisqr = upper_rchisqr
 
-        return self.shown_model, self.shown_covariance
+        if change_shown :
+            self._shown_model = fitted_model
+            self._shown_covariance = fitted_cov
+            self._shown_rchisqr = fitted_rchisqr
+
+        return fitted_model, fitted_cov
 
     # changes top5
-    # changes _shown variables
-    def find_best_model_for_dataset(self, halved=0):
+    # does not change _shown variables
+    def find_best_model_for_dataset(self, halved=0) -> str:
 
         if not halved :
             self.build_composite_function_list()
@@ -708,14 +767,14 @@ class Optimizer:
               f"\n and reduced chi-sqr {self.top_rchisqr}")
         self.top_model.print_tree()
 
-        if self.top_rchisqr > 5 and len(self._data) > 20:
+        if self.top_rchisqr > 10 and len(self._data) > 20:
             # if a better model is found here it will probably underestimate the actual rchisqr since
             # it will only calculate based on half the data
             print("It is unlikely that we have found the correct model... halving the dataset")
             lower_data = self._data[:math.floor(len(self._data)/2)]
             lower_optimizer = Optimizer(data=lower_data,
                                         use_functions_dict=self._use_functions_dict,
-                                        max_functions=self._max_functions)
+                                        max_functions=self._max_functions, regen=False)
             lower_optimizer.composite_function_list = self._composite_function_list
             lower_optimizer.find_best_model_for_dataset()
             for l_model, l_cov in zip(lower_optimizer.top5_models,lower_optimizer.top5_covariances) :
@@ -724,16 +783,17 @@ class Optimizer:
             upper_data = self._data[math.floor(len(self._data)/2):]
             upper_optimizer = Optimizer(data=upper_data,
                                         use_functions_dict=self._use_functions_dict,
-                                        max_functions=self._max_functions)
+                                        max_functions=self._max_functions, regen=False)
             upper_optimizer.composite_function_list = self._composite_function_list
             upper_optimizer.find_best_model_for_dataset()
             for u_model, u_cov in zip(upper_optimizer.top5_models,upper_optimizer.top5_covariances) :
-                self.query_add_to_top5(model=u_model,covariance=u_cov)
+                self.query_add_to_top5(model=u_model,covariance=u_cov, change_shown=False)
+
     # changes top5
-    # changes _shown variables
+    # does not change _shown variables
     def async_find_best_model_for_dataset(self, start=False):
 
-        done_flag = 0
+        status = ""
         if start:
             self._composite_generator = self.all_valid_composites_generator()
 
@@ -745,22 +805,21 @@ class Optimizer:
             try:
                 model = next(self._composite_generator)
             except StopIteration :
-                done_flag = 1
+                status = "Done: stop iteraton reach"
                 break
 
             fitted_model, fitted_cov = self.fit_loop(model_=model,
                                                      x_points=x_points, y_points=y_points, sigma_points=sigma_points,
-                                                     use_errors=use_errors, info_string=f"Async {idx}/{self._gen_idx+1} ")
+                                                     use_errors=use_errors, info_string=f"Async {self._gen_idx+1} ")
 
             self.query_add_to_top5(model=fitted_model, covariance=fitted_cov)
 
 
-        self.shown_model = self.top5_models[0]
-        self.shown_covariance = self.top5_covariances[0]
-        self.shown_rchisqr = self.top5_rchisqrs[0]
+        # self.shown_model = self.top5_models[0]
+        # self.shown_covariance = self.top5_covariances[0]
+        # self.shown_rchisqr = self.top5_rchisqrs[0]
 
-        if done_flag :
-            return "Done"
+        return status
 
 
     def create_cos_sin_frequency_lists(self):
@@ -866,6 +925,8 @@ class Optimizer:
                 self._cos_freq_list.append(best_freq)
             pos_Ynu = np.delete(pos_Ynu, argmax)
             pos_nu = np.delete(pos_nu, argmax)
+        print([freq*2*np.pi for freq in self._cos_freq_list])
+        print([freq*2*np.pi for freq in self._sin_freq_list])
     def find_initial_guess_scaling(self, model):
 
         scaling_args_no_sign = self.find_set_initial_guess_scaling(model)
@@ -912,7 +973,9 @@ class Optimizer:
         return best_grid_point
     def find_set_initial_guess_scaling(self, composite: CompositeFunction):
 
-        for child in composite.children_list :
+        for child in reversed(composite.children_list) :
+            # reverse to bias towards more complicated
+            # functions first for fourier frequency setting
             self.find_set_initial_guess_scaling(child)
 
         # use knowledge of scaling to guess parameter sizes from the characteristic sizes in the data
@@ -946,7 +1009,7 @@ class Optimizer:
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / (1e-5 * composite.prim.arg)
             if abs(slope_at_zero) > 1e-5 :
                 if len(self._cos_freq_list_dup) > 0 :
-                    # print(f"Using cosine frequency {2*math.pi*self._cos_freq_list_dup[0]}")
+                    print(f"Using cosine frequency {2*math.pi*self._cos_freq_list_dup[0]}")
                     xmul = ( 2*math.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
                 else:  # misassigned cosine frequency
                     try:
@@ -961,7 +1024,7 @@ class Optimizer:
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / (1e-5 * composite.prim.arg)
             if abs(slope_at_zero) > 1e-5 :
                 if len(self._sin_freq_list_dup) > 0 :
-                    # print(f"Using sine frequency {2*math.pi*self._sin_freq_list_dup[0]}")
+                    print(f"Using sine frequency {2*math.pi*self._sin_freq_list_dup[0]}")
                     xmul = ( 2*math.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
                 else:  # misassigned cosine frequency
                     xmul = ( 2*math.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
@@ -1139,66 +1202,25 @@ class Optimizer:
     def load_default_functions(self):
         self._primitive_function_list.extend( [ PrimitiveFunction.built_in("pow0"),
                                                 PrimitiveFunction.built_in("pow1") ] )
-    def load_non_defaults_from(self,use_functions_dict) :
-        for key, use_function in use_functions_dict.items():
+    def load_non_defaults_to_primitive_function_list(self) :
+        for key, use_function in self._use_functions_dict.items():
             if key == "cos(x)" and use_function:
-                self.load_cos_function()
+                self._primitive_function_list.append( PrimitiveFunction.built_in("cos") )
             if key == "sin(x)" and use_function:
-                self.load_sin_function()
+                self._primitive_function_list.append( PrimitiveFunction.built_in("sin") )
             if key == "exp(x)" and use_function:
-                self.load_exp_function()
+                self._primitive_function_list.append( PrimitiveFunction.built_in("exp") )
             if key == "log(x)" and use_function:
-                self.load_log_function()
+                self._primitive_function_list.append( PrimitiveFunction.built_in("log" ) )
             if key == "1/x" and use_function:
-                self.load_pow_neg1_function()
+                self._primitive_function_list.append(PrimitiveFunction.built_in("pow_neg1"))
             if key == "x\U000000B2" and use_function:
-                self.load_pow2_function()
+                self._primitive_function_list.append(PrimitiveFunction.built_in("pow2"))
             if key == "x\U000000B3" and use_function:
-                self.load_pow3_function()
+                self._primitive_function_list.append(PrimitiveFunction.built_in("pow3"))
             if key == "x\U00002074" and use_function:
-                self.load_pow4_function()
-            if key == "custom" and use_function:
-                self.load_custom_functions()
-
-    def load_cos_function(self):
-        self._primitive_function_list.append( PrimitiveFunction.built_in("cos") )
-    def unload_cos_function(self):
-        self._primitive_function_list.remove( PrimitiveFunction.built_in("cos") )
-    def load_sin_function(self):
-        self._primitive_function_list.append( PrimitiveFunction.built_in("sin") )
-    def unload_sin_function(self):
-        self._primitive_function_list.remove( PrimitiveFunction.built_in("sin") )
-
-    def load_exp_function(self):
-        self._primitive_function_list.append( PrimitiveFunction.built_in("exp") )
-    def unload_exp_function(self):
-        self._primitive_function_list.remove( PrimitiveFunction.built_in("exp") )
-    def load_log_function(self):
-        self._primitive_function_list.append( PrimitiveFunction.built_in("log" ) )
-    def unload_log_function(self):
-        self._primitive_function_list.remove( PrimitiveFunction.built_in("log") )
-
-    def load_pow_neg1_function(self):
-        self._primitive_function_list.append( PrimitiveFunction.built_in("pow_neg1") )
-    def unload_pow_neg1_function(self):
-        self._primitive_function_list.remove( PrimitiveFunction.built_in("pow_neg1") )
-    def load_pow2_function(self):
-        self._primitive_function_list.append( PrimitiveFunction.built_in("pow2") )
-    def unload_pow2_function(self):
-        self._primitive_function_list.remove( PrimitiveFunction.built_in("pow2") )
-    def load_pow3_function(self):
-        self._primitive_function_list.append( PrimitiveFunction.built_in("pow3") )
-    def unload_pow3_function(self):
-        self._primitive_function_list.remove( PrimitiveFunction.built_in("pow3") )
-    def load_pow4_function(self):
-        self._primitive_function_list.append( PrimitiveFunction.built_in("pow4") )
-    def unload_pow4_function(self):
-        self._primitive_function_list.remove( PrimitiveFunction.built_in("pow4") )
-
-    def load_custom_functions(self):
-        pass
-    def unload_custom_functions(self):
-        pass
+                self._primitive_function_list.append(PrimitiveFunction.built_in("pow4"))
+            # custom functions are also loaded, but elsewhere, using add_primitive_to_list()
 
 
 def std(cov):

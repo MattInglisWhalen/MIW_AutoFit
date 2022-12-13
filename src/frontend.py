@@ -85,6 +85,9 @@ class Frontend:
         self._changed_optimizer_opts_flag = True
         self._refit_button = None
         self._pause_button = None
+        self._logx_button = None
+        self._logy_button = None
+        self._normalize_button = None
         self._model_name_tkvar = tk.StringVar("")  # tk.StringVar
         self._which5_name_tkvar = None  # tk.StringVar
         self._which_tr_id = None
@@ -693,7 +696,6 @@ class Frontend:
 
         self.save_defaults()
         self._popup_window.destroy()
-
     # noinspection PyUnusedLocal
     def close_dialog_box_command_custom_function(self, bind_command=None):
 
@@ -712,6 +714,7 @@ class Frontend:
         self._custom_function_names += name_str
         self._custom_function_forms += form_str
         self.save_defaults()
+        self._changed_optimizer_opts_flag = True
         self._popup_window.destroy()
 
     def dialog_box_new_function(self):
@@ -752,7 +755,7 @@ class Frontend:
         form_example_data.grid(row=3,column=1, sticky='w')
 
         explanation_label = tk.Label(master=exp_frame, text="\nSupports numpy functions. Avoid special characters "
-                                                            "and spaces. The first letter of the name should come "
+                                                            "and spaces. \n The first letter of the name should come "
                                                             "before 's' in the alphabet.")
         explanation_label.grid(row=4,column=0,sticky='w')
 
@@ -806,29 +809,28 @@ class Frontend:
         elif self._model_name_tkvar.get() == "Brute-Force":
             print("Brute forcing a procedural model")
             self.brute_forcing = True
-            for name in self._checkbox_names_list:
-                self._use_func_dict_name_tkVar[name].set(value=True)
-                # pass
-            self.optimizer.load_non_defaults_from(self.use_functions_dict)
+            # for name in self._checkbox_names_list:
+            #     self._use_func_dict_name_tkVar[name].set(value=True)
+            self._use_func_dict_name_tkVar["cos(x)"].set(value=True)
+            self._use_func_dict_name_tkVar["sin(x)"].set(value=True)
+            self._use_func_dict_name_tkVar["exp(x)"].set(value=True)
+            self._use_func_dict_name_tkVar["log(x)"].set(value=True)
+            self._use_func_dict_name_tkVar["1/x"].set(value=True)
+            self._use_func_dict_name_tkVar["custom"].set(value=True)
+
+            self._changed_optimizer_opts_flag = True
+            self.update_optimizer()
             self.optimizer.async_find_best_model_for_dataset(start=True)
+            print(f"DEBUG {self.optimizer.top5_names}")
         else:
             print(f"Invalid model name {self._model_name_tkvar.get()}")
             pass
-
-        self.make_top_shown()
-        self.save_show_fit_image()
 
         # add fit all button if there's more than one file
         if len(self._data_handlers) > 1 :
             self.create_fit_all_button()
 
         self.create_residuals_button()
-
-        # print out the parameters on the right
-        self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
-        self.print_results_to_console()
-        self._default_fit_type = self._model_name_tkvar.get()
-        self.save_defaults()
 
         # degree changes for Polynomial
         if self._model_name_tkvar.get() == "Polynomial" :
@@ -838,6 +840,7 @@ class Frontend:
 
         # add a dropdown list for procedural-type fits
         if self._model_name_tkvar.get() in ["Procedural","Brute-Force"] :
+            self.make_top_shown()
             self.update_top5_dropdown()
             self.show_top5_dropdown()
             self.show_custom_function_button()
@@ -858,6 +861,15 @@ class Frontend:
             self.show_pause_button()
         else:
             self.hide_pause_button()
+
+        self.save_show_fit_image()
+        # print out the parameters on the right
+        self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
+        self.print_results_to_console()
+        self._default_fit_type = self._model_name_tkvar.get()
+        self.save_defaults()
+
+        # self.optimizer.show_fit(pause_on_image=True)
 
         if self.brute_forcing :
             self.begin_brute_loop()
@@ -904,10 +916,12 @@ class Frontend:
             # does the following line actually use the chosen model?
             print(f"{[datum.val for datum in data]}")
             self.optimizer.fit_this_and_get_model_and_covariance(model_=self.current_model,
-                                                                 initial_guess=self.current_model.args)
-            list_of_args.append(self.optimizer.shown_parameters)
-            list_of_uncertainties.append(self.optimizer.shown_uncertainties)
-            print(f"Fit pars = {self.optimizer.shown_parameters}")
+                                                                 initial_guess=self.current_model.args,
+                                                                 do_halving=True)
+            list_of_args.append(self.current_args)
+            print(f"Beelzebub={handler.shortpath} ",self.current_args)
+            list_of_uncertainties.append(self.current_uncs)
+            print(f"Fit pars = {self.current_uncs}")
 
         means = []
         uncs = []
@@ -992,7 +1006,7 @@ class Frontend:
 
         # print(f"Log flags : {self.data_handler.logx_flag} {self.data_handler.logy_flag}")
         if self.data_handler.logx_flag:
-            print("Setting log xscale in show_data")
+            print("Setting log x-scale in show_data")
             log_min, log_max = math.log(min(x_points)), math.log(max(x_points))
             print(log_min, log_max, math.exp(log_min), math.exp(log_max))
             axes.set_xlim([math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
@@ -1004,7 +1018,7 @@ class Frontend:
             axes.spines['right'].set_position(('data', 0.))
             axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
         if self.data_handler.logy_flag:
-            print("Setting log xscale in show_data")
+            print("Setting log y-scale in show_data")
             axes.set(yscale="log")
             log_min, log_max = math.log(min(y_points)), math.log(max(y_points))
             axes.set_ylim([math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
@@ -1060,14 +1074,15 @@ class Frontend:
         # (the linear data is a good example of fits that become infinitesimally better with more parameters)
         if self.brute_forcing :
             status = self.optimizer.async_find_best_model_for_dataset()
-            if status == "Done" :
+            print(f"DEBUG {self.optimizer.top5_names}")
+            if status != "" :
                 self.brute_forcing = False
-                print("End of brute-forcing reached")
-            # self.update_currents()
+                self.add_message(f"\n\n >>> End of brute-forcing reached <<< {status}\n\n")
             self.update_top5_dropdown()
+            # self.optimizer.show_fit(pause_on_image=True)
             if self.current_rchisqr != self._optimizer.top5_rchisqrs[0] :
+                self.make_top_shown()
                 self.save_show_fit_image()
-                self.current_rchisqr = self._optimizer.top5_rchisqrs[0]
             self._gui.after(1, self.maintain_brute_loop)
         self.update_pause_button()
 
@@ -1755,7 +1770,7 @@ class Frontend:
         )
         self._refit_button.grid(row=0, column=3, padx=5, pady=5, sticky='w')
     def refit_command(self):
-        self.show_current_data_with_fit()
+        self.show_current_data_with_fit(do_halving=True)
         self.set_which5_no_trace(f"{self.current_rchisqr:.2F}: {self.current_model.name}")
     def hide_refit_button(self):
         if self._new_user_stage % 43 != 0 :
@@ -1770,19 +1785,19 @@ class Frontend:
         if self._new_user_stage % 13 == 0 :
             return
         self._new_user_stage *= 13
-        log_x_button = tk.Button(
+        self._logx_button = tk.Button(
             master = self._gui.children['!frame2'].children['!frame4'],
             text = "Log X",
             command = self.logx_command
         )
-        log_x_button.grid(row=0, column=0, padx=5, pady=(5,0), sticky = 'w')
+        self._logx_button.grid(row=0, column=0, padx=5, pady=(5,0), sticky = 'w')
 
-        log_y_button = tk.Button(
+        self._logy_button = tk.Button(
             master = self._gui.children['!frame2'].children['!frame4'],
             text = "Log Y",
             command = self.logy_command
         )
-        log_y_button.grid(row=1, column=0, padx=5, sticky = 'w')
+        self._logy_button.grid(row=1, column=0, padx=5, sticky = 'w')
 
     # TODO: if loading new file, or using left/right buttons, need to update the logx and logy buttons
     def logx_command(self):
@@ -1799,8 +1814,8 @@ class Frontend:
         self.update_optimizer()
 
         if self._showing_fit_image :
-            self.optimizer.parameters_and_uncertainties_from_fitting(self.current_model)
-            self.save_show_fit_image()
+            # self.optimizer.fit_this_and_get_model_and_covariance(self.current_model)
+            self.show_current_data_with_fit()
         else:
             self.show_current_data()
 
@@ -1826,26 +1841,29 @@ class Frontend:
     def update_logx_relief(self):
         if self._new_user_stage % 13 != 0 :
             return
-        button: tk.Button = tk.Button(self._gui.children['!frame2'].children['!frame4'].children['!button'])
-        if self.data_handler.logx_flag :
-            button.configure(relief=tk.SUNKEN)
-            self.hide_normalize_button()
-            return
 
-        button.configure(relief=tk.RAISED)
+        if self.data_handler.logx_flag :
+            print("Making log_x sunken")
+            self._logx_button.configure(relief=tk.SUNKEN)
+            self.hide_normalize_button()
+            print(self._logx_button['relief'])
+            return
+        print("Making log_x raised")
+        self._logx_button.configure(relief=tk.RAISED)
         if not self.data_handler.logy_flag and self.data_handler.histogram_flag :
             self.show_normalize_button()
     def update_logy_relief(self):
         if self._new_user_stage % 13 != 0 :
             return
-        button: tk.Button = self._gui.children['!frame2'].children['!frame4'].children['!button2']
+
         if self.data_handler.logy_flag :
-            button.configure(relief=tk.SUNKEN)
+            print("Making log_y sunken")
+            self._logy_button.configure(relief=tk.SUNKEN)
             self.hide_normalize_button()
             return
-
-        button.configure(relief=tk.RAISED)
-        if not self.data_handler.logx_flag and self.data_handler.histogram_flag :
+        print("Making log_y raised")
+        self._logy_button.configure(relief=tk.RAISED)
+        if not self.data_handler.logx_flag and self.data_handler.histogram_flag :  # purpose?
             self.show_normalize_button()
 
     def create_normalize_button(self):
@@ -1853,14 +1871,17 @@ class Frontend:
             return
         self._new_user_stage *= 17
 
-        normalize_button = tk.Button(
+        self._normalize_button = tk.Button(
             master = self._gui.children['!frame2'].children['!frame4'],
             text = "Normalize",
             command = self.normalize_command
         )
-        normalize_button.grid(row=2, column=0, padx=5, pady=5, sticky = 'w')
+        self._normalize_button.grid(row=2, column=0, padx=5, pady=5, sticky = 'w')
     def normalize_command(self):
+        if self.data_handler.normalized :
+            self.add_message("\n \nCan't de-normalize a histogram. You'll have to restart AutoFit.\n")
         self.data_handler.normalize_histogram_data()
+        self._normalize_button.configure(relief=tk.SUNKEN)
         if self._showing_fit_image :
             self.show_current_data_with_fit()
         else:
@@ -1869,16 +1890,16 @@ class Frontend:
     def hide_normalize_button(self):
         if self._new_user_stage % 17 != 0 :
             return
-        normalize_button = self._gui.children['!frame2'].children['!frame4'].children['!button3']
-        normalize_button.grid_forget()
+        self._normalize_button.grid_forget()
     def show_normalize_button(self):
         if self._new_user_stage % 17 != 0 :
             self.create_normalize_button()
             return
-
-        normalize_button = self._gui.children['!frame2'].children['!frame4'].children['!button3']
-        normalize_button.grid(row=2, column=0, padx=5, pady=5, sticky = 'w')
-
+        self._normalize_button.grid(row=2, column=0, padx=5, pady=5, sticky = 'w')
+        if self.data_handler.normalized :
+            self._normalize_button.configure(relief=tk.SUNKEN)
+        else :
+            self._normalize_button.configure(relief=tk.RAISED)
 
     # Helper functions
     def load_splash_image(self):
@@ -2044,6 +2065,7 @@ class Frontend:
             sum_len += len(x_points)
             smooth_x_for_fit = np.linspace( x_points[0], x_points[-1], 4*len(x_points))
             plot_model.args = args
+            print(f"{plot_model.args=}")
             if handler.logx_flag and handler.logy_flag :
                 fit_vals = [ plot_model.eval_at(xi, X0 = handler.X0, Y0 = handler.Y0)
                              for xi in smooth_x_for_fit ]
@@ -2481,11 +2503,14 @@ class Frontend:
                                        max_functions=self.max_functions)
         if self._changed_optimizer_opts_flag :  # max depth, changed dict
             self.optimizer.update_opts(use_functions_dict=self.use_functions_dict, max_functions=self.max_functions)
-            for name, form in zip(regex.split(' ', self._custom_function_names),
-                                  regex.split(' ', self._custom_function_forms)):
-                info_str = self._optimizer.add_primitive_to_list(name, form)
-                if info_str != "" :
-                    self.add_message(f"\n{info_str}\n")
+            if self._custom_function_forms != "" :
+                print(f"Including custom functions "
+                      f">{self._custom_function_names}< with forms >{self._custom_function_forms}<")
+                for name, form in zip(regex.split(' ', self._custom_function_names),
+                                      regex.split(' ', self._custom_function_forms)):
+                    info_str = self._optimizer.add_primitive_to_list(name, form)
+                    if info_str != "" :
+                        self.add_message(f"\n{info_str}\n")
             self._changed_optimizer_opts_flag = False
         if self._changed_data_flag :
             self.optimizer.set_data_to(self.data_handler.data)
