@@ -53,7 +53,7 @@ class DataHandler:
             print("Please first provide start- and end-points for data ranges")
 
     @property
-    def filename(self) -> str:
+    def filepath(self) -> str:
         return self._filepath
     @property
     def shortpath(self) -> str:
@@ -99,7 +99,7 @@ class DataHandler:
                     self.normalize_histogram_data()
 
             min_X, max_X = min( [datum.pos for datum in self._data] ), max( [datum.pos for datum in self._data] )
-            if min_X < 0 :
+            if min_X <= 0 :
                 print("You can't log the x-data if there are negative numbers!")
                 return
             self._X0 = math.sqrt(min_X*max_X) if self.X0 > 0 else -self._X0

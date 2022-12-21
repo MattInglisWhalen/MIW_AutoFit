@@ -74,6 +74,7 @@ class Frontend:
         self._excel_y_range = None
         self._excel_sigmax_range = None
         self._excel_sigmay_range = None
+        self._all_sheets_in_file = tk.BooleanVar(value=False)
 
         # messaging
         self._num_messages_ever = 0
@@ -88,10 +89,12 @@ class Frontend:
         self._logx_button = None
         self._logy_button = None
         self._normalize_button = None
-        self._model_name_tkvar = tk.StringVar("")  # tk.StringVar
+        self._residuals_button = None
+        self._error_bands_button = None
+        self._model_name_tkvar : tk.StringVar = tk.StringVar(value="")
         self._which5_name_tkvar = None  # tk.StringVar
         self._which_tr_id = None
-        self._polynomial_degree = tk.IntVar(value=2)  # tk.IntVar
+        self._polynomial_degree :tk.IntVar = tk.IntVar(value=2)  # tk.IntVar
         # self._current_model : CompositeFunction = None
         # self._current_args : list[float] = None
         # self._current_uncs : list[float] = None
@@ -103,6 +106,7 @@ class Frontend:
             self._use_func_dict_name_tkVar[name] = tk.BooleanVar(value=False)
         self._max_functions_tkInt = tk.IntVar(value=4)
         self._brute_forcing = tk.BooleanVar(value=False)
+        self._show_error_bands = 0
 
         # defaults config
         self._default_fit_type = "Linear"
@@ -554,7 +558,7 @@ class Frontend:
                 shortpath = regex.split( f"/", path )[-1]
                 print(f"{shortpath} already loaded")
                 new_filepaths.remove(path)
-        for path in new_filepaths :
+        for path in new_filepaths[:] :
             if path[-4:] in [".xls","xlsx",".ods"] and self._new_user_stage % 23 != 0 :
                 self.dialog_box_get_excel_data_ranges()
                 print(f"{self._excel_x_range=} {self._excel_y_range=}")
@@ -564,6 +568,9 @@ class Frontend:
                     continue
                 self._new_user_stage *= 23
                 sheet_names = pd.ExcelFile(path).sheet_names
+                if self._all_sheets_in_file.get() :
+                    for _ in range(len(sheet_names)-1):
+                        self._filepaths.append(path)
                 print(f"In this file the sheets names are {sheet_names}")
             self._default_load_file_loc = '/'.join( regex.split( f"/", path )[:-1] )
             self._filepaths.append(path)
@@ -610,6 +617,7 @@ class Frontend:
         if self._model_name_tkvar.get() in ["Procedural", "Brute-Force"] :
             self.update_top5_chisqrs()
 
+        print(self._filepaths)
         if len(self._filepaths) > 1 :
             self.show_left_right_buttons()
             self.update_data_select()
@@ -657,11 +665,23 @@ class Frontend:
         sigmay_data.insert(0,self._default_excel_sigmay_range)
         sigmay_data.grid(row=3,column=1, sticky='w')
 
+        checkbox = tk.Checkbutton(
+            master=data_frame,
+            text="Range applies to all sheets in the file",
+            variable=self._all_sheets_in_file,
+            onvalue=True,
+            offvalue=False,
+            command=self.all_sheets_on_off_command
+        )
+        checkbox.grid(row=4, column=0, sticky='w')
+
         example_label = tk.Label(master=data_frame, text="\nFormatting Example")
-        example_label.grid(row=4,column=0,sticky='w')
+        example_label.grid(row=10,column=0,sticky='w')
         example_data = tk.Entry(master=data_frame)
         example_data.insert(0,"D1:D51")
-        example_data.grid(row=4,column=1, sticky='ws')
+        example_data.grid(row=10,column=1, sticky='ws')
+
+
 
         close_dialog_button = tk.Button(
             master = data_frame,
@@ -678,6 +698,9 @@ class Frontend:
 
         self._popup_window = dialog_box
         self._gui.wait_window(dialog_box)
+
+    def all_sheets_on_off_command(self):
+        print("Changed all sheets option")
 
     # noinspection PyUnusedLocal
     def close_dialog_box_command_excel(self, bind_command=None):
@@ -831,6 +854,7 @@ class Frontend:
             self.create_fit_all_button()
 
         self.create_residuals_button()
+        self.create_error_bands_button()
 
         # degree changes for Polynomial
         if self._model_name_tkvar.get() == "Polynomial" :
@@ -875,7 +899,7 @@ class Frontend:
             self.begin_brute_loop()
     def fit_all_command(self, quiet=False):
 
-        self.add_message("\n \n> Fitting all datasets\n")
+        # self.add_message("\n \n> Fitting all datasets\n")
 
         # need to log all datasets if the current one is logged, and unlog if they ARE logged
         for handler in self._data_handlers :
@@ -914,14 +938,12 @@ class Frontend:
             data = handler.data
             self.optimizer.set_data_to(data)
             # does the following line actually use the chosen model?
-            print(f"{[datum.val for datum in data]}")
             self.optimizer.fit_this_and_get_model_and_covariance(model_=self.current_model,
                                                                  initial_guess=self.current_model.args,
                                                                  do_halving=True)
             list_of_args.append(self.current_args)
-            print(f"Beelzebub={handler.shortpath} ",self.current_args)
+            print(f"Beelzebub={handler.shortpath} {self.current_args} +- {self.current_uncs}")
             list_of_uncertainties.append(self.current_uncs)
-            print(f"Fit pars = {self.current_uncs}")
 
         means = []
         uncs = []
@@ -944,10 +966,15 @@ class Frontend:
             means.append(mean)
             uncs.append(math.sqrt(effective_variance))
 
+        print(f"{means} +- {uncs}")
         fit_all_model = self.current_model.copy()
         fit_all_model.args = means
+        self.optimizer.shown_model = fit_all_model
+        a = np.zeros( (len(means) , len(means)) )
+        np.fill_diagonal( a, uncs )
+        self.optimizer.shown_covariance = a
 
-        self.save_show_fit_all(model=fit_all_model, args_list=list_of_args)
+        self.save_show_fit_all(args_list=list_of_args)
 
         if not quiet :
             self.add_message("\n \n> Average parameters from fitting all datasets:\n")
@@ -959,21 +986,22 @@ class Frontend:
         for path in new_filepaths_lists :
             if path[-4:] in [".xls","xlsx",".ods"] :
                 for idx, sheet_name in enumerate(pd.ExcelFile(path).sheet_names):
-                    self._data_handlers.append(DataHandler(filepath=path))
+                    self._data_handlers.append( DataHandler(filepath=path) )
+                    self._data_handlers[-1].set_excel_sheet_name( sheet_name )
                     self._data_handlers[-1].set_excel_args(x_range_str=self._excel_x_range,
                                                            y_range_str=self._excel_y_range,
                                                            x_error_str=self._excel_sigmax_range,
                                                            y_error_str=self._excel_sigmay_range)
-                    self._data_handlers[-1].set_excel_sheet_name( sheet_name )
-                    break  # stand-in for additional excel options panel
+                    if not self._all_sheets_in_file.get():
+                        break
 
             else:
                 # only add one data handler
                 self._data_handlers.append(DataHandler(filepath=path))
-    def reload_all_data(self):
-        self._data_handlers = []
-        for path in self._filepaths :
-            self._data_handlers.append(DataHandler(filepath=path))
+    # def reload_all_data(self):
+    #     self._data_handlers = []
+    #     for path in self._filepaths :
+    #         self._data_handlers.append(DataHandler(filepath=path))
 
     def show_data(self, file_num=0):
 
@@ -1370,12 +1398,12 @@ class Frontend:
         if self._model_name_tkvar.get() in ["Procedural", "Brute-Force"] :
             self.update_top5_chisqrs()
     def create_residuals_button(self):
-        show_residuals_button = tk.Button(
+        self._residuals_button = tk.Button(
             master = self._gui.children['!frame2'].children['!frame2'].children['!frame2'],
             text = "Show Residuals",
             command = self.show_residuals_command
         )
-        show_residuals_button.grid(row=0, column=0, padx=5, pady=5, sticky = 'e')
+        self._residuals_button.grid(row=0, column=1, padx=5, pady=5, sticky = 'e')
     def show_residuals_command(self):
         # TODO: this should do something different when fitting all
         # this also doesn't make sense when using LX/LY
@@ -1558,8 +1586,12 @@ class Frontend:
 
         if 0.1 in [pvalue_ulow, pvalue_low, pvalue_middle, pvalue_high, pvalue_uhigh] :
             self.add_message(f"\n \n> Based on residuals binned in the tail, far-tail, and central regions,")
-            self.add_message(f"  the probability that you have found the correct fit for the data is "
-                             f"{pvalue_ulow*pvalue_low*pvalue_middle*pvalue_high*pvalue_uhigh:.5F}\n")
+            if self.data_handler.logx_flag or self.data_handler.logy_flag or self._showing_fit_all_image :
+                self.add_message(f"  the probability that the residuals are normally distributed is "
+                                 f"{pvalue_ulow * pvalue_low * pvalue_middle * pvalue_high * pvalue_uhigh:.5F}\n")
+            else:
+                self.add_message(f"  the probability that you have found the correct fit for the data is "
+                                 f"{pvalue_ulow*pvalue_low*pvalue_middle*pvalue_high*pvalue_uhigh:.5F}\n")
 
         self.add_message(f"\n \n> p-values from standard normality tests:\n")
         # other normality tests
@@ -1604,6 +1636,39 @@ class Frontend:
         mu = np_sample.mean()
         sigma = np_sample.std()
         return list( (np_sample-mu)/sigma )
+
+    def create_error_bands_button(self):
+        self._error_bands_button = tk.Button(
+            master = self._gui.children['!frame2'].children['!frame2'].children['!frame2'],
+            text = "Error Bands",
+            command = self.show_error_bands_command
+        )
+        self._error_bands_button.grid(row=0, column=0, pady=5, sticky = 'e')
+        self._show_error_bands = 0
+    def show_error_bands_command(self):
+        if self._error_bands_button['text'] == "Error Bands" :
+            print("Switching to 1-\u03C3 confidence region")
+            self._error_bands_button.configure(text="       1-\u03C3       ")
+            self._show_error_bands = 1
+        elif self._error_bands_button['text'] == "       1-\u03C3       " :
+            print("Switching to 2-\u03C3 confidence region")
+            self._error_bands_button.configure(text="       2-\u03C3       ")
+            self._show_error_bands = 2
+        elif self._error_bands_button['text'] == "       2-\u03C3       " :
+            print("Switching to both confidence regions")
+            self._error_bands_button.configure(text=" 1- and 2-\u03C3")
+            self._show_error_bands = 3
+        elif self._error_bands_button['text'] == " 1- and 2-\u03C3" :
+            print("Switching to 1-\u03C3 confidence region")
+            self._error_bands_button.configure(text="Error Bands")
+            self._show_error_bands = 0
+        else :
+            print("Can't change from",self._error_bands_button['text'])
+
+        if self._showing_fit_all_image :
+            self.fit_all_command(quiet=True)
+            return
+        self.save_show_fit_image()
 
     def show_function_dropdown(self):
         if self._new_user_stage % 7 == 0 :
@@ -1952,6 +2017,34 @@ class Frontend:
                 text=f"{(self._curr_image_num % len(self._data_handlers)) + 1 }/{len(self._data_handlers)}"
             )
 
+    def y_uncertainty(self, xval):
+        # simple propagation of uncertainty with first-order finite differnece approximation of parameter derivatives
+        par_derivs = []
+        for idx, arg in enumerate(self.current_args[:]):
+            shifted_args = self.current_model.args.copy()
+            shifted_args[idx] = arg + abs(arg)/1e5
+            shifted_model = self.current_model.copy()
+            shifted_model.args = shifted_args
+            if self.data_handler.logx_flag and self.data_handler.logy_flag:
+                par_derivs.append((shifted_model.eval_at(xval, X0=self.data_handler.X0, Y0=self.data_handler.Y0)
+                                   - self.current_model.eval_at(xval, X0=self.data_handler.X0, Y0=self.data_handler.Y0))
+                                    / (abs(arg) / 1e5))
+            elif self.data_handler.logx_flag:
+                par_derivs.append((shifted_model.eval_at(xval, X0=self.data_handler.X0)
+                                   - self.current_model.eval_at(xval, X0=self.data_handler.X0)) / (abs(arg) / 1e5))
+            elif self.data_handler.logy_flag:
+                par_derivs.append((shifted_model.eval_at(xval, Y0=self.data_handler.Y0)
+                                   - self.current_model.eval_at(xval, Y0=self.data_handler.Y0)) / (abs(arg) / 1e5))
+            else:
+                par_derivs.append( (shifted_model.eval_at(xval)
+                                    - self.current_model.eval_at(xval))/(abs(arg)/1e5) )
+
+        partial_V_partial = 0
+        for i, _ in enumerate(self.current_args) :
+            for j, _ in enumerate(self.current_args) :
+                partial_V_partial += par_derivs[i]*self.current_covariance[i,j]*par_derivs[j]
+        return np.sqrt(partial_V_partial)
+
     def save_show_fit_image(self, model = None):
 
         if model is not None:
@@ -1968,6 +2061,7 @@ class Frontend:
         sigma_y_points = handler.unlogged_sigmay_data
 
         smooth_x_for_fit = np.linspace( x_points[0], x_points[-1], 4*len(x_points))
+
         if handler.logx_flag and handler.logy_flag :
             fit_vals = [ plot_model.eval_at(xi, X0 = self.data_handler.X0, Y0 = self.data_handler.Y0)
                          for xi in smooth_x_for_fit ]
@@ -1982,7 +2076,24 @@ class Frontend:
         fig = plt.figure()
         fig.patch.set_facecolor(self._bg_color)
         plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color=self._dataaxes_color)
+
         plt.plot(smooth_x_for_fit, fit_vals, '-', color=self._fit_color)
+        if self._show_error_bands in [1,3]:
+            unc_list = [self.y_uncertainty(xi) for xi in smooth_x_for_fit]
+            upper_error_vals = [ val+unc for val, unc in zip(fit_vals,unc_list)]
+            lower_error_vals = [ val-unc for val, unc in zip(fit_vals,unc_list)]
+
+            plt.plot(smooth_x_for_fit, upper_error_vals, '--', color=self._fit_color)
+            plt.plot(smooth_x_for_fit, lower_error_vals, '--', color=self._fit_color)
+        if self._show_error_bands in [2,3]:
+            unc_list = [self.y_uncertainty(xi) for xi in smooth_x_for_fit]
+            upper_2error_vals = [ val+2*unc for val, unc in zip(fit_vals,unc_list)]
+            lower_2error_vals = [ val-2*unc for val, unc in zip(fit_vals,unc_list)]
+
+            plt.plot(smooth_x_for_fit, upper_2error_vals, ':', color=self._fit_color)
+            plt.plot(smooth_x_for_fit, lower_2error_vals, ':', color=self._fit_color)
+
+
         plt.xlabel(handler.x_label)
         plt.ylabel(handler.y_label)
         axes : plt.axes = plt.gca()
@@ -2036,15 +2147,9 @@ class Frontend:
         self._image_frame.configure(image=self._image)
         self._showing_fit_image = True
         self._showing_fit_all_image = False
-    def save_show_fit_all(self, model, args_list):
+    def save_show_fit_all(self, args_list):
 
-        plt.close()
-        avg_pars = model.args
-
-        if model is not None:
-            plot_model = model.copy()
-        else:
-            plot_model = self.current_model
+        plot_model = self.optimizer.shown_model.copy()
 
         num_sets = len(self._data_handlers)
         abs_minX, abs_minY = 1e5, 1e5
@@ -2052,6 +2157,7 @@ class Frontend:
 
         sum_len = 0
 
+        plt.close()
         fig = plt.figure()
         axes : plt.axes = plt.gca()
 
@@ -2101,18 +2207,33 @@ class Frontend:
             plt.draw()
 
         # also add average fit
-        plot_model.args = avg_pars
         smooth_x_for_fit = np.linspace(abs_minX, abs_maxX, sum_len)
         if self.data_handler.logx_flag and self.data_handler.logy_flag:
-            fit_vals = [plot_model.eval_at(xi, X0=self.data_handler.X0, Y0=self.data_handler.Y0)
+            fit_vals = [self.optimizer.shown_model.eval_at(xi, X0=self.data_handler.X0, Y0=self.data_handler.Y0)
                         for xi in smooth_x_for_fit]
         elif self.data_handler.logx_flag:
-            fit_vals = [plot_model.eval_at(xi, X0=self.data_handler.X0) for xi in smooth_x_for_fit]
+            fit_vals = [self.optimizer.shown_model.eval_at(xi, X0=self.data_handler.X0) for xi in smooth_x_for_fit]
         elif self.data_handler.logy_flag:
-            fit_vals = [plot_model.eval_at(xi, Y0=self.data_handler.Y0) for xi in smooth_x_for_fit]
+            fit_vals = [self.optimizer.shown_model.eval_at(xi, Y0=self.data_handler.Y0) for xi in smooth_x_for_fit]
         else:
-            fit_vals = [plot_model.eval_at(xi) for xi in smooth_x_for_fit]
+            fit_vals = [self.optimizer.shown_model.eval_at(xi) for xi in smooth_x_for_fit]
+
         plt.plot(smooth_x_for_fit, fit_vals, '-', color=self._fit_color)
+        if self._show_error_bands in [1,3]:
+            unc_list = [self.y_uncertainty(xi) for xi in smooth_x_for_fit]
+            upper_error_vals = [ val+unc for val, unc in zip(fit_vals,unc_list)]
+            lower_error_vals = [ val-unc for val, unc in zip(fit_vals,unc_list)]
+
+            plt.plot(smooth_x_for_fit, upper_error_vals, '--', color=self._fit_color)
+            plt.plot(smooth_x_for_fit, lower_error_vals, '--', color=self._fit_color)
+        if self._show_error_bands in [2,3]:
+            unc_list = [self.y_uncertainty(xi) for xi in smooth_x_for_fit]
+            upper_2error_vals = [ val+2*unc for val, unc in zip(fit_vals,unc_list)]
+            lower_2error_vals = [ val-2*unc for val, unc in zip(fit_vals,unc_list)]
+
+            plt.plot(smooth_x_for_fit, upper_2error_vals, ':', color=self._fit_color)
+            plt.plot(smooth_x_for_fit, lower_2error_vals, ':', color=self._fit_color)
+
 
         fig.patch.set_facecolor(self._bg_color)
 
@@ -2363,8 +2484,7 @@ class Frontend:
     def pause_command(self):
         if self.brute_forcing :
             self.brute_forcing = False
-            shortpath = regex.split("/", self._filepaths[self._curr_image_num])[-1]
-            self.add_message(f"\n \n> For {shortpath} \n")
+            self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
             self.print_results_to_console()
         else:
             self.brute_forcing = True

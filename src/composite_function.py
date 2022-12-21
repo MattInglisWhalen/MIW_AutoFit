@@ -677,7 +677,7 @@ class CompositeFunction:
             raise NotImplementedError
 
         new_model = self.copy()
-        new_model.shortname = "Trimmed_" + new_model.name
+        new_model.shortname = "Trimmed{" + new_model.name + "}"
         node_to_remove = (new_model.get_nodes_with_freedom())[n]
 
         # untested with siblings

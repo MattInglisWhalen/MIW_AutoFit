@@ -193,7 +193,8 @@ class Optimizer:
         for idx, (topper, chisqr) in enumerate(zip( self.top5_models[:],self.top5_rchisqrs[:] )):
             # comparing with names
             if model.longname == topper.longname:
-                if chisqr <= rchisqr :
+                print("Same name in query")
+                if chisqr <= rchisqr+1e-5 :
                     return
                 del self.top5_models[idx]
                 del self.top5_covariances[idx]
@@ -201,6 +202,7 @@ class Optimizer:
                 break
             # comparing with rchisqr -- can probably get rid of the loop below in favour of this by itself
             if abs(rchisqr - chisqr) > 1e-5 :
+                print("Continuing in query")
                 continue
             # comparing with values -- for no good to make sure that it's literally the same function
             effective_sameness = False
@@ -213,7 +215,7 @@ class Optimizer:
                     print("Query: Effectively the same!")
                     break
                 test_point *= 1.618
-            if effective_sameness :
+            if effective_sameness :  # a more sophisticated version might try to minimize correlations between parameters
                 # dof should trump all
                 if topper.dof < model.dof :
                     print(f"Booting out contender {model.name} with dof {model.dof} in favour of {topper.name} with dof {topper.dof}")
@@ -253,7 +255,7 @@ class Optimizer:
                 unc_str_list = [f"{unc:.3F}" for unc in std(covariance)]
 
                 print(f"New top {idx} with red_chisqr={rchisqr:.2F}: "
-                      f"{model=} with pars=[" + ', '.join(par_str_list) + "] \u00B1 [" + ', '.join(unc_str_list) )
+                      f"{model=} with pars=[" + ', '.join(par_str_list) + "] \u00B1 [" + ', '.join(unc_str_list) + "]")
                 model.print_tree()
 
                 # also check any parameters for being "equivalent" to zero. If so, remove the d.o.f.
@@ -670,7 +672,7 @@ class Optimizer:
         # and so relaxed error bars help point towards global minima
         try:
             better_guess, better_cov = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
-                                        p0=initial_guess, maxfev=5000, method='lm')
+                                                 p0=initial_guess, maxfev=5000, method='lm')
         except RuntimeError:
             print("Couldn't find optimal parameters for better guess.")
             model.args = list(initial_guess)
@@ -686,9 +688,21 @@ class Optimizer:
             print("Couldn't find optimal parameters for final fit.")
             model.args = list(better_guess)
             return model, better_cov
-
-        print(f"{info_string}Final guess: {np_pars}")
+        print(f"{info_string}Final guess: {np_pars} +- {np.sqrt(np.diagonal(np_cov))}")
         model.args = list(np_pars)
+
+        # should use the effective variance method if x-errors exist, e.g.
+        # sigma^2 = sigma_y^2 + sigma_x^2 (dy/dx)^2
+        if any( [datum.sigma_pos**2 / (datum.pos**2 + 1e-10) > 1e-10 for datum in self._data] ):
+            for it in range(3):  # iterate 3 times
+                effective_sigma = np.sqrt( [datum.sigma_val**2 + datum.sigma_pos**2 * model.eval_deriv_at(datum.pos)**2
+                                            for datum in self._data] )
+                np_pars, np_cov = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
+                                                 sigma=effective_sigma, absolute_sigma=use_errors,
+                                                 p0=np_pars, maxfev=5000)
+                model.args = list(np_pars)
+                print(f"Now with effective variance: {np_pars} +- {np.sqrt(np.diagonal(np_cov))}")
+
         return model, np_cov
 
     # does not change input model_
@@ -787,7 +801,7 @@ class Optimizer:
             upper_optimizer.composite_function_list = self._composite_function_list
             upper_optimizer.find_best_model_for_dataset()
             for u_model, u_cov in zip(upper_optimizer.top5_models,upper_optimizer.top5_covariances) :
-                self.query_add_to_top5(model=u_model,covariance=u_cov, change_shown=False)
+                self.query_add_to_top5(model=u_model,covariance=u_cov)
 
     # changes top5
     # does not change _shown variables
@@ -829,11 +843,15 @@ class Optimizer:
 
         # need to recreate the data as a list of uniform x-interval pairs
         # (in case the data points aren't uniformly spaced)
-        x_points = np.linspace( min( [datum.pos for datum in self._data] ),
-                                max( [datum.pos for datum in self._data] ),
-                                num = len(self._data) + 1  # supersample of the data, with endpoints
-                                                           # the same and one more for each interval
-                              )
+        minx = min( [datum.pos for datum in self._data] )
+        maxx = max( [datum.pos for datum in self._data] )
+        if (maxx-minx) < 1e-10 :
+            self._cos_freq_list.append(0)
+            self._sin_freq_list.append(0)
+            return
+        x_points = np.linspace(minx, maxx, num=len(self._data)+1)  # supersample of the data, with endpoints
+                                                                   # the same and one more for each interval
+
         # very inefficient
         y_points = [ self._data[0].val ]
         for target in x_points[1:-1] :
