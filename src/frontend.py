@@ -35,6 +35,8 @@ from autofit.src.primitive_function import PrimitiveFunction
 
 class Frontend:
 
+    _meipass_flag = True
+
     def __init__(self):
 
         # UX
@@ -82,6 +84,7 @@ class Frontend:
         self._full_flag = 0
 
         # backend connections
+        self._fit_data_button : tk.Button = None
         self._optimizer = None   # Optimizer
         self._changed_optimizer_opts_flag = True
         self._refit_button = None
@@ -106,6 +109,7 @@ class Frontend:
             self._use_func_dict_name_tkVar[name] = tk.BooleanVar(value=False)
         self._max_functions_tkInt = tk.IntVar(value=4)
         self._brute_forcing = tk.BooleanVar(value=False)
+        self._progress_label = None
         self._show_error_bands = 0
 
         # defaults config
@@ -121,6 +125,7 @@ class Frontend:
         self._default_console_colour = None
         self._default_printout_colour = None
         self._default_os_scaling = 1
+        self._image_r = 1
         self._custom_function_names = ""
         self._custom_function_forms = ""
         self._custom_function_button = None
@@ -138,19 +143,19 @@ class Frontend:
         # load in splash screen
         self.load_splash_screen()
 
-        self.add_message(f"Directory is {self.get_package_path()}")
+        self.add_message(f"Directory is{':' if Frontend._meipass_flag else ''} {Frontend.get_package_path()}")
+        print(f"{Frontend._meipass_flag=}")
 
     def touch_defaults(self):
         try :
-            with open(f"{self.get_package_path()}/frontend.cfg") as _ :
+            with open(f"{Frontend.get_package_path()}/frontend.cfg") as _ :
                 return
         except FileNotFoundError :
-            # os.mkdir(f"{self.get_package_path()}")
-            f = open(f"{self.get_package_path()}/frontend.cfg", 'a+')
+            f = open(f"{Frontend.get_package_path()}/frontend.cfg", 'a+')
             f.close()
             self.save_defaults()
     def load_defaults(self):
-        with open(f"{self.get_package_path()}/frontend.cfg") as file :
+        with open(f"{Frontend.get_package_path()}/frontend.cfg") as file :
             for line in file :
                 if "#FIT_TYPE" in line :
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
@@ -185,7 +190,7 @@ class Frontend:
                 elif "#LOAD_FILE_LOC" in line:
                     arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
-                        arg = f"{self.get_package_path()}/data"
+                        arg = f"{Frontend.get_package_path()}/data"
                     self._default_load_file_loc = arg
                 elif "#BG_COLOUR" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
@@ -302,10 +307,15 @@ class Frontend:
                     if arg == "" or arg[0] == "#":
                         arg = 1.
                     self._default_os_scaling = max(float(arg),0.1)
+                elif "#IMAGE_R" in line:
+                    arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = 1.
+                    self._image_r = min(max(float(arg),0.1),10)
     def save_defaults(self):
         if self.brute_forcing or self._default_fit_type == "Brute-Force":
             return
-        with open(f"{self.get_package_path()}/frontend.cfg",'w') as file :
+        with open(f"{Frontend.get_package_path()}/frontend.cfg",'w') as file :
             file.write(f"#FIT_TYPE {self._default_fit_type}\n")
             file.write(f"#PROCEDURAL_DEPTH {self.max_functions}\n")
             file.write(f"#EXCEL_RANGE_X {self._default_excel_x_range}\n")
@@ -343,6 +353,7 @@ class Frontend:
             file.write(f"#CUSTOM_NAMES {self._custom_function_names}\n")
             file.write(f"#CUSTOM_FORMS {self._custom_function_forms}\n")
             file.write(f"#OS_SCALING {self._default_os_scaling}\n")
+            file.write(f"#IMAGE_R {self._image_r}\n")
     def print_defaults(self):
         print(f"Fit-type >{self._default_fit_type}<")
         print(f"Procedural depth >{self.max_functions}<")
@@ -377,6 +388,7 @@ class Frontend:
         print(f"Custom function names >{self._custom_function_names}<")
         print(f"Custom function forms >{self._custom_function_forms}<")
         print(f"OS Scaling >{self._default_os_scaling}<")
+        print(f"Image R >{self._image_r}<")
 
     # create left, right, and middle panels
     def load_splash_screen(self):
@@ -401,7 +413,6 @@ class Frontend:
 
         # middle panel -- data visualization and fit options
         self.create_middle_panel()
-        self.load_splash_image()
 
         # right panel -- text output
         self.create_right_panel()
@@ -497,12 +508,12 @@ class Frontend:
         )
         load_data_button.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
     def create_fit_button(self):
-        fit_data_button = tk.Button(
+        self._fit_data_button = tk.Button(
             master = self._gui.children['!frame'],
             text = "Fit Data",
             command = self.fit_data_command
         )
-        fit_data_button.grid(row=1, column=0, sticky="ew", padx=5)
+        self._fit_data_button.grid(row=1, column=0, sticky="ew", padx=5)
     def create_fit_all_button(self):
         if self._new_user_stage % 11 == 0 :
             return
@@ -634,7 +645,7 @@ class Frontend:
         dialog_box = tk.Toplevel()
         dialog_box.geometry(f"{round(self._os_width/4)}x{round(self._os_height/4)}")
         dialog_box.title("Spreadsheet Input Options")
-        dialog_box.iconbitmap(f"{self.get_package_path()}/icon.ico")
+        dialog_box.iconbitmap(f"{Frontend.get_package_path()}/icon.ico")
 
         data_frame = tk.Frame(master=dialog_box)
         data_frame.grid(row=0,column=0,sticky='ew')
@@ -745,7 +756,7 @@ class Frontend:
         dialog_box = tk.Toplevel()
         dialog_box.geometry(f"{round(self._os_width/4)}x{round(self._os_height/4)}")
         dialog_box.title("New Custom Function")
-        dialog_box.iconbitmap(f"{self.get_package_path()}/icon.ico")
+        dialog_box.iconbitmap(f"{Frontend.get_package_path()}/icon.ico")
 
         data_frame = tk.Frame(master=dialog_box)
         data_frame.grid(row=0,column=0,sticky='ew')
@@ -796,6 +807,10 @@ class Frontend:
 
     def fit_data_command(self):
 
+        if self._fit_data_button['text'] == "Cancel" :
+            self._progress_label.configure(bg="#010101")
+            return
+
         # add dropdown for option to select different fit models
         self.show_function_dropdown()
 
@@ -827,8 +842,20 @@ class Frontend:
             plot_model = CompositeFunction.built_in("Sigmoid")
             self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkvar.get() == "Procedural":
-            print("Fitting to procedural model")
-            self.optimizer.find_best_model_for_dataset()
+
+            num_on = 2+sum( [1 if tkBool.get() else 0 for (key, tkBool) in self._use_func_dict_name_tkVar.items()] )
+            num_nodes = num_on
+            num_added = num_on
+            for depth in range(self._max_functions_tkInt.get()-1):
+                num_added = num_added*(depth+2)*2*num_on  # n_comps * n_nodes_per_comp * (sum+mul) * n_prims
+                num_nodes += num_added
+            self.add_message(f"\n \n> Fitting to procedural model -- expecting to "
+                             f"generate ~{num_nodes} naive models.")
+
+            self.add_message(f"   Stage 0/3: {0:>10} naive models generated, {0:>10} models fit.")
+            self._fit_data_button.configure(text="Cancel")
+            self.optimizer.find_best_model_for_dataset(status_bar = self._progress_label)
+            self._fit_data_button.configure(text="Fit Data")
         elif self._model_name_tkvar.get() == "Brute-Force":
             print("Brute forcing a procedural model")
             self.brute_forcing = True
@@ -844,7 +871,6 @@ class Frontend:
             self._changed_optimizer_opts_flag = True
             self.update_optimizer()
             self.optimizer.async_find_best_model_for_dataset(start=True)
-            print(f"DEBUG {self.optimizer.top5_names}")
         else:
             print(f"Invalid model name {self._model_name_tkvar.get()}")
             pass
@@ -880,20 +906,18 @@ class Frontend:
             self.hide_default_checkboxes()
             self.hide_depth_buttons()
 
-        # add status updates for brute-force fits
+        # brute-force conditionals
         if self._model_name_tkvar.get() == "Brute-Force" :
             self.show_pause_button()
         else:
             self.hide_pause_button()
+            # print out the parameters on the right
+            self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
+            self.print_results_to_console()
 
         self.save_show_fit_image()
-        # print out the parameters on the right
-        self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
-        self.print_results_to_console()
         self._default_fit_type = self._model_name_tkvar.get()
         self.save_defaults()
-
-        # self.optimizer.show_fit(pause_on_image=True)
 
         if self.brute_forcing :
             self.begin_brute_loop()
@@ -1074,8 +1098,7 @@ class Frontend:
 
         # replace the splash graphic with the plot
         self._image_path = new_image_path
-        self._image = ImageTk.PhotoImage(Image.open(self._image_path))
-        self._image_frame.configure( image = self._image )
+        self.switch_image()
 
         # if we're showing the image, we want the optimizer to be working with this data
         if self._showing_fit_image :
@@ -1095,6 +1118,8 @@ class Frontend:
 
     def begin_brute_loop(self):
         self._gui.update_idletasks()
+        self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
+        self.add_message(f"{self.optimizer.gen_idx:>10} models tested")
         self._gui.after_idle(self.maintain_brute_loop)
     def maintain_brute_loop(self):
         # TODO: add a model counter to show how many have been tested
@@ -1102,17 +1127,63 @@ class Frontend:
         # (the linear data is a good example of fits that become infinitesimally better with more parameters)
         if self.brute_forcing :
             status = self.optimizer.async_find_best_model_for_dataset()
-            print(f"DEBUG {self.optimizer.top5_names}")
             if status != "" :
-                self.brute_forcing = False
+                self.pause_command()
                 self.add_message(f"\n\n >>> End of brute-forcing reached <<< {status}\n\n")
-            self.update_top5_dropdown()
             # self.optimizer.show_fit(pause_on_image=True)
             if self.current_rchisqr != self._optimizer.top5_rchisqrs[0] :
                 self.make_top_shown()
                 self.save_show_fit_image()
+                if self.current_rchisqr < 0.001 :
+                    self.add_message(f"\n \n >>> Perfect fit found <<< {status}\n\n")
+                    self.pause_command()
+            self.update_top5_dropdown()
+            self.update_number_tested()
             self._gui.after(1, self.maintain_brute_loop)
+
         self.update_pause_button()
+    def create_pause_button(self):
+        if self._new_user_stage % 37 == 0 :
+            return
+        self._new_user_stage *= 37
+
+        self._pause_button = tk.Button( self._gui.children['!frame2'].children['!frame3'],
+                                  text = "Pause",
+                                  command = self.pause_command
+                               )
+        self._pause_button.grid(row=0, column=2, padx=(5,0), sticky='w')
+        self._pause_button.configure(width=8)
+    def hide_pause_button(self):
+        if self._new_user_stage % 37 != 0 :
+            return
+        # print(f"Hide pause button: {self._gui.children['!frame2'].children['!frame3'].children}")
+        self._pause_button.grid_forget()
+    def show_pause_button(self):
+        if self._new_user_stage % 37 != 0 :
+            self.create_pause_button()
+            return
+        self._pause_button.grid(row=0, column=2, padx=(5,0), pady=5, sticky='w')
+        self.update_pause_button()
+    def update_pause_button(self):
+        if self._new_user_stage % 37 != 0 :
+            return
+
+        if self.brute_forcing :
+            self._pause_button.configure(text="Pause")
+        else :
+            self._pause_button.configure(text="Go")
+    def pause_command(self):
+        if self.brute_forcing :
+            self.brute_forcing = False
+            self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
+            self.print_results_to_console()
+        else:
+            self.brute_forcing = True
+            # it's actually a go button
+            self.begin_brute_loop()
+    def update_number_tested(self):
+
+        self._progress_label.configure(text=f"{self.optimizer.gen_idx:>10} models tested")
 
     def print_results_to_console(self):
         print_string = ""
@@ -1263,8 +1334,8 @@ class Frontend:
     """
 
     def create_middle_panel(self):
-        self._gui.columnconfigure(1, minsize=720)  # image panel
-        middle_panel_frame = tk.Frame(master=self._gui, relief=tk.RIDGE)
+        self._gui.columnconfigure(1, minsize=72)  # image panel
+        middle_panel_frame = tk.Frame(master=self._gui)
         middle_panel_frame.grid(row=0, column=1, sticky='nsew')
         self.create_image_frame()           # aka image frame
         self.create_data_perusal_frame()    # aka inspect frame
@@ -1275,7 +1346,6 @@ class Frontend:
 
     # Frames
     def create_image_frame(self):  # !frame : image only
-        self._gui.children['!frame2'].columnconfigure(1,minsize=50)
         image_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
@@ -1305,6 +1375,7 @@ class Frontend:
         )
         fit_options_frame.grid(row = 3, column=0, sticky='w')
     def create_plot_options_frame(self):  # !frame4 : logx, logy, normalize
+        self._gui.children['!frame2'].columnconfigure(1,minsize=50)
         plot_options_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
@@ -1417,7 +1488,7 @@ class Frontend:
         else :
             print(f"\n\n\n\n\n\n\nShowing residuals relative to {self.current_model.name}")
 
-        res_filepath = f"{self.get_package_path()}/plots/residuals.csv"
+        res_filepath = f"{Frontend.get_package_path()}/plots/residuals.csv"
 
         residuals = []
         norm_residuals = []
@@ -1439,6 +1510,43 @@ class Frontend:
 
         res_handler = DataHandler(filepath=res_filepath)
         res_optimizer = Optimizer(data=res_handler.data)
+
+        sample_mean = sum(residuals) / len(residuals)
+        sample_variance = sum([(res - sample_mean) ** 2 for res in residuals]) / (len(residuals) - 1)
+        sample_std_dev = math.sqrt(sample_variance)
+
+        # should be counting with std from 0, not from residual_mean
+        variance_rel_zero = sum([ res**2 for res in residuals]) / (len(residuals) - 1)
+        std_dev_rel_zero = math.sqrt(variance_rel_zero)
+
+        std_dev = std_dev_rel_zero
+        sample_mean = 0.
+
+        # actually, you should be using the mean and sigma according to the *fit*
+        if len(res_handler.data) >= 4 :  # shouldn't fit a gaussian to 3 points
+            res_optimizer.fit_this_and_get_model_and_covariance(model_=CompositeFunction.built_in("Gaussian"))
+            A, sigma, x0 = res_optimizer.shown_parameters
+            sigmaA, sigmasigma, sigmax0 = res_optimizer.shown_uncertainties
+            print(f"Mean from fit: {x0} +- {sigmax0}")
+            print(f"Sigma from fit: {sigma} +- {sigmasigma} "
+                  f"... sample standard deviation: {sample_std_dev}"            )
+            std_dev = sigma
+            sample_mean = x0
+        else :
+            np_residuals = np.array(residuals)
+            mu = np_residuals.mean()
+            sigma = np_residuals.std() if np_residuals.std() != 0 else 1
+            count = len(residuals)
+            manual_gaussian = CompositeFunction.built_in("Gaussian")
+            manual_gaussian.set_args( count*res_handler.bin_width()/np.sqrt(2*np.pi*sigma**2), sigma, mu)
+            print(f"{res_handler.bin_width()=}")
+            print(count*res_handler.bin_width()/np.sqrt(2*np.pi*sigma**2), sigma, mu)
+            res_optimizer.shown_model = manual_gaussian
+        res_optimizer.show_fit()
+
+        if max(residuals)**2 + min(residuals)**2 < 1e-20 :
+            self.add_message("\n \n> Normality tests are not shown for a perfect fit.")
+            return
 
         # rule of thumb
         num_within_error_bars = sum( [1 if -1 < norm_res < 1 else 0 for norm_res in norm_residuals] )
@@ -1476,40 +1584,6 @@ class Frontend:
                 self.add_message("   Since this exceeds the maximum expected number, either the data has been\n"
                                  "   generated with an exact function, or the error bars have been overestimated.\n"
                                  "   In either case, it is likely that a good model of the dataset has been found!")
-
-        sample_mean = sum(residuals) / len(residuals)
-        sample_variance = sum([(res - sample_mean) ** 2 for res in residuals]) / (len(residuals) - 1)
-        sample_std_dev = math.sqrt(sample_variance)
-
-        # should be counting with std from 0, not from residual_mean
-        variance_rel_zero = sum([ res**2 for res in residuals]) / (len(residuals) - 1)
-        std_dev_rel_zero = math.sqrt(variance_rel_zero)
-
-        std_dev = std_dev_rel_zero
-        sample_mean = 0.
-
-        # actually, you should be using the mean and sigma according to the *fit*
-        if len(res_handler.data) >= 4 :  # shouldn't fit a gaussian to 3 points
-            res_optimizer.fit_this_and_get_model_and_covariance(model_=CompositeFunction.built_in("Gaussian"))
-            A, sigma, x0 = res_optimizer.shown_parameters
-            sigmaA, sigmasigma, sigmax0 = res_optimizer.shown_uncertainties
-            print(f"Mean from fit: {x0} +- {sigmax0}")
-            print(f"Sigma from fit: {sigma} +- {sigmasigma} "
-                  f"... sample standard deviation: {sample_std_dev}"            )
-            std_dev = sigma
-            sample_mean = x0
-        else :
-            np_residuals = np.array(residuals)
-            mu = np_residuals.mean()
-            sigma = np_residuals.std() if np_residuals.std() != 0 else 1
-            count = len(residuals)
-            manual_gaussian = CompositeFunction.built_in("Gaussian")
-            manual_gaussian.set_args( count*res_handler.bin_width()/np.sqrt(2*np.pi*sigma**2), sigma, mu)
-            print(f"{res_handler.bin_width()=}")
-            print(count*res_handler.bin_width()/np.sqrt(2*np.pi*sigma**2), sigma, mu)
-            res_optimizer.shown_model = manual_gaussian
-
-
 
         count_ulow = sum([1 if res-sample_mean < sample_mean-2*std_dev else 0 for res in residuals])
         count_low = sum([1 if sample_mean-2*std_dev < res-sample_mean < sample_mean-std_dev else 0
@@ -1629,7 +1703,7 @@ class Frontend:
 
         # TODO: I've noticed that there's a bad interaction with all tests when logging-y
 
-        res_optimizer.show_fit()
+
     @staticmethod
     def sample_standardize(sample):
         np_sample = np.array(sample)
@@ -1969,13 +2043,34 @@ class Frontend:
     # Helper functions
     def load_splash_image(self):
         self._image_path = f"{Frontend.get_package_path()}/splash.png"
-        self._image = ImageTk.PhotoImage(Image.open(self._image_path))
+
+        img_raw = Image.open(self._image_path)
+        img_resized = img_raw.resize( (round(img_raw.width*self._image_r),
+                                       round(img_raw.height*self._image_r)) )
+        self._image = ImageTk.PhotoImage(img_resized)
         self._image_frame = tk.Label(master=self._gui.children['!frame2'].children['!frame'],
                                      image=self._image,
                                      relief=tk.SUNKEN)
+        print(f"Created frame {self._image_frame}")
         self._image_frame.grid(row=0, column=0)
+        self._image_frame.grid_propagate(True)
         self.create_colors_image_menu()
         self._image_frame.bind('<Button-3>', self.do_colors_image_popup)
+        self._image_frame.bind('<MouseWheel>', self.do_image_resize)
+    def do_image_resize(self, event):
+
+        d = event.delta/120
+        self._image_r *= (1+d/10)
+
+        self.switch_image()
+
+    def switch_image(self):
+        img_raw = Image.open(self._image_path)
+        img_resized = img_raw.resize((round(img_raw.width * self._image_r),
+                                      round(img_raw.height * self._image_r)))
+        self._image = ImageTk.PhotoImage(img_resized)
+        self._image_frame.configure(image=self._image)
+
     def create_colors_image_menu(self):
 
         head_menu = tk.Menu(master=self._gui, tearoff=0)
@@ -2143,8 +2238,7 @@ class Frontend:
         plt.savefig(self._image_path)
 
         # change the view to show the fit as well
-        self._image = ImageTk.PhotoImage(Image.open(self._image_path))
-        self._image_frame.configure(image=self._image)
+        self.switch_image()
         self._showing_fit_image = True
         self._showing_fit_all_image = False
     def save_show_fit_all(self, args_list):
@@ -2289,8 +2383,7 @@ class Frontend:
         plt.savefig(self._image_path)
 
         # change the view to show the fit as well
-        self._image = ImageTk.PhotoImage(Image.open(self._image_path))
-        self._image_frame.configure(image=self._image)
+        self.switch_image()
         self._showing_fit_image = True
         self._showing_fit_all_image = True
     # this fits the data again, unlike save_show_fit
@@ -2451,45 +2544,7 @@ class Frontend:
         depth_label.configure(text=f"Depth: {self._max_functions_tkInt.get()}")
         self._changed_optimizer_opts_flag = True
 
-    def create_pause_button(self):
-        if self._new_user_stage % 37 == 0 :
-            return
-        self._new_user_stage *= 37
 
-        self._pause_button = tk.Button( self._gui.children['!frame2'].children['!frame3'],
-                                  text = "Pause",
-                                  command = self.pause_command
-                               )
-        self._pause_button.grid(row=0, column=2, padx=(5,0), sticky='w')
-        self._pause_button.configure(width=8)
-    def hide_pause_button(self):
-        if self._new_user_stage % 37 != 0 :
-            return
-        # print(f"Hide pause button: {self._gui.children['!frame2'].children['!frame3'].children}")
-        self._pause_button.grid_forget()
-    def show_pause_button(self):
-        if self._new_user_stage % 37 != 0 :
-            self.create_pause_button()
-            return
-        self._pause_button.grid(row=0, column=2, padx=(5,0), pady=5, sticky='w')
-        self.update_pause_button()
-    def update_pause_button(self):
-        if self._new_user_stage % 37 != 0 :
-            return
-
-        if self.brute_forcing :
-            self._pause_button.configure(text="Pause")
-        else :
-            self._pause_button.configure(text="Go")
-    def pause_command(self):
-        if self.brute_forcing :
-            self.brute_forcing = False
-            self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
-            self.print_results_to_console()
-        else:
-            self.brute_forcing = True
-            # it's actually a go button
-            self.begin_brute_loop()
 
 
     """
@@ -2547,8 +2602,10 @@ class Frontend:
             self._num_messages += 1
             self._num_messages_ever += 1
 
-            new_message_label.update()
+            new_message_label.update()  # required to scroll the console up when the buffer is filled
             MAX_MESSAGE_LENGTH = floor(text_frame.winfo_height() / new_message_label.winfo_height())
+
+            self._progress_label = new_message_label
 
 
         if self._num_messages > MAX_MESSAGE_LENGTH :
@@ -2578,19 +2635,20 @@ class Frontend:
     def get_package_path():
 
         try:
-            return sys._MEIPASS  # for pyinstaller
+            loc = sys._MEIPASS  # for pyinstaller
         except AttributeError:
-            pass
+            Frontend._meipass_flag = False
+            filepath = os.path.abspath(__file__)
+            loc = os.path.dirname(filepath)
             # print("It doesn't know about _MEIPASS")
 
+        fallback = loc
         # keep stepping back from the current directory until we are in the directory /autofit
-        filepath = os.path.abspath(__file__)
-        loc = os.path.dirname(filepath)
-
         while loc[-7:] != "autofit":
             loc = os.path.dirname(loc)
             if loc == os.path.dirname(loc):
-                print(f"""Frontend init: python script {__file__} is not in the AutoFit package's directory.""")
+                # print(f"""Frontend init: python script {__file__} is not in the AutoFit package's directory.""")
+                return fallback
 
         return loc
     def show_current_data(self):
@@ -2603,7 +2661,7 @@ class Frontend:
         elif self._showing_fit_image :
             self.show_current_data_with_fit()
         else:
-            if self._image_path != f"{self.get_package_path()}/splash.png" :
+            if self._image_path != f"{Frontend.get_package_path()}/splash.png" :
                 self.show_current_data()
 
     @property
@@ -2730,15 +2788,17 @@ class Frontend:
         self._default_console_colour = "Default"
         self._console_color = (0, 0, 0)
         self.save_defaults()
+        self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
     def console_color_pale(self):
         self._default_console_colour = "Pale"
         self._console_color = (240, 240, 240)
         self.save_defaults()
+        self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
     def console_color_white(self):
         self._default_console_colour = "White"
         self._console_color = (255, 255, 255)
         self.save_defaults()
-
+        self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
     def printout_color_default(self):
         self._default_printout_colour = "Default"
         self._printout_color = (0, 200, 0)

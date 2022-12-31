@@ -6,8 +6,9 @@ from autofit.src.validator import Validator
 def start_autofit():
 
     validator = Validator()
-    if validator.invalid_config() :
-        Validator.invalid_popup()
+    error_msg = validator.invalid_config()
+    if error_msg != "" :
+        Validator.invalid_popup(error_msg)
         raise SystemExit
 
     fe_start.start_frontend()

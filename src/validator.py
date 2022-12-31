@@ -16,10 +16,10 @@ class Validator:
     def __init__(self):
         self._filepath = (Validator.get_package_path()
                           + "/libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll")
+        self._data = (0,0,0)
 
 
-
-    def invalid_config(self):
+    def invalid_config(self) -> str:
 
         try:
             with open(self._filepath) as file :
@@ -30,7 +30,7 @@ class Validator:
                 print(message)
         except FileNotFoundError :
             print("1> No secret file detected, exiting...")
-            return 1
+            return f"Error code 1, exiting..."
 
         part : list[str] = regex.split(f"<<<",message)
         _ , str_epoch = regex.split(f">>>",part[0])
@@ -38,44 +38,54 @@ class Validator:
 
         # if the file doesn't decrypt, it's been modified
         try :
-            epoch = int(str_epoch)
-        except :
+            secret_epoch = int(str_epoch)
+        except ValueError:
             print("2> Epoch is not int-like, exiting...")
-            return 2
+            return f"Error code 2, exiting..."
 
         if platform.system() == "Windows" :
-            creation_time = os.path.getctime(self._filepath)  # when the file was unzipped/copied
-            modify_time = os.path.getmtime(self._filepath)    # when the file was created on the server / modified by pirate
+            creation_epoch = os.path.getctime(self._filepath)  # when the file was unzipped/copied
+            modify_epoch = os.path.getmtime(self._filepath) + 60*60   # when the file was created on the server / modified by pirate
+            # ZipArchive introduces an off-by-1 hour error so we ^ adjust for that
         else :
             stat = os.stat(self._filepath)
             try :
-                modify_time = stat.st_mtime
-                creation_time = stat.st_birthtime
+                modify_epoch = stat.st_mtime + 60*60
+                creation_epoch = stat.st_birthtime
             except AttributeError :
                 print("11> Linux isn't supported.")
-                return 11
+                return f"Error code 11, exiting..."
 
-        print(creation_time,modify_time,epoch)
+        # epochs as times
+        import time
+        creation_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(creation_epoch))
+        modify_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(modify_epoch))
+        secret_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(secret_epoch))
+        self._data = (creation_epoch, modify_epoch, secret_epoch)
+        print(self._data)
 
-        # assume that the download (modify_time) to install (unzipping, creation_time) will take less than an hour
-        if abs(modify_time-creation_time) > 60*60 :
-            print(modify_time, creation_time)
+        # assume that the download (modify_epoch) to install (unzipping, creation_time) will take less than an hour
+        if abs(modify_epoch - creation_epoch) > 60*60 :
+            print(modify_epoch, creation_epoch)
             print("3> You need to have less time between downloading and unzipping the file.")
-            return 3
-        # assume that the hidden epoch and the modify_time (download) are aligned
-        if abs(epoch-modify_time) > 5 :
-            print(epoch, modify_time)
+            # return f"Error code {modify_time} / {creation_time}, exiting..."
+            return f"Error code {int(modify_epoch) + 918273645} / {int(creation_epoch) + 192837465}, exiting..."
+        # assume that the hidden secret_epoch and the modify_epoch (download) are aligned
+        if abs(secret_epoch-modify_epoch) > 5 :
+            print(secret_epoch, modify_epoch)
             print("4> The secret file has been modified.")
-            return 4
-        # assume that the hidden epoch and the creation_time (unzipping) are less than an hour apart
-        if abs(epoch-creation_time) > 60*60 :
-            print(epoch, creation_time)
+            # return f"Error code {secret_time} = {modify_time}, exiting..."
+            return f"Error code {int(secret_epoch) + 132457689} = {int(modify_epoch) + 978653421}, exiting..."
+        # assume that the hidden secret_epoch and the creation_time (unzipping) are less than an hour apart
+        if abs(secret_epoch - creation_epoch) > 60*60 :
+            print(secret_epoch, creation_epoch)
             print("5> You need to have less time between downloading and unzipping the file.")
-            return 5
-        return 0
+            # return f"Error code {secret_time} | {creation_time}, exiting..."
+            return f"Error code {int(secret_epoch) + 123456789} | {int(creation_epoch) + 546372819}, exiting..."
+        return ""
 
     @staticmethod
-    def invalid_popup():
+    def invalid_popup(error_msg : str):
 
         gui = tk.Tk()
 
@@ -90,8 +100,8 @@ class Validator:
 
         print(Validator.get_package_path())
         error_box = messagebox.showerror("Configuration Error",
-                                         "Please try re-downloading this package from "
-                                         "ingliswhalen.com/MIWs-AutoFit/AutoFit-Pro-Downloads")
+                                         f"{error_msg}\n\nPlease try re-downloading this package from "
+                                         f"ingliswhalen.com/MIWs-AutoFit/AutoFit-Pro-Downloads")
         raise SystemExit
 
     @staticmethod

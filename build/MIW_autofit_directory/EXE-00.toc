@@ -74,7 +74,7 @@
  [],
  False,
  False,
- 1671640967,
+ 1672029452,
  [('runw.exe',
    'c:\\users\\matt\\documents\\github\\miw_autofit\\venv\\lib\\site-packages\\PyInstaller\\bootloader\\Windows-64bit\\runw.exe',
    'EXECUTABLE')])

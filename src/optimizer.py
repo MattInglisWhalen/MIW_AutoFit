@@ -2,14 +2,16 @@
 # default libraries
 import math
 import re as regex
+import tkinter
 from collections import defaultdict
-import codeop
+# import codeop
 
 # external libraries
 from scipy.optimize import curve_fit
 from scipy.fft import fft, fftshift, fftfreq
 import matplotlib.pyplot as plt
 import numpy as np
+from tkinter import Label as tk_label
 
 # internal classes
 from autofit.src.datum1D import Datum1D
@@ -27,42 +29,39 @@ as a discriminator. The model which achieves a reduced chi-squared closest to 1 
 
 class Optimizer:
 
+    # noinspection PyTypeChecker
     def __init__(self, data=None, use_functions_dict = None, max_functions=3, regen=True):
 
         print("New optimizer created")
 
         # datasets, which are lists of Datum1D instances
-        self._data = []             # the raw datapoints of (x,y), possibly with uncertainties
-                                    # May also represent a binned point if the input file is a list of x_values only
-        self._averaged_data = []    # the model optimizer requires approximate slope knowledge,
-                                    # so multiple measurements at each x-value are collapsed into a single value
+        self._data : list[Datum1D] = []  # the raw datapoints of (x,y), possibly with uncertainties. It may
+                                         # also represent a binned point if the input file is a list of x_values only
 
         # fit results
-        self._shown_model = None          # a CompositeFunction
-        self._shown_covariance = None
-        self._shown_rchisqr = 1e5
+        self._shown_model : CompositeFunction = None          # a CompositeFunction
+        self._shown_covariance : np.ndarray = None
+        self._shown_rchisqr : float = 1e5
 
         # top 5 models and their data
-        self._top5_models = []
-        self._top5_covariances = []
-        self._top5_rchisqrs = [1e5]  # [1e5  for _ in range(5)]
+        self._top5_models : list[CompositeFunction] = []
+        self._top5_covariances : list[np.ndarray] = []
+        self._top5_rchisqrs : list[float] = [1e5]  # [1e5  for _ in range(5)]
 
         # function construction parameters
-        self._max_functions = max_functions
-        self._primitive_function_list = []
-        self._primitive_names_list = []
+        self._max_functions : int = max_functions
+        self._primitive_function_list : list[PrimitiveFunction] = []
+        self._primitive_names_list : list[str] = []
 
         # useful auxiliary varibles
         self._temp_function : CompositeFunction = None      # for ?
-        self._cos_freq_list = None
-        self._sin_freq_list = None
-        self._cos_freq_list_dup = None
-        self._sin_freq_list_dup = None
+        self._cos_freq_list : list[float] = None
+        self._sin_freq_list : list[float] = None
+        self._cos_freq_list_dup : list[float] = None
+        self._sin_freq_list_dup : list[float] = None
 
         if data is not None :
             self._data = sorted(data)  # list of Datum1D. Sort makes the data monotone increasing in x-value
-            self.average_data()
-
 
         if use_functions_dict is None:
             use_functions_dict = {}
@@ -159,6 +158,9 @@ class Optimizer:
     @composite_function_list.setter
     def composite_function_list(self, comp_list):
         self._composite_function_list = comp_list
+    @property
+    def gen_idx(self) -> int:
+        return self._gen_idx
 
     def update_opts(self, use_functions_dict: dict[str,bool], max_functions: int):
 
@@ -187,7 +189,7 @@ class Optimizer:
 
         rchisqr = self.reduced_chi_squared_of_fit(model)
         print(f"Querying {rchisqr:.2F} for {model.name}")
-        if rchisqr > self.top5_rchisqrs[-1] :
+        if np.isnan(rchisqr) or rchisqr > self.top5_rchisqrs[-1] :
             return
 
         for idx, (topper, chisqr) in enumerate(zip( self.top5_models[:],self.top5_rchisqrs[:] )):
@@ -215,21 +217,25 @@ class Optimizer:
                     print("Query: Effectively the same!")
                     break
                 test_point *= 1.618
-            if effective_sameness :  # a more sophisticated version might try to minimize correlations between parameters
+            if effective_sameness :  # more sophisticated versions might try to minimize correlations between parameters
                 # dof should trump all
                 if topper.dof < model.dof :
-                    print(f"Booting out contender {model.name} with dof {model.dof} in favour of {topper.name} with dof {topper.dof}")
+                    print(f"Booting out contender {model.name} with dof {model.dof} "
+                          f"in favour of {topper.name} with dof {topper.dof}")
                     return
                 # depth should then be preferred
                 if topper.depth > model.depth :
-                    print(f"Booting out contender {model.name} with depth {model.width} in favour of {topper.name} with depth {topper.width}")
+                    print(f"Booting out contender {model.name} with depth {model.width} "
+                          f"in favour of {topper.name} with depth {topper.width}")
                     return
                 # width should then be minimized
                 if topper.width < model.width :
-                    print(f"Booting out contender {model.name} with width {model.width} in favour of {topper.name} with width {topper.width}")
+                    print(f"Booting out contender {model.name} with width {model.width} "
+                          f"in favour of {topper.name} with width {topper.width}")
                     return
                 if topper.dof == model.dof and topper.depth == model.depth and topper.width == model.width :
-                    print(f"Booting out contender {model.name} in favour of {topper.name}, both with with dof, depth, width {topper.dof} {topper.depth} {topper.width}")
+                    print(f"Booting out contender {model.name} in favour of {topper.name}, "
+                          f"both with with dof, depth, width {topper.dof} {topper.depth} {topper.width}")
                     # default is to keep the first one added
                     return
                 print(f"Booting out {topper.name} in favour of contender {model.name}")
@@ -347,7 +353,7 @@ class Optimizer:
                 yield icomp
 
     # TODO: make a generator version of this e.g. [] -> ()
-    def build_composite_function_list(self):
+    def build_composite_function_list(self, status_bar : tk_label):
         # the benefit of using this is that you can generate it once, and if the options don't change you don't need
         # to generate it again. Follow that logic
         if not self._regen_composite_flag :
@@ -367,6 +373,12 @@ class Optimizer:
         for depth in range(self._max_functions-1) :
             new_list = []
             for icomp in last_list:
+                status_bar.configure(text=f"   Stage 1/3: {len(last_list)+len(new_list):>10} naive models generated,"
+                                          f" {0:>10} models fit.")
+                status_bar.master.master.update()
+                if status_bar['bg'] == "#010101":  # cancel code
+                    self._regen_composite_flag = True
+                    break
                 for idescendent in range(icomp.num_nodes()):
                     for iprim in self._primitive_function_list[:]:
 
@@ -395,7 +407,9 @@ class Optimizer:
                             else :
                                 mul_node.add_younger_brother(iprim, update_name=True)
                                 new_list.append(new_mul)
-
+                if status_bar['bg'] == "#010101" :  # cancel code
+                    break
+            print(f"{depth} build_comp_list new_len=",len(new_list))
             self._composite_function_list.extend( new_list )
             last_list = new_list
 
@@ -404,12 +418,12 @@ class Optimizer:
 
         # prepend the current top 5 models
 
-        self.trim_composite_function_list()
+        self.trim_composite_function_list(status_bar=status_bar)
         print(f"After trimming list: (len={len(self._composite_function_list)})")
         for icomp in self._composite_function_list:
             print(icomp)
         print("|----------------\n")
-    def trim_composite_function_list(self):
+    def trim_composite_function_list(self,status_bar:tk_label):
         # Finds and removes duplicates
         # Performs basic algebra to recognize simpler forms with fewer parameters
         # E.g. Functions like pow0(pow0) and pow1(pow1 + pow1) have fewer arguments than the naive calculation expects
@@ -423,7 +437,13 @@ class Optimizer:
         # use regex to trim based on rules applied to composite names
         for idx, icomp in enumerate(self._composite_function_list[:]) :
 
-            if idx % 50 == 0 :
+            if idx % 500 == 0 :
+                status_bar.configure(text=f"   Stage 2/3: {len(self._composite_function_list):>10} valid "
+                                          f"models generated, {0:>10} models fit.")
+                status_bar.master.master.update()
+                if status_bar['bg'] == "#010101" :  # cancel code
+                    self._regen_composite_flag = True
+                    break
                 print(f"{idx}/{num_comps}")
 
             # if self.fails_rules(icomp) :
@@ -456,11 +476,9 @@ class Optimizer:
             return 13*17
         # pow1 used as a sub-sum inside head sum
         for child in icomp.children_list:
-            if child.prim.name == "pow1" and child.num_children() > 0 and child.younger_brother is None and child.older_brother is None :
+            if (child.prim.name == "pow1" and child.num_children() > 0
+                    and child.younger_brother is None and child.older_brother is None) :
                 return 97
-        # trivial composition should just be straight sums  -- not sure if this regex applies anymore with multiplication
-        # if regex.search(f"\(pow1\(", name) or regex.search(f"\+pow1\(", name):
-        #     return 47
 
         # repeated reciprocal is wrong
         if icomp.has_repeated_reciprocal() :
@@ -545,7 +563,8 @@ class Optimizer:
                      "pow1·pow1(pow0+pow1)",
                      "my_exp(my_log)+my_exp(my_log)",
                      # "my_exp(pow2(my_log))",
-                     "my_sin(pow0+my_exp(pow1))"]
+                     "my_sin(pow0+my_exp(pow1)),"
+                     "pow4+pow1"]
 
         for good in good_list :
             if name == good and remove_flag:
@@ -579,7 +598,7 @@ class Optimizer:
     def add_primitive_to_list(self, name, functional_form) -> str:
         # For adding one's own Primitive Functions to the built-in list
 
-        print(self._use_functions_dict["custom"] , self._primitive_function_list)
+        print("Optimizer.add_primitive_to_list", self._use_functions_dict["custom"] , self._primitive_function_list)
         if self._use_functions_dict["custom"] != 1 :
             return ""
         if name in [prim.name for prim in self._primitive_function_list ] :
@@ -606,7 +625,6 @@ class Optimizer:
         return ""
     def set_data_to(self, other_data):
         self._data = sorted(other_data)
-        self.average_data()
 
     # does not change self._data
     def fit_setup(self, fourier_condition = True) -> (list[float], list[float], list[float], bool):
@@ -676,7 +694,8 @@ class Optimizer:
         except RuntimeError:
             print("Couldn't find optimal parameters for better guess.")
             model.args = list(initial_guess)
-            return model, np.array([1e5 for _ in range(len(initial_guess)**2)]).reshape(len(initial_guess),len(initial_guess))
+            return model, np.array([1e5 for _ in range(len(initial_guess)**2)]) \
+                            .reshape(len(initial_guess),len(initial_guess))
         print(f"{info_string}Better guess: {better_guess}")
 
         # Finally, use the better guess to find the true minimum with the true error bars
@@ -697,9 +716,13 @@ class Optimizer:
             for it in range(3):  # iterate 3 times
                 effective_sigma = np.sqrt( [datum.sigma_val**2 + datum.sigma_pos**2 * model.eval_deriv_at(datum.pos)**2
                                             for datum in self._data] )
-                np_pars, np_cov = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
-                                                 sigma=effective_sigma, absolute_sigma=use_errors,
-                                                 p0=np_pars, maxfev=5000)
+                try:
+                    np_pars, np_cov = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
+                                                        sigma=effective_sigma, absolute_sigma=use_errors,
+                                                        p0=np_pars, maxfev=5000)
+                except RuntimeError :
+                    print(f"On model {model} max_fev reached")
+                    # raise RuntimeError
                 model.args = list(np_pars)
                 print(f"Now with effective variance: {np_pars} +- {np.sqrt(np.diagonal(np_cov))}")
 
@@ -754,10 +777,10 @@ class Optimizer:
 
     # changes top5
     # does not change _shown variables
-    def find_best_model_for_dataset(self, halved=0) -> str:
+    def find_best_model_for_dataset(self, status_bar : tk_label, halved=0):
 
         if not halved :
-            self.build_composite_function_list()
+            self.build_composite_function_list(status_bar=status_bar)
 
         x_points, y_points, sigma_points, use_errors = self.fit_setup()
 
@@ -769,7 +792,11 @@ class Optimizer:
                                                      use_errors=use_errors,info_string=f"{idx+1}/{num_models} ")
 
             self.query_add_to_top5(model=fitted_model, covariance=fitted_cov)
-
+            status_bar.configure(text=f"   Stage 3/3: {len(self._composite_function_list):>10} valid models generated,"
+                                      f" {idx+1:>10} models fit.")
+            status_bar.master.master.update()
+            if status_bar['bg'] == "#010101" :  # cancel code
+                break
 
 
 
@@ -790,7 +817,7 @@ class Optimizer:
                                         use_functions_dict=self._use_functions_dict,
                                         max_functions=self._max_functions, regen=False)
             lower_optimizer.composite_function_list = self._composite_function_list
-            lower_optimizer.find_best_model_for_dataset()
+            lower_optimizer.find_best_model_for_dataset(status_bar=status_bar)
             for l_model, l_cov in zip(lower_optimizer.top5_models,lower_optimizer.top5_covariances) :
                 self.query_add_to_top5(model=l_model,covariance=l_cov)
 
@@ -799,13 +826,13 @@ class Optimizer:
                                         use_functions_dict=self._use_functions_dict,
                                         max_functions=self._max_functions, regen=False)
             upper_optimizer.composite_function_list = self._composite_function_list
-            upper_optimizer.find_best_model_for_dataset()
+            upper_optimizer.find_best_model_for_dataset(status_bar=status_bar)
             for u_model, u_cov in zip(upper_optimizer.top5_models,upper_optimizer.top5_covariances) :
                 self.query_add_to_top5(model=u_model,covariance=u_cov)
 
     # changes top5
     # does not change _shown variables
-    def async_find_best_model_for_dataset(self, start=False):
+    def async_find_best_model_for_dataset(self, start=False) -> str:
 
         status = ""
         if start:
@@ -1118,104 +1145,6 @@ class Optimizer:
         variance_data = sum( [ (datum.val-mean)**2 for datum in self._data ] )/len(self._data)
         variance_fit = sum( [ (datum.val-model.eval_at(datum.pos))**2 for datum in self._data ] )/len(self._data)
         return 1 - variance_fit/variance_data
-
-    def smoothed_data(self, n=1):
-
-        print("Using smoothed data")
-        raise RuntimeError
-
-        data_to_smooth = []
-        return_data = []
-        if n <= 1 :
-            data_to_smooth = self._averaged_data
-        else :
-            data_to_smooth = self.smoothed_data(n-1)
-        for idx, datum in enumerate(data_to_smooth[:-1]) :
-            new_pos = (data_to_smooth[idx+1].pos + data_to_smooth[idx].pos) / 2
-            new_val = (data_to_smooth[idx+1].val + data_to_smooth[idx].val) / 2
-            # propagation of uncertainty
-            new_sigma_pos = math.sqrt( (data_to_smooth[idx+1].sigma_pos/2)**2
-                                       + (data_to_smooth[idx].sigma_pos/2)**2 )
-            new_sigma_val = math.sqrt( (data_to_smooth[idx+1].sigma_val/2)**2
-                                       + (data_to_smooth[idx].sigma_val/2)**2 )
-            return_data.append( Datum1D(pos= new_pos, val=new_val, sigma_pos=new_sigma_pos, sigma_val=new_sigma_val) )
-        return return_data
-    def deriv_on_n_smoothed(self, n=1):
-
-        # this assumes that data is sequential, i.e. that there are no repeated measurements for each x position
-
-        data_to_deriv = None
-        return_deriv = []
-        if n <= 0 :
-            data_to_deriv = self._averaged_data
-        else :
-            data_to_deriv = self.smoothed_data(n-1)
-        for idx, datum in enumerate(data_to_deriv[:-2]) :
-            new_deriv = ( (data_to_deriv[idx+2].val - data_to_deriv[idx].val)
-                             / (data_to_deriv[idx+2].pos - data_to_deriv[idx].pos) )
-            new_pos = (data_to_deriv[idx+2].val - data_to_deriv[idx].val) / 2
-
-            # propagation of uncertainty
-            new_sigma_pos = math.sqrt( (data_to_deriv[idx+2].sigma_pos/2)**2
-                                       + (data_to_deriv[idx].sigma_pos/2)**2 )
-            new_sigma_deriv = ( (1/(data_to_deriv[idx+2].pos-data_to_deriv[idx].pos) ) *
-                                math.sqrt( data_to_deriv[idx+2].sigma_val**2 + data_to_deriv[idx].sigma_val**2 )
-                                + new_deriv**2 * ( data_to_deriv[idx+2].sigma_pos**2 + data_to_deriv[idx].sigma_pos**2 )
-                            )
-            return_deriv.append(Datum1D(pos=new_pos, val=new_deriv, sigma_pos=new_sigma_pos, sigma_val=new_sigma_deriv))
-
-        return return_deriv
-    def average_data(self):
-        # this is only used to find an initial guess for the data, and so more sophisticated techniques like
-        # weighted means is not reqired
-
-        # get means and number of pos-instances into dict
-        sum_val_dict = defaultdict(float)
-        num_dict = defaultdict(int)
-        for datum in self._data :
-            if sum_val_dict[datum.pos] :
-                sum_val_dict[datum.pos] += datum.val
-                num_dict[datum.pos] += 1
-            else :
-                sum_val_dict[datum.pos] = datum.val
-                num_dict[datum.pos] = 1
-
-        mean_dict = {}
-        for ikey, isum in sum_val_dict.items() :
-            mean_dict[ikey] = isum / num_dict[ikey]
-
-        propagation_variance_x_dict = defaultdict(float)
-        propagation_variance_y_dict = defaultdict(float)
-        sample_variance_y_dict = defaultdict(float)
-        for datum in self._data :
-            # average the variances
-            propagation_variance_x_dict[datum.pos] += datum.sigma_pos**2
-            propagation_variance_y_dict[datum.pos] += datum.sigma_val**2
-            sample_variance_y_dict[datum.pos] += (datum.val-mean_dict[datum.pos])**2
-
-        averaged_data = []
-        for key, val in mean_dict.items() :
-
-
-            sample_uncertainty_squared = sample_variance_y_dict[key] / (num_dict[key]-1) if num_dict[key] > 1 else 0
-            propagation_uncertainty_squared = propagation_variance_y_dict[key] / num_dict[key]
-            ratio = ( sample_uncertainty_squared / (sample_uncertainty_squared + propagation_uncertainty_squared)
-                      if propagation_uncertainty_squared > 0 else 1 )
-
-            # interpolates smoothly between 0 uncertainty in data points (so all uncertainty comes from sample spread)
-            # to the usual uncertainty coming from both the data and the spread
-            # TODO: see
-            #  https://stats.stackexchange.com/questions/454120/how-can-i-calculate-uncertainty-of-the-mean-of-a-set-of-samples-with-different-u
-            # for a more rigorous treatment
-            effective_uncertainty_squared = ratio*sample_uncertainty_squared + (1-ratio)*propagation_uncertainty_squared
-
-            averaged_data.append( Datum1D(pos=key, val=val,
-                                          sigma_pos=math.sqrt( propagation_variance_x_dict[key] ),
-                                          sigma_val=math.sqrt( effective_uncertainty_squared )
-                                         )
-                                )
-        self._averaged_data = sorted(averaged_data)
-
 
     def load_default_functions(self):
         self._primitive_function_list.extend( [ PrimitiveFunction.built_in("pow0"),
