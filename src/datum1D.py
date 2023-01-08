@@ -15,3 +15,8 @@ class Datum1D:
 
     def __lt__(self, other):
         return self.pos < other.pos
+
+    def __copy__(self):
+        return Datum1D(pos=self.pos,val=self.val,
+                       sigma_pos=self.sigma_pos,sigma_val=self.sigma_val,
+                       assym_sigma_pos=self.assym_sigma_pos,assym_sigma_val=self.assym_sigma_val)

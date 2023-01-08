@@ -259,6 +259,8 @@ class DataHandler:
             if self._line_width == 2:
                 # x and y values
                 for line in file :
+                    if line == "\n" :
+                        continue
                     data_str = DataHandler.cleaned_line_as_str_list(line, delim)
                     self._data.append(Datum1D(pos=float(data_str[0]),
                                               val=float(data_str[1])
@@ -268,6 +270,8 @@ class DataHandler:
             if self._line_width == 3:
                 # x, y, and sigma_y values
                 for line in file :
+                    if line == "\n" :
+                        continue
                     data_str = DataHandler.cleaned_line_as_str_list(line, delim)
                     self._data.append(Datum1D(pos=float(data_str[0]),
                                               val=float(data_str[1]),
@@ -277,6 +281,8 @@ class DataHandler:
             if self._line_width == 4:
                 # x, sigma_x, y, and sigma_y values
                 for line in file :
+                    if line == "\n" :
+                        continue
                     data_str = DataHandler.cleaned_line_as_str_list(line, delim)
                     self._data.append(Datum1D(pos=float(data_str[0]),
                                               val=float(data_str[2]),
@@ -292,6 +298,8 @@ class DataHandler:
             # single line data set
             if self._num_lines == 1:
                 for line in file:
+                    if line == "\n" :
+                        continue
                     data_str = DataHandler.cleaned_line_as_str_list(line, delim)
                     if self._header_flag:
                         self._x_label = data_str[0]
@@ -302,6 +310,8 @@ class DataHandler:
 
             # single column dataset
             for line_num, line in enumerate(file) :
+                if line == "\n":
+                    continue
                 data_str = DataHandler.cleaned_line_as_str_list(line, delim)
 
                 if line_num == 0 :

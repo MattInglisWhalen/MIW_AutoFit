@@ -2,3 +2,4 @@ dist/
 autofit.egg-info/
 *.spec
 build/
+__pycache__/

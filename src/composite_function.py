@@ -73,12 +73,12 @@ class CompositeFunction:
 
         # for being able to reproduce fits of zero-arg functions
         self._is_submodel : bool = False
-        self._submodel_zero_index : list[int] = []
-        self._submodel_of :CompositeFunction = None
+        self._submodel_zero_index : int = None
+        self._submodel_of : CompositeFunction = None
 
 
     def __repr__(self):
-        return f"{self._longname} w/ {self.dof} dof"
+        return f"{self._longname} w/ {self.dof} dof {'(submodel)' if self._is_submodel else ''}"
 
     """
     Properties
@@ -147,9 +147,32 @@ class CompositeFunction:
         return self.calculate_degrees_of_freedom()
 
     def set_submodel_of_zero_idx(self, larger_model, zero_idx):
+        if larger_model is None :
+            return
         self._is_submodel = True
         self._submodel_zero_index = zero_idx
         self._submodel_of = larger_model.copy()
+        if self.name == larger_model.name :
+            print(f"Set submodel: {self.name} =!= {larger_model.name}")
+            raise RuntimeError
+    @property
+    def is_submodel(self) -> bool:
+        return self._is_submodel
+    @property
+    def submodel_zero_index(self) -> int:
+        if self._is_submodel :
+            assert self._submodel_zero_index is not None
+            assert self._submodel_of is not None
+        else :
+            assert self._submodel_zero_index is None
+            assert self._submodel_of is None
+        return self._submodel_zero_index
+    @property
+    def submodel_of(self) -> CompositeFunction:
+        return self._submodel_of
+    def print_sub_facts(self):
+        print(f"{self}{'is' if self._is_submodel else 'isnt'} submodel of {self._submodel_of} {self._submodel_zero_index}")
+
 
 
     """
@@ -194,7 +217,7 @@ class CompositeFunction:
         if update_name:
             self.build_longname()
     def copy(self):
-        CompositeFunction._DEBUG1 = False
+
         new_comp = CompositeFunction(name=self._shortname, prim_=self.prim)
         for child in self._children_list:
             new_comp.add_child(child)
@@ -204,7 +227,9 @@ class CompositeFunction:
         # don't copy parent
         for constraint in self._constraints:
             new_comp.add_constraint(constraint)
-        CompositeFunction._DEBUG1 = True
+
+        new_comp.set_submodel_of_zero_idx(self._submodel_of, self._submodel_zero_index)
+
         return new_comp
 
     def build_longname(self):
@@ -222,7 +247,8 @@ class CompositeFunction:
             younger_name = self._younger_brother.longname
             name_str = '·'.join(sorted([name_str,younger_name],reverse=True))
 
-        if self.parent is None and self.num_children() > 0 and self.prim.name == "sum_" and self.younger_brother is None :
+        if (self.parent is None and self.num_children() > 0
+                and self.prim.name == "sum_" and self.younger_brother is None) :
             name_str = name_str[5:-1]
 
         self._longname = name_str
@@ -306,9 +332,11 @@ class CompositeFunction:
 
         buff_num = 10
         if head_mul == 0 :
-            head_mul = 1 if self.younger_brother is not None and self._younger_brother is not None and self.parent is None else 0
+            head_mul = 1 if (self.younger_brother is not None
+                             and self._younger_brother is not None and self.parent is None) else 0
 
-        tree_str = "   " if self.younger_brother is not None and self.parent is None and self._older_brother is None else ""
+        tree_str = "   " if (self.younger_brother is not None
+                             and self.parent is None and self._older_brother is None) else ""
         tree_str += f"{self._prim.name[:10] : <10}"  # pads and truncates to ensure a length of 10
         for idx, child in enumerate(self._children_list) :
             if idx > 0 :
@@ -330,15 +358,18 @@ class CompositeFunction:
             for n in range(floor(buffer_chars / buff_num)):
                 tree_str += " | " + " " * buff_num
             tree_str += f" x "
-            tree_str += f"{self._younger_brother.tree_as_string(buffer_chars=buffer_chars, head_mul=head_mul,end_sig=end_sig)}".rstrip('\n')
+            bro_str = self._younger_brother.tree_as_string(buffer_chars=buffer_chars,head_mul=head_mul,end_sig=end_sig)
+            tree_str += f"{bro_str}".rstrip('\n')
         return tree_str.rstrip('\n') if self.parent is None and self._older_brother is None else tree_str
     def tree_as_string_with_args(self, buffer_chars=0, head_mul = 0, end_sig=0):
 
         buff_num = 19
         if head_mul == 0 :
-            head_mul = 1 if self.younger_brother is not None and self._younger_brother is not None and self.parent is None else 0
+            head_mul = 1 if (self.younger_brother is not None
+                             and self._younger_brother is not None and self.parent is None) else 0
 
-        tree_str = "   " if self.younger_brother is not None and self.parent is None and self._older_brother is None else ""
+        tree_str = "   " if (self.younger_brother is not None
+                             and self.parent is None and self._older_brother is None) else ""
         tree_str += f"{self._prim.arg:+.2E}{self._prim.name[:10] : <10}"  # pads and truncates to ensure a length of 10
         for idx, child in enumerate(self._children_list) :
             if idx > 0 :
@@ -352,7 +383,8 @@ class CompositeFunction:
             if idx == len(self._children_list)-1:
                 end_sig = 1
             tree_str += " ~ "
-            tree_str += child.tree_as_string_with_args(buffer_chars=buffer_chars+buff_num, head_mul=head_mul, end_sig=end_sig)
+            tree_str += child.tree_as_string_with_args(buffer_chars=buffer_chars+buff_num,
+                                                       head_mul=head_mul, end_sig=end_sig)
             tree_str += "\n"
         if self._younger_brother is not None :
             if tree_str[-1] != '\n':
@@ -360,16 +392,20 @@ class CompositeFunction:
             for n in range(floor(buffer_chars / buff_num)):
                 tree_str += " | " + " " * buff_num
             tree_str += f" x "
-            tree_str += f"{self._younger_brother.tree_as_string_with_args(buffer_chars=buffer_chars, head_mul=head_mul,end_sig=end_sig)}".rstrip('\n')
+            bro_str = self._younger_brother.tree_as_string_with_args(buffer_chars=buffer_chars,
+                                                                     head_mul=head_mul,end_sig=end_sig)
+            tree_str += f"{bro_str}".rstrip('\n')
         return tree_str.rstrip('\n') if self.parent is None and self._older_brother is None else tree_str
     def tree_as_string_with_dimensions(self, buffer_chars=0, head_mul = 0, end_sig=0):
         buff_num = 15
 
         if head_mul == 0 :
-            head_mul = 1 if self.younger_brother is not None and self._younger_brother is not None and self.parent is None else 0
+            head_mul = 1 if (self.younger_brother is not None
+                             and self._younger_brother is not None and self.parent is None) else 0
 
-        tree_str = "   " if self.younger_brother is not None and self.parent is None and self._older_brother is None else ""
-        tree_str += f"{self.dimension_arg:+}/{self.dimension_func:+}{self._prim.name[:10] : <10}"  # pads and truncates to ensure a length of 10
+        tree_str = "   " if (self.younger_brother is not None
+                             and self.parent is None and self._older_brother is None) else ""
+        tree_str += f"{self.dimension_arg:+}/{self.dimension_func:+}{self._prim.name[:10] : <10}"
         for idx, child in enumerate(self._children_list) :
             if idx > 0 :
                 tree_str += " | " * head_mul + " " * buff_num
@@ -382,7 +418,8 @@ class CompositeFunction:
             if idx == len(self._children_list)-1:
                 end_sig = 1
             tree_str += " ~ "
-            tree_str += child.tree_as_string_with_dimensions(buffer_chars=buffer_chars+buff_num, head_mul=head_mul, end_sig=end_sig)
+            tree_str += child.tree_as_string_with_dimensions(buffer_chars=buffer_chars+buff_num,
+                                                             head_mul=head_mul, end_sig=end_sig)
             tree_str += "\n"
         if self._younger_brother is not None :
             if tree_str[-1] != '\n':
@@ -390,7 +427,9 @@ class CompositeFunction:
             for n in range(floor(buffer_chars / buff_num)):
                 tree_str += " | " + " " * buff_num
             tree_str += f" x "
-            tree_str += f"{self._younger_brother.tree_as_string_with_dimensions(buffer_chars=buffer_chars, head_mul=head_mul,end_sig=end_sig)}".rstrip('\n')
+            bro_str = self._younger_brother.tree_as_string_with_dimensions(buffer_chars=buffer_chars,
+                                                                           head_mul=head_mul,end_sig=end_sig)
+            tree_str += f"{bro_str}".rstrip('\n')
         return tree_str.rstrip('\n') if self.parent is None and self._older_brother is None else tree_str
     def print_tree(self):
         print(f"{self.name}:")
@@ -677,7 +716,10 @@ class CompositeFunction:
             raise NotImplementedError
 
         new_model = self.copy()
-        new_model.shortname = "Trimmed{" + new_model.name + "}"
+        if new_model.shortname != "" :
+            new_model.shortname = "Trimmed{" + new_model.name + "}"
+        else:
+            new_model.build_longname()
         node_to_remove = (new_model.get_nodes_with_freedom())[n]
 
         # untested with siblings
@@ -768,6 +810,23 @@ class CompositeFunction:
         if not CompositeFunction._built_in_comps_dict :
             CompositeFunction.build_built_in_dict()
 
+        if key in ["Gaussian", "Gaussian1"] :
+            return CompositeFunction._built_in_comps_dict["Gaussian"]
+        elif key[:8] == "Gaussian" :
+            modal = int(key[8:])
+            summed_gaussians = []
+            for _ in range(modal) :
+                summed_gaussians.append( CompositeFunction._built_in_comps_dict["Gaussian"] )
+            if modal == 2 :
+                prestr = "Bim"
+            elif modal == 3 :
+                prestr = "Trim"
+            else :
+                prestr = f"{modal}-M"
+            return CompositeFunction(prim_=PrimitiveFunction.built_in("sum"),
+                                     children_list=summed_gaussians,
+                                     name=f"{prestr}odal Gaussian")
+
         if key[:10] == "Polynomial" :
             degree = int(key[10:])
             if degree == 0 :
@@ -797,9 +856,7 @@ class CompositeFunction:
     def dimension_arg(self) -> int:
 
         # special cases
-        if self._prim.name == "dim0_pow2" :
-            return 2
-        elif self._prim.name in ["pow1_shift", "exp_dim1" , "n_exp_dim2"] :
+        if self._prim.name in ["dim0_pow2", "pow1_shift", "exp_dim1" ,"n_exp_dim2"] :
             return 1
 
         if self._older_brother is not None :
@@ -811,7 +868,8 @@ class CompositeFunction:
             if self == self.parent.children_list[0] :
                 return 0
             # else
-            return self.parent.children_list[0].net_function_dimension_self_and_younger_siblings - self.net_function_dimension_self_and_younger_siblings
+            return (self.parent.children_list[0].net_function_dimension_self_and_younger_siblings
+                    - self.net_function_dimension_self_and_younger_siblings)
         # else, e.g. self.parent.func.name in ["my_cos","my_sin","my_exp","my_log"] :
         return -self.net_function_dimension_self_and_younger_siblings
 
@@ -822,8 +880,10 @@ class CompositeFunction:
             return 0
         elif self._prim.name == "pow0":
             return 0
+        elif self._prim.name in ["dim0_pow2", "pow1_shift", "exp_dim1" ,"n_exp_dim2"] :
+            return 1
 
-        if self._children_list == [] :
+        if not self._children_list:
             if self._prim.name[:4] == "pow1" :
                 return 1
             elif self._prim.name[:4] == "pow2" :

@@ -2,9 +2,6 @@
 # default libraries
 import math
 import re as regex
-import tkinter
-from collections import defaultdict
-# import codeop
 
 # external libraries
 from scipy.optimize import curve_fit
@@ -76,7 +73,7 @@ class Optimizer:
         self._regen_composite_flag = regen
 
     def __repr__(self):
-        pass
+        return f"Optimizer with {self._max_functions} m.f."
 
     @property
     def shown_model(self) -> CompositeFunction:
@@ -105,6 +102,16 @@ class Optimizer:
     @shown_rchisqr.setter
     def shown_rchisqr(self, val):
         self._shown_rchisqr = val
+    @property
+    def shown_cc(self) -> np.ndarray:
+        return coefficient_of_covariance(self.shown_covariance,self.shown_parameters)
+    @property
+    def shown_cc_offdiag_sumsqrs(self) -> float:
+        return sum_sqr_off_diag( self.shown_cc )
+    @property
+    def avg_off(self) -> float:
+        N = len(self.shown_parameters)
+        return self.shown_cc_offdiag_sumsqrs / (N*(N-1)) if N > 1 else 0
 
     @property
     def top5_models(self) -> list[CompositeFunction]:
@@ -189,35 +196,28 @@ class Optimizer:
 
         rchisqr = self.reduced_chi_squared_of_fit(model)
         print(f"Querying {rchisqr:.2F} for {model.name}")
-        if np.isnan(rchisqr) or rchisqr > self.top5_rchisqrs[-1] :
+        if np.isnan(rchisqr) or rchisqr > self.top5_rchisqrs[-1] or any( V < 0 for V in np.diagonal(covariance)) :
             return
 
+        rchisqr_adjusted = self.rchisqr_w_errors(model, covariance)
+        if rchisqr_adjusted > rchisqr :
+            print(f"Adjustment: {rchisqr} -> {rchisqr_adjusted}")
+            rchisqr = rchisqr_adjusted
+        #check for duplication
         for idx, (topper, chisqr) in enumerate(zip( self.top5_models[:],self.top5_rchisqrs[:] )):
             # comparing with names
             if model.longname == topper.longname:
                 print("Same name in query")
                 if chisqr <= rchisqr+1e-5 :
                     return
+                # delete the original entry from the list because ???
                 del self.top5_models[idx]
                 del self.top5_covariances[idx]
                 del self.top5_rchisqrs[idx]
                 break
-            # comparing with rchisqr -- can probably get rid of the loop below in favour of this by itself
-            if abs(rchisqr - chisqr) > 1e-5 :
-                print("Continuing in query")
-                continue
-            # comparing with values -- for no good to make sure that it's literally the same function
-            effective_sameness = False
-            test_point = self._data[0].pos
-            while test_point < self._data[-1].pos :
-                if abs( ( model.eval_at(test_point) - topper.eval_at(test_point) )
-                                                    /
-                        ( model.eval_at(test_point) + topper.eval_at(test_point) ) ) < 1e-5 :
-                    effective_sameness = True
-                    print("Query: Effectively the same!")
-                    break
-                test_point *= 1.618
-            if effective_sameness :  # more sophisticated versions might try to minimize correlations between parameters
+            if abs(rchisqr - chisqr) < 1e-5 :
+                # essentially the same function, need to choose which one is the better representative
+
                 # dof should trump all
                 if topper.dof < model.dof :
                     print(f"Booting out contender {model.name} with dof {model.dof} "
@@ -238,6 +238,7 @@ class Optimizer:
                           f"both with with dof, depth, width {topper.dof} {topper.depth} {topper.width}")
                     # default is to keep the first one added
                     return
+                # more sophisticated distinguishers might also try to minimize correlations between parameters
                 print(f"Booting out {topper.name} in favour of contender {model.name}")
                 del self.top5_models[idx]
                 del self.top5_covariances[idx]
@@ -248,7 +249,7 @@ class Optimizer:
 
         # print(f"Passed basic check, trying to add {rchisqr} to {self._top5_rchisqrs}")
         for idx, chi_sqr in enumerate(self._top5_rchisqrs[:]) :
-            if self.modified_chi_sqr_for_believability(model) < self._top5_rchisqrs[idx] :
+            if rchisqr < self._top5_rchisqrs[idx] :
                 self.top5_models.insert(idx, model.copy())
                 self.top5_covariances.insert(idx, covariance)
                 self.top5_rchisqrs.insert(idx, rchisqr)
@@ -267,15 +268,26 @@ class Optimizer:
                 # also check any parameters for being "equivalent" to zero. If so, remove the d.o.f.
                 # and add the new function to the top5 list
                 for ndx, (arg, unc) in enumerate( zip(model.args,std(covariance)) ) :
-                    if abs(arg) < 2*unc :  # 95% confidence level arg is not different from zero
-                        print("Zero arg detected: new trimmed model is")
+                    if not np.isinf(unc) and abs(arg) < 2*unc :  # 95% confidence level arg is not different from zero
+
                         reduced_model = model.submodel_without_node_idx(ndx)
-                        if ( reduced_model is None or self.fails_rules(reduced_model) or
-                                (reduced_model.prim.name == "sum_" and reduced_model.num_children() == 0) ):
-                            print("Can't reduce the model")
+                        if ( reduced_model is None
+                                or self.fails_rules(reduced_model)
+                                or (reduced_model.prim.name == "sum_" and reduced_model.num_children() == 0) ):
+                            print("Zero arg detected but but can't reduce the model")
                             continue
+                        print("Zero arg detected: new trimmed model is")
                         reduced_model.set_submodel_of_zero_idx(model,ndx)
                         reduced_model.print_tree()
+                        if reduced_model.name in self.top5_names :
+                            reduced_idx = self.top5_names.index(reduced_model.name)
+                            if reduced_idx < idx :
+                                print("Shazam")
+                                # don't keep the supermodel
+                                del self.top5_models[idx]
+                                del self.top5_covariances[idx]
+                                del self.top5_rchisqrs[idx]
+                                break
                         # this method changes shown models
                         improved_reduced, improved_cov = self.fit_this_and_get_model_and_covariance(
                                                             model_=reduced_model,initial_guess=reduced_model.args,
@@ -598,7 +610,7 @@ class Optimizer:
     def add_primitive_to_list(self, name, functional_form) -> str:
         # For adding one's own Primitive Functions to the built-in list
 
-        print("Optimizer.add_primitive_to_list", self._use_functions_dict["custom"] , self._primitive_function_list)
+        print("Optimizer.add_primitive_to_list before", self._use_functions_dict["custom"] , self._primitive_function_list)
         if self._use_functions_dict["custom"] != 1 :
             return ""
         if name in [prim.name for prim in self._primitive_function_list ] :
@@ -620,7 +632,7 @@ class Optimizer:
 
         self._primitive_function_list.append( PrimitiveFunction.built_in(name) )
 
-        print(self._use_functions_dict["custom"] , self._primitive_function_list)
+        print("Optimizer.add_primitive_to_list after", self._use_functions_dict["custom"] , self._primitive_function_list)
 
         return ""
     def set_data_to(self, other_data):
@@ -691,18 +703,24 @@ class Optimizer:
         try:
             better_guess, better_cov = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
                                                  p0=initial_guess, maxfev=5000, method='lm')
+            if any( [x < 0 for x in np.diagonal(better_cov)] ) :
+                print("Negative variance encountered")
+                raise RuntimeError
         except RuntimeError:
             print("Couldn't find optimal parameters for better guess.")
             model.args = list(initial_guess)
-            return model, np.array([1e5 for _ in range(len(initial_guess)**2)]) \
+            return model, np.array([1e10 for _ in range(len(initial_guess)**2)]) \
                             .reshape(len(initial_guess),len(initial_guess))
-        print(f"{info_string}Better guess: {better_guess}")
+        print(f"{info_string}Better guess: {better_guess} +- {np.sqrt(np.diagonal(better_cov))}")
 
         # Finally, use the better guess to find the true minimum with the true error bars
         try:
             np_pars, np_cov = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
                                         sigma=sigma_points, absolute_sigma=use_errors,
                                         p0=better_guess, maxfev=5000)
+            if any([x < 0 for x in np.diagonal(np_cov)]):
+                print("Negative variance encountered")
+                raise RuntimeError
         except RuntimeError:
             print("Couldn't find optimal parameters for final fit.")
             model.args = list(better_guess)
@@ -736,15 +754,37 @@ class Optimizer:
                                                     do_halving = False, halved = 0):
 
         model = model_.copy()
+        init_guess = initial_guess
+        if init_guess is None:
+            while model.is_submodel :
+                supermodel = model_.submodel_of.copy()
+                print(f"\n>>> {model_}: Have to go back to the supermodel {supermodel} for refitting. {model_.submodel_zero_index}")
+                supermodel, _ = self.fit_this_and_get_model_and_covariance(model_=supermodel, change_shown=False,
+                                                                           do_halving=do_halving, halved=halved)
+                print(f"rchisqr for supermodel = {self.reduced_chi_squared_of_fit(supermodel)} {do_halving=} {halved=}")
+                model = supermodel.submodel_without_node_idx(model_.submodel_zero_index)  # creates a submodel that doesnt think it's a submodel
+                init_guess = model.args
+        if model.name[-8:] == "Gaussian" :
+            modal = model.num_children()
+            if modal > 1 :
+                means = self.find_peaks_for_gaussian(expected_n = modal)
+                print(f"Peaks expected at {means}")
+                widths = self.find_widths_for_gaussian(means=means)
+                print(f"Widths expected to be {widths}")
+                est_amplitudes = self.find_amplitudes_for_gaussian(means=means,widths=widths)
+                print(f"Amplitudes expected to be {est_amplitudes}")
+                init_guess = []
+                for amp, width, mean in zip(est_amplitudes, widths, means) :
+                    init_guess.extend( [amp,width,mean] )
 
         x_points, y_points, sigma_points, use_errors = self.fit_setup()
 
-        fitted_model, fitted_cov = self.fit_loop(model_=model, initial_guess=initial_guess,
+        fitted_model, fitted_cov = self.fit_loop(model_=model, initial_guess=init_guess,
                                                  x_points=x_points,y_points=y_points,sigma_points=sigma_points,
                                                  use_errors=use_errors)
         fitted_rchisqr = self.reduced_chi_squared_of_fit(fitted_model)
 
-        if self._shown_rchisqr > 10 and len(self._data) > 20 and do_halving:
+        if fitted_rchisqr > 10 and len(self._data) > 20 and do_halving:  # previously self._shown_rchisqr throughout this
             print(" "*halved*4 + f"It is unlikely that we have found the correct model... "
                                  f"halving the dataset to {math.floor(len(self._data)/2)}")
 
@@ -753,7 +793,7 @@ class Optimizer:
             lower_optimizer.fit_this_and_get_model_and_covariance(model_=model,change_shown=True,
                                                                   do_halving=True, halved=halved + 1)
             lower_rchisqr = self.reduced_chi_squared_of_fit(lower_optimizer.shown_model)
-            if lower_rchisqr < self._shown_rchisqr :
+            if lower_rchisqr < fitted_rchisqr :
                 fitted_model = lower_optimizer.shown_model
                 fitted_cov = lower_optimizer.shown_covariance
                 fitted_rchisqr = lower_rchisqr
@@ -763,10 +803,14 @@ class Optimizer:
             upper_optimizer.fit_this_and_get_model_and_covariance(model_=model,change_shown=True,
                                                                   do_halving=True, halved=halved + 1)
             upper_rchisqr = self.reduced_chi_squared_of_fit(upper_optimizer.shown_model)
-            if lower_rchisqr < self._shown_rchisqr :
+            if lower_rchisqr < fitted_rchisqr :
                 fitted_model = upper_optimizer.shown_model
                 fitted_cov = upper_optimizer.shown_covariance
                 fitted_rchisqr = upper_rchisqr
+
+        if initial_guess is None and model_.is_submodel :
+            # make the submodel realize it's a submodel
+            fitted_model.set_submodel_of_zero_idx(model_.submodel_of, model_.submodel_zero_index)
 
         if change_shown :
             self._shown_model = fitted_model
@@ -806,6 +850,7 @@ class Optimizer:
         print(f"\nBest model is {self.top_model} "
               f"\n with args {self.top_args} += {self.top_uncs} "
               f"\n and reduced chi-sqr {self.top_rchisqr}")
+        self.top_model.print_sub_facts()
         self.top_model.print_tree()
 
         if self.top_rchisqr > 10 and len(self._data) > 20:
@@ -862,6 +907,57 @@ class Optimizer:
 
         return status
 
+    def find_peaks_for_gaussian(self, expected_n):
+        # we assume that the peaks are "easy" to find -- that there is a zero-derivative at each one
+
+        # there should be at least 3*expected_n datapoints
+        smoothed = self.smoothed_data(n=2)   # points -= 2
+        if len(self._data) > 6 :
+            smoothed = self.smoothed_data(n=3)  # points -= 3
+        slope = self.deriv_n(data=smoothed,n=1)  # points -= 1
+        if len(self._data) > 7 :
+            slope = self.smoothed_data(data=slope,n=1)  # points -= 1
+        # so in the worst case with npoints = 6, we still have 3 points to work with
+
+        cand_con = []
+        for m0, m1 in zip( slope[:-1], slope[1:] ) :
+            if np.sign(m0.val) != np.sign(m1.val) :
+                tup = (m0.pos + m1.pos)/2, (m1.val-m0.val)/(m1.pos-m0.pos)
+                cand_con.append( tup )
+                print(f"New candidate at {(m0.pos + m1.pos)/2} "
+                      f"with concavity {(m1.val-m0.val)/(m1.pos-m0.pos)}")
+
+        # sort the candidates by their concavity
+        sorted_candidates = [cc[0] for cc in cand_con]
+        if len(cand_con) > expected_n :
+            sorted_cand_con = sorted(cand_con, key=lambda x: x[1] )
+            sorted_candidates = [ cc[0] for cc in sorted_cand_con ]
+        elif len(cand_con) < expected_n :
+            for _ in range( expected_n-len(cand_con) ) :
+                sorted_candidates.append( (self._data[0].pos+self._data[-1].pos)/2 )
+
+        return sorted_candidates[:expected_n]
+    def find_widths_for_gaussian(self, means) :
+        # for mean i, guess that the width is half the distance to the nearest other peak
+        widths = []
+        avg_bin_width = (self._data[-1].pos - self._data[0].pos) / ( len(self._data) - 1)
+        for mean in means :
+            distances = [ abs(mean-x) for x in means ]
+            nearest = sorted( distances )[1]  # [0] will always be a zero distance
+            widths.append( nearest/2 if nearest > avg_bin_width else avg_bin_width )
+        return widths
+    def find_amplitudes_for_gaussian(self, means, widths) :
+        amplitudes = []
+        for mean in means :
+            for datumlow, datumhigh in zip( self._data[:-1], self._data[1:] ) :
+                if datumlow.pos <= mean < datumhigh.pos :
+                    amplitudes.append( (datumlow.val+datumhigh.val)/2 )
+                    break
+        avg_bin_width = (self._data[-1].pos - self._data[0].pos) / ( len(self._data) - 1)
+        expected_amplitude_sum = sum( [datum.val for datum in self._data] )*avg_bin_width
+        actual_amplitude_sum = sum( amplitudes )
+        return [ amp*expected_amplitude_sum/actual_amplitude_sum/np.sqrt(2*np.pi*width**2)
+                 for (amp,width) in zip(amplitudes,widths) ]
 
     def create_cos_sin_frequency_lists(self):
 
@@ -970,8 +1066,8 @@ class Optimizer:
                 self._cos_freq_list.append(best_freq)
             pos_Ynu = np.delete(pos_Ynu, argmax)
             pos_nu = np.delete(pos_nu, argmax)
-        print([freq*2*np.pi for freq in self._cos_freq_list])
-        print([freq*2*np.pi for freq in self._sin_freq_list])
+        print("Cos list = ",[freq*2*np.pi for freq in self._cos_freq_list])
+        print("Sin list = ",[freq*2*np.pi for freq in self._sin_freq_list])
     def find_initial_guess_scaling(self, model):
 
         scaling_args_no_sign = self.find_set_initial_guess_scaling(model)
@@ -1035,7 +1131,7 @@ class Optimizer:
             charX = charDiffX
 
         # defaults
-        xmul = charX ** composite.dimension_arg
+        xmul = charX**composite.dimension_arg if charX > 0 else charDiffX**composite.dimension_arg
         ymul = 1
 
         # overrides
@@ -1139,12 +1235,138 @@ class Optimizer:
                     print("LIAR! FREQUENCY EXTRAVAGENT")
                     return self.reduced_chi_squared_of_fit(model) * (node.prim.arg/avg_grid_spacing)**2
         return self.reduced_chi_squared_of_fit(model)
-
+    def rchisqr_w_errors(self, model, cov):
+        N = len(model.args)
+        cc = coefficient_of_covariance(cov,model.args)
+        avg_off = sum_sqr_off_diag(cc) / (N*(N-1)) if N > 1 else 0
+        adjustment = avg_off if avg_off > 0.01 else 0
+        return self.modified_chi_sqr_for_believability(model) + np.sqrt(adjustment)
     def r_squared(self, model):
         mean = sum( [datum.val for datum in self._data] )/len(self._data)
         variance_data = sum( [ (datum.val-mean)**2 for datum in self._data ] )/len(self._data)
         variance_fit = sum( [ (datum.val-model.eval_at(datum.pos))**2 for datum in self._data ] )/len(self._data)
         return 1 - variance_fit/variance_data
+
+
+    def Akaike_criterion(self, model):
+        # the AIC is equivalent, for normally distributed residuals, to the least chi squared
+        AIC = self.chi_squared_of_fit(model)
+        return AIC
+    def Akaike_criterion_corrected(self, model):
+        # correction for small datasets, fixes overfitting
+        k = model.dof
+        N = len(self._data)
+        AICc = self.chi_squared_of_fit(model) + 2 * k * (k + 1) / (N - k - 1) if N > k + 1 else 1e5
+        return AICc
+    def Bayes_criterion(self, model):
+        # the same as AIC but penalizes additional parameters more heavily for larger datasets
+        k = model.dof
+        N = len(self._data)
+        AIC = self.Akaike_criterion(model)
+        BIC = AIC + k * math.log(N) - 2 * k
+        return BIC
+    def HannanQuinn_criterion(self, model):
+        # agrees with AIC at small datasets, but punishes less strongly than Bayes at large N
+        k = model.dof
+        N = len(self._data)
+        AIC = self.Akaike_criterion(model)
+        HQIC = AIC + 2 * k * math.log(math.log(N)) - 2 * k
+        return HQIC
+
+    def smoothed_data(self, data = None, n=1) -> list[Datum1D]:
+
+        print("Using smoothed data")
+
+        return_data = []
+        if data is None :
+            if n <= 1:
+                data_to_smooth = [datum.__copy__() for datum in self.average_data()]
+            else:
+                data_to_smooth = self.smoothed_data(n=n-1)
+        else :
+            data_to_smooth = data
+
+        for idx, datum in enumerate(data_to_smooth[:-1]):
+            new_pos = (data_to_smooth[idx + 1].pos + data_to_smooth[idx].pos) / 2
+            new_val = (data_to_smooth[idx + 1].val + data_to_smooth[idx].val) / 2
+            # propagation of uncertainty
+            new_sigma_pos = math.sqrt((data_to_smooth[idx+1].sigma_pos/2)**2 + (data_to_smooth[idx].sigma_pos/2)**2)
+            new_sigma_val = math.sqrt((data_to_smooth[idx+1].sigma_val/2)**2 + (data_to_smooth[idx].sigma_val/2)**2)
+            return_data.append(Datum1D(pos=new_pos, val=new_val, sigma_pos=new_sigma_pos, sigma_val=new_sigma_val))
+
+        return return_data
+    def deriv_n(self, data, n=1) -> list[Datum1D]:
+
+        # this assumes that data is sequential, i.e. that there are no repeated measurements for each x position
+        return_deriv = []
+        if n <= 1:
+            data_to_diff = data
+        else:
+            data_to_diff = self.deriv_n(data=data,n=n-1)
+        for idx, datum in enumerate(data_to_diff[:-2]):
+            new_deriv = ( (data_to_diff[idx+2].val - data_to_diff[idx].val)
+                                                   /
+                          (data_to_diff[idx+2].pos - data_to_diff[idx].pos)   )
+            new_pos   =   (data_to_diff[idx+2].pos + data_to_diff[idx].pos) / 2
+
+            # propagation of uncertainty
+            new_sigma_pos = math.sqrt((data_to_diff[idx+2].sigma_pos/2)**2
+                                      + (data_to_diff[idx].sigma_pos/2)**2)
+            new_sigma_deriv = ((1/(data_to_diff[idx+2].pos - data_to_diff[idx].pos)) *
+                               math.sqrt(data_to_diff[idx+2].sigma_val**2 + data_to_diff[idx].sigma_val**2)
+                               + new_deriv**2 * (data_to_diff[idx+2].sigma_pos**2 + data_to_diff[idx].sigma_pos**2))
+            return_deriv.append(Datum1D(pos=new_pos, val=new_deriv,
+                                        sigma_pos=new_sigma_pos, sigma_val=new_sigma_deriv))
+
+        return return_deriv
+
+    # this is only used to find an initial guess for the data, and so more sophisticated techniques like
+    # weighted means is not reqired
+    def average_data(self) -> list[Datum1D] :
+
+        # get means and number of pos-instances into dict
+        sum_val_dict : dict[float,float] = {}
+        num_dict : dict[float,int] = {}
+        for datum in self._data :
+            sum_val_dict[datum.pos] = sum_val_dict.get(datum.pos,0) + datum.val
+            num_dict[datum.pos] = num_dict.get(datum.pos,0) + 1
+
+        mean_dict = {}
+        for ikey, isum in sum_val_dict.items():
+            mean_dict[ikey] = isum / num_dict[ikey]
+
+        propagation_variance_x_dict : dict[float,float] = {}
+        propagation_variance_y_dict : dict[float,float] = {}
+        sample_variance_y_dict : dict[float,float] = {}
+        for datum in self._data:
+            # average the variances
+            propagation_variance_x_dict[datum.pos] = propagation_variance_x_dict.get(datum.pos,0) + datum.sigma_pos**2
+            propagation_variance_y_dict[datum.pos] = propagation_variance_y_dict.get(datum.pos,0) + datum.sigma_val**2
+            sample_variance_y_dict[datum.pos] = sample_variance_y_dict.get(datum.pos,0) \
+                                                + (datum.val - mean_dict[datum.pos])**2
+
+        averaged_data = []
+        for key, val in mean_dict.items():
+            sample_uncertainty_squared = sample_variance_y_dict[key] / (num_dict[key] - 1) if num_dict[
+                                                                                                  key] > 1 else 0
+            propagation_uncertainty_squared = propagation_variance_y_dict[key] / num_dict[key]
+            ratio = (sample_uncertainty_squared / (sample_uncertainty_squared + propagation_uncertainty_squared)
+                     if propagation_uncertainty_squared > 0 else 1)
+
+            # interpolates smoothly between 0 uncertainty in data points (so all uncertainty comes from sample spread)
+            # to the usual uncertainty coming from both the data and the spread
+            # TODO: see
+            #  https://stats.stackexchange.com/questions/454120/how-can-i-calculate-uncertainty-of-the-mean-of-a-set-of-samples-with-different-u
+            # for a more rigorous treatment
+            effective_uncertainty_squared = ratio * sample_uncertainty_squared + (
+                        1 - ratio) * propagation_uncertainty_squared
+
+            averaged_data.append(Datum1D(pos=key, val=val,
+                                         sigma_pos=math.sqrt(propagation_variance_x_dict[key]),
+                                         sigma_val=math.sqrt(effective_uncertainty_squared)
+                                         )
+                                 )
+        return sorted(averaged_data)
 
     def load_default_functions(self):
         self._primitive_function_list.extend( [ PrimitiveFunction.built_in("pow0"),
@@ -1161,18 +1383,36 @@ class Optimizer:
                 self._primitive_function_list.append( PrimitiveFunction.built_in("log" ) )
             if key == "1/x" and use_function:
                 self._primitive_function_list.append(PrimitiveFunction.built_in("pow_neg1"))
-            if key == "x\U000000B2" and use_function:
-                self._primitive_function_list.append(PrimitiveFunction.built_in("pow2"))
-            if key == "x\U000000B3" and use_function:
-                self._primitive_function_list.append(PrimitiveFunction.built_in("pow3"))
-            if key == "x\U00002074" and use_function:
-                self._primitive_function_list.append(PrimitiveFunction.built_in("pow4"))
+            # if key == "x\U000000B2" and use_function:
+            #     self._primitive_function_list.append(PrimitiveFunction.built_in("pow2"))
+            # if key == "x\U000000B3" and use_function:
+            #     self._primitive_function_list.append(PrimitiveFunction.built_in("pow3"))
+            # if key == "x\U00002074" and use_function:
+            #     self._primitive_function_list.append(PrimitiveFunction.built_in("pow4"))
             # custom functions are also loaded, but elsewhere, using add_primitive_to_list()
 
 
 def std(cov):
     return list(np.sqrt(np.diagonal(cov)))
+def correlation_from_covariance(cov_mat: np.ndarray) -> np.ndarray:
+    v = np.sqrt(np.diag(cov_mat))
+    outer_v = np.outer(v, v)
+    correlation = cov_mat / outer_v
+    correlation[cov_mat == 0] = 0
+    return correlation
+def coefficient_of_covariance(cov_mat: np.ndarray, mean_list: list[float]) -> np.ndarray :
+    cc = cov_mat.copy()
+    for idx, (cov_i, mean_i) in enumerate( zip(cov_mat, mean_list) ) :
+        for jdx, (cov_ij, mean_j) in enumerate(zip(cov_i, mean_list) ):
+            cc[idx][jdx] = cov_ij/(mean_i*mean_j)
+    return cc
 
+def sum_sqr_off_diag(cc: np.ndarray) -> float :
+    sumsqr = 0
+    for (idx, jdx), cc_ij in np.ndenumerate(cc):
+        if idx < jdx :
+            sumsqr += cc_ij**2
+    return sumsqr
 def list_sums_weights(l1,l2,w1,w2) -> list[float]:
     if len(l1) != len(l2) :
         return []
