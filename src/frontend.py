@@ -6,21 +6,26 @@ import sys
 import os as os
 import re as regex
 
+from inspect import getmembers, isfunction, ismethod, isroutine
+
 
 # external libraries
 import tkinter as tk
 import tkinter.filedialog as fd
 
+import numpy
 import numpy as np
 import pandas as pd
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import scipy.stats
+import scipy.special
 from PIL import ImageTk, Image
 
 # internal classes
 from autofit.src.composite_function import CompositeFunction
+from autofit.src.primitive_function import PrimitiveFunction
 from autofit.src.data_handler import DataHandler
 from autofit.src.optimizer import Optimizer
 
@@ -38,7 +43,54 @@ class Frontend:
         self._os_width: int = self._gui.winfo_screenwidth()
         self._os_height: int = self._gui.winfo_screenheight()
 
-        # rendering
+        # file handling
+        self._filepaths: list[str] = []
+        self._data_handlers: list[DataHandler] = []
+        self._changed_data_flag: bool = True
+
+        # backend connections
+        self._optimizer: Optimizer = None  # Optimizer
+        self._changed_optimizer_opts_flag: bool = True
+
+        # panels
+        self._left_panel_frame: tk.Frame = None
+        self._middle_panel_frame : tk.Frame = None
+        self._right_panel_frame : tk.Frame = None
+
+        # left panel ------------------------------------------------------------------------------------------------->
+        self._fit_data_button: tk.Button = None
+
+        # Excel input
+        self._popup_window: tk.Toplevel = None
+        self._excel_x_range: str = None
+        self._excel_y_range: str = None
+        self._excel_sigmax_range: str = None
+        self._excel_sigmay_range: str = None
+        self._all_sheets_in_file: tk.BooleanVar = tk.BooleanVar(value=False)
+
+        # right panel ------------------------------------------------------------------------------------------------->
+        self._MAX_MESSAGE_LENGTH = 20
+        self._num_messages_ever: int = 0
+        self._num_messages: int = 0
+
+        self._colors_console_menu: tk.Menu = None
+        self._console_color: tuple[int, int, int] = (0, 0, 0)  # these tk colors work differently than matplotlib colors
+        self._printout_color: tuple[int, int, int] = (0, 200, 0)
+
+        self._progress_label = None
+
+        # middle panel ------------------------------------------------------------------------------------------------>
+        self._middle_panel_frame: tk.Frame = None
+
+        self._data_perusal_frame : tk.Frame = None
+        self._fit_options_frame : tk.Frame = None
+        self._plot_options_frame: tk.Frame = None
+        self._polynomial_frame: tk.Frame = None
+        self._procedural_frame: tk.Frame = None
+        self._gaussian_frame: tk.Frame = None
+        self._manual_frame: tk.Frame = None
+
+        # image frame
         self._curr_image_num: int = -1
         self._image_path: str = None
         self._image: ImageTk.PhotoImage = None
@@ -50,80 +102,66 @@ class Frontend:
         self._fit_color: tuple[float, float, float] = (1., 0., 0.)
         self._dataaxes_color: tuple[float, float, float] = (1., 1., 1.)
         self._color_name_tkstr: tk.StringVar = tk.StringVar(value="Colour")
-
         self._colors_image_menu: tk.Menu = None
-        self._colors_console_menu: tk.Menu = None
-        self._console_color: tuple[int, int, int] = (0, 0, 0)  # these tk colors work differently than matplotlib colors
-        self._printout_color: tuple[int, int, int] = (0, 200, 0)
 
-        # file handling
-        self._filepaths: list[str] = []
-        self._data_handlers: list[DataHandler] = []
-        self._changed_data_flag: bool = True
+        # data perusal frame
+        self._residuals_button: tk.Button = None
+        self._error_bands_button: tk.Button = None
+        self._show_error_bands = 0
 
-        # backend connections
-        self._optimizer: Optimizer = None  # Optimizer
-        self._changed_optimizer_opts_flag: bool = True
+        # fit options frame
+        self._model_name_tkstr : tk.StringVar = tk.StringVar(value="")
+        self._which5_name_tkstr : tk.StringVar = None
+        self._which_tr_id = None
 
-        # Excel input
-        self._popup_window: tk.Toplevel = None
-        self._excel_x_range: str = None
-        self._excel_y_range: str = None
-        self._excel_sigmax_range: str = None
-        self._excel_sigmay_range: str = None
-        self._all_sheets_in_file: tk.BooleanVar = tk.BooleanVar(value=False)
-
-        # messaging
-        self._MAX_MESSAGE_LENGTH = 20
-        self._num_messages_ever: int = 0
-        self._num_messages: int = 0
-
-        """
-        GUI Elements
-        """
-        # left frame
-        self._left_panel_frame: tk.Frame = None
-        self._fit_data_button: tk.Button = None
-
-        # middle frame
-        self._middle_panel_frame: tk.Frame = None
         self._pause_button: tk.Button = None
+        self._refit_button: tk.Button = None
+        self._refit_on_click = True
+
+        # plot options frame
         self._logx_button: tk.Button = None
         self._logy_button: tk.Button = None
         self._normalize_button: tk.Button = None
-        self._residuals_button: tk.Button = None
-        self._refit_button: tk.Button = None
-        self._error_bands_button: tk.Button = None
-        self._model_name_tkstr : tk.StringVar = None
-        self._which5_name_tkstr : tk.StringVar = None
-        self._which_tr_id = None
-        self._polynomial_frame: tk.Frame = None
+
+        # polynomial frame
         self._polynomial_degree_tkint: tk.IntVar = tk.IntVar(value=2)
         self._polynomial_degree_label: tk.Label = None
-        self._gaussian_frame: tk.Frame = None
+
+        # gaussian frame
         self._gaussian_modal_tkint: tk.IntVar = tk.IntVar(value=1)
         self._gaussian_modal_label: tk.Label = None
+
+        # procedural frame
         self._checkbox_names_list = ["cos(x)", "sin(x)", "exp(x)", "log(x)",
                                      "1/x",
                                      # "x\U000000B2", "x\U000000B3", "x\U00002074",
                                      "custom"]
-        self._fit_options_frame : tk.Frame = None
-        self._plot_options_frame: tk.Frame = None
-        self._depth_frame: tk.Frame = None
         self._use_func_dict_name_tkbool = {}  # for checkboxes
         for name in self._checkbox_names_list:
             self._use_func_dict_name_tkbool[name] = tk.BooleanVar(value=False)
         self._max_functions_tkint = tk.IntVar(value=3)
+        self._depth_label : tk.Label = None
+        self._custom_checkbox : tk.Checkbutton = None
+        self._custom_binding = None
+        self._custom_remove_menu : tk.Menu = None
+
+        # brute-force frame
         self._brute_forcing_tkbool = tk.BooleanVar(value=False)
-        self._manual_frame: tk.Frame = None
+
+        # manual frame
         self._manual_name_tkstr : tk.StringVar = tk.StringVar(value="")
         self._manual_form_tkstr : tk.StringVar = tk.StringVar(value="")
+        self._manual_model : CompositeFunction = None
+        self._library_numpy : tk.Button = None
+        self._library_special : tk.Button = None
+        self._library_stats : tk.Button = None
+        self._library_math : tk.Button = None
+        self._library_autofit : tk.Button = None
+        self._error_label : tk.Label = None
+        self._current_name_label : tk.Label = None
+        self._current_form_label : tk.Label = None
 
-        self._show_error_bands = 0
-        # right frame
-        self._progress_label = None
-
-        # defaults config
+        # defaults config --------------------------------------------------------------------------------------------->
         self._default_fit_type = "Linear"
         self._default_excel_x_range = None
         self._default_excel_y_range = None
@@ -139,15 +177,14 @@ class Frontend:
         self._image_r = 1
         self._custom_function_names = ""
         self._custom_function_forms = ""
+        self._default_manual_name = "N/A"
+        self._default_manual_form = "N/A"
         self._custom_function_button = None
 
-        # checkboxes default
+        # default configs
         self.touch_defaults()  # required for free version
         self.load_defaults()
         self.print_defaults()
-
-        # Behaviour options
-        self._refit_on_click = True
 
         # Fix OS scaling
         self._gui.tk.call('tk', 'scaling', self._default_os_scaling)
@@ -314,6 +351,16 @@ class Frontend:
                     if arg == "" or arg[0] == "#":
                         arg = ""
                     self._custom_function_forms = arg
+                elif "#MANUAL_NAME" in line:
+                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "N/A"
+                    self._default_manual_name = arg
+                elif "#MANUAL_FORM" in line:
+                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "N/A"
+                    self._default_manual_form = arg
                 elif "#OS_SCALING" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
@@ -365,6 +412,8 @@ class Frontend:
             file.write(f"#CUSTOM_ON {custom_on}\n")
             file.write(f"#CUSTOM_NAMES {self._custom_function_names}\n")
             file.write(f"#CUSTOM_FORMS {self._custom_function_forms}\n")
+            file.write(f"#MANUAL_NAME {self._default_manual_name}\n")
+            file.write(f"#MANUAL_FORM {self._default_manual_form}\n")
             file.write(f"#OS_SCALING {self._default_os_scaling}\n")
             file.write(f"#IMAGE_R {self._image_r}\n")
     def print_defaults(self):
@@ -400,6 +449,8 @@ class Frontend:
         print(f"Procedural custom >{custom_on}<")
         print(f"Custom function names >{self._custom_function_names}<")
         print(f"Custom function forms >{self._custom_function_forms}<")
+        print(f"Manual function name >{self._default_manual_name}<")
+        print(f"Manual function form >{self._default_manual_form}<")
         print(f"OS Scaling >{self._default_os_scaling:.2F}<")
         print(f"Image R >{self._image_r:.3F}<")
 
@@ -429,12 +480,7 @@ class Frontend:
         # right panel -- text output
         self.create_right_panel()
 
-    """
-
-    Menus
-
-    """
-
+    # MENUS
     def create_file_menu(self):
 
         menu_bar = tk.Menu(self._gui)
@@ -496,18 +542,34 @@ class Frontend:
     # def create_tutorial_menu(self):
     #     pass
 
-    """
-
-    Left Panel
-
-    """
-
+    # Panels
     def create_left_panel(self):
         self._left_panel_frame = tk.Frame(master=self._gui, relief=tk.RAISED, bg='white')
         self._left_panel_frame.grid(row=0, column=0, sticky='ns')
         self.create_load_data_button()
+    def create_middle_panel(self):
+        self._gui.columnconfigure(1, minsize=72)  # image panel
+        self._middle_panel_frame = tk.Frame(master=self._gui)
+        self._middle_panel_frame.grid(row=0, column=1, sticky='nsew')
+        self.create_image_frame()  # aka image frame
+        self.create_data_perusal_frame()  # aka inspect frame
+        self.create_fit_options_frame()  # aka dropdown/checkbox frame
+        self.create_plot_options_frame()  # aka log normalize frame
+        self.create_procedural_frame()  # aka procedural options frame
+        self.create_polynomial_frame()  # aka polynomial frame
+        self.create_gaussian_frame()  # aka gaussian frame
+        self.create_manual_frame()
+    def create_right_panel(self):
+        self._gui.columnconfigure(2, minsize=700, weight=1)  # image panel
+        self._right_panel_frame = tk.Frame(master=self._gui, bg=hexx(self._console_color))
+        self._right_panel_frame.grid(row=0, column=2, sticky='news')
+        self.add_message("> Welcome to MIW's AutoFit!")
+        self.create_colors_console_menu()
+        self._right_panel_frame.bind('<Button-3>', self.do_colors_console_popup)
 
-    # Buttons
+
+    # LEFT PANEL FUNCTIONS -------------------------------------------------------------------------------------------->
+
     def create_load_data_button(self):
         load_data_button = tk.Button(
             master=self._gui.children['!frame'],
@@ -515,63 +577,15 @@ class Frontend:
             command=self.load_data_command
         )
         load_data_button.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
-
-    def create_fit_button(self):
-        self._fit_data_button = tk.Button(
-            master=self._gui.children['!frame'],
-            text="Fit Data",
-            command=self.fit_data_command
-        )
-        self._fit_data_button.grid(row=1, column=0, sticky="ew", padx=5)
-    def create_fit_all_button(self):
-        if self._new_user_stage % 11 == 0:
-            return
-        self._new_user_stage *= 11
-
-        load_data_button = tk.Button(
-            master=self._gui.children['!frame'],
-            text="Fit All",
-            command=self.fit_all_command
-        )
-        load_data_button.grid(row=2, column=0, sticky="new", padx=5)
-
-    def create_custom_function_button(self):
-        if self._new_user_stage % 41 == 0:
-            return
-        self._new_user_stage *= 41
-        left_panel_bottom = tk.Frame(self._gui.children['!frame'],
-                                     bg='white')
-        left_panel_bottom.grid(row=10, column=0, sticky='s')
-        self._gui.children['!frame'].rowconfigure(2, weight=1)
-        left_panel_bottom.rowconfigure(0, weight=1)
-
-        custom_function_button = tk.Button(
-            master=left_panel_bottom,
-            text="Custom\nFunction",
-            command=self.dialog_box_new_function
-        )
-        custom_function_button.grid(row=10, column=0, sticky="ews", padx=5, pady=10)
-        self._custom_function_button = custom_function_button
-    def hide_custom_function_button(self):
-        if self._new_user_stage % 41 != 0:
-            return
-        self._custom_function_button.grid_forget()
-    def show_custom_function_button(self):
-        if self._new_user_stage % 41 != 0:
-            self.create_custom_function_button()
-            return
-
-        self._custom_function_button.grid(row=10, column=0, sticky="ws", padx=5)
-
-    # Commands
     def load_data_command(self):
 
-        new_filepaths = list(fd.askopenfilenames(initialdir=self._default_load_file_loc, title="Select a file to fit",
-                                                 filetypes=(("All Files", "*.*"),
-                                                            ("Comma-Separated Files", "*.csv *.txt"),
-                                                            ("Spreadsheets", "*.xls *.xlsx *.ods"))
-                                                 )
-                             )
+        new_filepaths = list(
+            fd.askopenfilenames(initialdir=self._default_load_file_loc, title="Select a file to fit",
+                                filetypes=(("All Files", "*.*"),
+                                           ("Comma-Separated Files", "*.csv *.txt"),
+                                           ("Spreadsheets", "*.xls *.xlsx *.ods"))
+                                )
+            )
         # trim duplicates
         for path in new_filepaths[:]:
             if path in self._filepaths:
@@ -617,15 +631,17 @@ class Frontend:
             self.show_modal_buttons()
         # checkbox and depth options for procedural fits
         if self._model_name_tkstr.get() == "Procedural":
-            self.show_default_checkboxes()
-            self.show_depth_buttons()
+            self.show_procedural_options()
+        if self._model_name_tkstr.get() == "Manual" :
+            self.show_manual_fields()
 
         if len(new_filepaths) > 0:
             self._changed_data_flag = True
             self._curr_image_num = len(self._data_handlers)
             self.load_new_data(new_filepaths)
             if self._showing_fit_image:
-                self.show_current_data_with_fit()
+                # self.show_current_data_with_fit()  # this fits the new data -- make this an option?
+                self.save_show_fit_image()  # this shouldn't reprint the model, sicne we arent refitting
                 # # TODO: load new file after already obtained a fit -- the fit all button goes away when it shouldn't
                 # # FIXED?
             else:
@@ -639,6 +655,12 @@ class Frontend:
         if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"]:
             self.update_top5_chisqrs()
 
+        if self._model_name_tkstr.get() in ["Procedural","Brute-Force","Manual"] :
+            self.show_custom_function_button()
+        else :
+            self.hide_custom_function_button()
+
+
         print(self._filepaths)
         if len(self._filepaths) > 1:
             self.show_left_right_buttons()
@@ -650,6 +672,8 @@ class Frontend:
         self.update_logx_relief()
         self.update_logy_relief()
         self.save_defaults()
+
+        self.update_optimizer()
     def dialog_box_get_excel_data_ranges(self):
 
         dialog_box = tk.Toplevel()
@@ -691,8 +715,7 @@ class Frontend:
             text="Range applies to all sheets in the file",
             variable=self._all_sheets_in_file,
             onvalue=True,
-            offvalue=False,
-            command=self.all_sheets_on_off_command
+            offvalue=False
         )
         checkbox.grid(row=4, column=0, sticky='w')
 
@@ -717,9 +740,6 @@ class Frontend:
 
         self._popup_window = dialog_box
         self._gui.wait_window(dialog_box)
-    def all_sheets_on_off_command(self):
-        print("Changed all sheets option")
-
     # noinspection PyUnusedLocal
     def close_dialog_box_command_excel(self, bind_command=None):
 
@@ -737,81 +757,120 @@ class Frontend:
 
         self.save_defaults()
         self._popup_window.destroy()
+    # Helper functions
+    def load_new_data(self, new_filepaths_lists):
+        for path in new_filepaths_lists:
+            if path[-4:] in [".xls", "xlsx", ".ods"]:
+                for idx, sheet_name in enumerate(pd.ExcelFile(path).sheet_names):
+                    self._data_handlers.append(DataHandler(filepath=path))
+                    self._data_handlers[-1].set_excel_sheet_name(sheet_name)
+                    self._data_handlers[-1].set_excel_args(x_range_str=self._excel_x_range,
+                                                           y_range_str=self._excel_y_range,
+                                                           x_error_str=self._excel_sigmax_range,
+                                                           y_error_str=self._excel_sigmay_range)
+                    if not self._all_sheets_in_file.get():
+                        break
 
-    # noinspection PyUnusedLocal
-    def close_dialog_box_command_custom_function(self, bind_command=None):
+            else:
+                # only add one data handler
+                self._data_handlers.append(DataHandler(filepath=path))
+    def show_data(self):
 
-        if self._popup_window is None:
-            print("Window already closed")
-        name_str = self._popup_window.children['!frame'].children['!entry'].get()
-        form_str = self._popup_window.children['!frame'].children['!entry2'].get()
+        new_image_path = f"{Frontend.get_package_path()}/plots/front_end_current_plot.png"
+        # create a scatter plot of the first file
 
-        if " " in name_str:
-            self.add_message("\nYou can't have a name with a space in it. Try again.\n")
-            return
-        if " " in form_str:
-            self.add_message("\nYou can't have a name with a space in it. Try again.\n")
-            return
+        x_points = self.data_handler.unlogged_x_data
+        y_points = self.data_handler.unlogged_y_data
+        sigma_x_points = self.data_handler.unlogged_sigmax_data
+        sigma_y_points = self.data_handler.unlogged_sigmay_data
 
-        self._custom_function_names += name_str
-        self._custom_function_forms += form_str
-        self.save_defaults()
-        self._changed_optimizer_opts_flag = True
-        self._popup_window.destroy()
-    def dialog_box_new_function(self):
+        plt.close()
+        fig = plt.figure()
+        fig.patch.set_facecolor(self._bg_color)
 
-        dialog_box = tk.Toplevel()
-        dialog_box.geometry(f"{round(self._os_width / 4)}x{round(self._os_height / 4)}")
-        dialog_box.title("New Custom Function")
-        dialog_box.iconbitmap(f"{Frontend.get_package_path()}/icon.ico")
+        plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o',
+                     color=self._dataaxes_color)
+        plt.xlabel(self.data_handler.x_label)
+        plt.ylabel(self.data_handler.y_label)
+        axes = plt.gca()
+        if axes.get_xlim()[0] > 0:
+            axes.set_xlim([0, axes.get_xlim()[1]])
+        elif axes.get_xlim()[1] < 0:
+            axes.set_xlim([axes.get_xlim()[0], 0])
+        if axes.get_ylim()[0] > 0:
+            axes.set_ylim([0, axes.get_ylim()[1]])
+        elif axes.get_ylim()[1] < 0:
+            axes.set_ylim([axes.get_ylim()[0], 0])
 
-        data_frame = tk.Frame(master=dialog_box)
-        data_frame.grid(row=0, column=0, sticky='ew')
-        # data_frame.columnconfigure(1,minsize=500)
-        exp_frame = tk.Frame(master=dialog_box)
-        exp_frame.grid(row=1, column=0, sticky='w')
+        # print(f"Log flags : {self.data_handler.logx_flag} {self.data_handler.logy_flag}")
+        if self.data_handler.logx_flag:
+            print("Setting log x-scale in show_data")
+            log_min, log_max = math.log(min(x_points)), math.log(max(x_points))
+            print(log_min, log_max, math.exp(log_min), math.exp(log_max))
+            axes.set_xlim(
+                [math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
+            axes.set(xscale="log")
+            axes.spines['right'].set_visible(False)
+        else:
+            axes.set(xscale="linear")
+            axes.spines['left'].set_position(('data', 0.))
+            axes.spines['right'].set_position(('data', 0.))
+            axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
+        if self.data_handler.logy_flag:
+            print("Setting log y-scale in show_data")
+            axes.set(yscale="log")
+            log_min, log_max = math.log(min(y_points)), math.log(max(y_points))
+            axes.set_ylim(
+                [math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
+            axes.spines['top'].set_visible(False)
+        else:
+            axes.set(yscale="linear")
+            axes.spines['top'].set_position(('data', 0.))
+            axes.spines['bottom'].set_position(('data', 0.))
+            axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
+        axes.set_facecolor(self._bg_color)
 
-        name_label = tk.Label(master=data_frame, text="Function Name")
-        name_label.grid(row=0, column=0, sticky='w')
-        name_data = tk.Entry(master=data_frame, width=25)
-        name_data.insert(0, "")
-        name_data.grid(row=0, column=1, sticky='w')
+        min_X, max_X = min(x_points), max(x_points)
+        min_Y, max_Y = min(y_points), max(y_points)
+        #  proportion between xmin and xmax where the zero lies
+        # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
+        tx = max(0., -min_X / (max_X - min_X))
+        ty = max(0., -min_Y / (max(max_Y - min_Y, 1e-5)))
+        offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
 
-        form_label = tk.Label(master=data_frame, text="Functional Form")
-        form_label.grid(row=1, column=0, sticky='w')
-        form_data = tk.Entry(master=data_frame, width=25)
-        form_data.insert(0, "")
-        form_data.grid(row=1, column=1, sticky='w')
+        axes.xaxis.set_label_coords(1.050, offset_Y + ty)
+        axes.yaxis.set_label_coords(offset_X + tx, +0.750)
 
-        name_example_label = tk.Label(master=data_frame, text="\nName Example")
-        name_example_label.grid(row=2, column=0, sticky='w')
-        name_example_data = tk.Entry(master=data_frame, width=25)
-        name_example_data.insert(0, "cool_thing_2")
-        name_example_data.grid(row=2, column=1, sticky='ws')
+        plt.tight_layout()
+        plt.savefig(new_image_path)
 
-        form_example_label = tk.Label(master=data_frame, text="Form Example")
-        form_example_label.grid(row=3, column=0, sticky='w')
-        form_example_data = tk.Entry(master=data_frame, width=25)
-        form_example_data.insert(0, "np.atan(x)*np.exp(-x*x)")
-        form_example_data.grid(row=3, column=1, sticky='w')
+        # replace the splash graphic with the plot
+        self._image_path = new_image_path
+        self.switch_image()
 
-        explanation_label = tk.Label(master=exp_frame, text="\nSupports numpy functions. Avoid special characters "
-                                                            "and spaces. \n The first letter of the name should come "
-                                                            "before 's' in the alphabet.")
-        explanation_label.grid(row=4, column=0, sticky='w')
+        # if we're showing the image, we want the optimizer to be working with this data
+        if self._showing_fit_image:
+            data = self.data_handler.data
+            self._optimizer.set_data_to(data)
 
-        close_dialog_button = tk.Button(
-            master=data_frame,
-            text="OK",
-            command=self.close_dialog_box_command_custom_function
+        # add logx and logy to plot options frame
+        self.show_log_buttons()
+
+        # if it's a histogram, add an option to normalize the data to the plot options frame
+        if self.data_handler.histogram_flag:
+            # normalize behaves... badly and confusingly with logged data
+            if not self.data_handler.logx_flag and not self.data_handler.logy_flag:
+                self.show_normalize_button()
+        else:
+            self.hide_normalize_button()
+
+    def create_fit_button(self):
+        self._fit_data_button = tk.Button(
+            master=self._gui.children['!frame'],
+            text="Fit Data",
+            command=self.fit_data_command
         )
-        close_dialog_button.grid(row=0, column=10, padx=5, pady=0, sticky='ns')
-        dialog_box.bind('<Return>', self.close_dialog_box_command_custom_function)
-        dialog_box.focus_force()
-
-        self._popup_window = dialog_box
-        self._gui.wait_window(dialog_box)
-
+        self._fit_data_button.grid(row=1, column=0, sticky="ew", padx=5)
     def fit_data_command(self):
 
         if self._fit_data_button['text'] == "Cancel":
@@ -853,7 +912,8 @@ class Frontend:
             self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkstr.get() == "Procedural":
 
-            num_on = 2 + sum([1 if tkBool.get() else 0 for (key, tkBool) in self._use_func_dict_name_tkbool.items()])
+            num_on = 2 + sum(
+                [1 if tkBool.get() else 0 for (key, tkBool) in self._use_func_dict_name_tkbool.items()])
             num_nodes = num_on
             num_added = num_on
             for depth in range(self._max_functions_tkint.get() - 1):
@@ -881,6 +941,14 @@ class Frontend:
             self._changed_optimizer_opts_flag = True
             self.update_optimizer()
             self.optimizer.async_find_best_model_for_dataset(start=True)
+        elif self._model_name_tkstr.get() == "Manual" :
+
+            if self._manual_model is not None :
+                print(f"Fitting data to {self._manual_model.name} model.")
+                self.optimizer.fit_this_and_get_model_and_covariance(model_=self._manual_model)
+            else :
+                self.add_message("\n \n> You must validate the model before fitting.")
+                return
         else:
             print(f"Invalid model name {self._model_name_tkstr.get()}")
             pass
@@ -909,18 +977,14 @@ class Frontend:
             self.make_top_shown()
             self.update_top5_dropdown()
             self.show_top5_dropdown()
-            self.show_custom_function_button()
         else:
             self.hide_top5_dropdown()
-            self.hide_custom_function_button()
 
         # checkbox, depth options, and custom function for procedural fits
         if self._model_name_tkstr.get() == "Procedural":
-            self.show_default_checkboxes()
-            self.show_depth_buttons()
+            self.show_procedural_options()
         else:
-            self.hide_default_checkboxes()
-            self.hide_depth_buttons()
+            self.hide_procedural_options()
 
         # brute-force conditionals
         if self._model_name_tkstr.get() == "Brute-Force":
@@ -931,12 +995,34 @@ class Frontend:
             self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
             self.print_results_to_console()
 
+        if self._model_name_tkstr.get() == "Manual" :
+            self.show_manual_fields()
+        else :
+            self.hide_manual_fields()
+
+        if self._model_name_tkstr.get() in ["Procedural","Brute-Force","Manual"] :
+            self.show_custom_function_button()
+        else :
+            self.hide_custom_function_button()
+
         self.save_show_fit_image()
         self._default_fit_type = self._model_name_tkstr.get()
         self.save_defaults()
 
         if self.brute_forcing:
             self.begin_brute_loop()
+
+    def create_fit_all_button(self):
+        if self._new_user_stage % 11 == 0:
+            return
+        self._new_user_stage *= 11
+
+        load_data_button = tk.Button(
+            master=self._gui.children['!frame'],
+            text="Fit All",
+            command=self.fit_all_command
+        )
+        load_data_button.grid(row=2, column=0, sticky="new", padx=5)
     def fit_all_command(self, quiet=False):
 
         # self.add_message("\n \n> Fitting all datasets\n")
@@ -1021,178 +1107,164 @@ class Frontend:
             self.print_results_to_console()
         self.update_data_select()
 
-    # Helper functions
-    def load_new_data(self, new_filepaths_lists):
-        for path in new_filepaths_lists:
-            if path[-4:] in [".xls", "xlsx", ".ods"]:
-                for idx, sheet_name in enumerate(pd.ExcelFile(path).sheet_names):
-                    self._data_handlers.append(DataHandler(filepath=path))
-                    self._data_handlers[-1].set_excel_sheet_name(sheet_name)
-                    self._data_handlers[-1].set_excel_args(x_range_str=self._excel_x_range,
-                                                           y_range_str=self._excel_y_range,
-                                                           x_error_str=self._excel_sigmax_range,
-                                                           y_error_str=self._excel_sigmay_range)
-                    if not self._all_sheets_in_file.get():
-                        break
-
-            else:
-                # only add one data handler
-                self._data_handlers.append(DataHandler(filepath=path))
-    def show_data(self):
-
-        new_image_path = f"{Frontend.get_package_path()}/plots/front_end_current_plot.png"
-        # create a scatter plot of the first file
-
-        x_points = self.data_handler.unlogged_x_data
-        y_points = self.data_handler.unlogged_y_data
-        sigma_x_points = self.data_handler.unlogged_sigmax_data
-        sigma_y_points = self.data_handler.unlogged_sigmay_data
-
-        plt.close()
-        fig = plt.figure()
-        fig.patch.set_facecolor(self._bg_color)
-
-        plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color=self._dataaxes_color)
-        plt.xlabel(self.data_handler.x_label)
-        plt.ylabel(self.data_handler.y_label)
-        axes = plt.gca()
-        if axes.get_xlim()[0] > 0:
-            axes.set_xlim([0, axes.get_xlim()[1]])
-        elif axes.get_xlim()[1] < 0:
-            axes.set_xlim([axes.get_xlim()[0], 0])
-        if axes.get_ylim()[0] > 0:
-            axes.set_ylim([0, axes.get_ylim()[1]])
-        elif axes.get_ylim()[1] < 0:
-            axes.set_ylim([axes.get_ylim()[0], 0])
-
-        # print(f"Log flags : {self.data_handler.logx_flag} {self.data_handler.logy_flag}")
-        if self.data_handler.logx_flag:
-            print("Setting log x-scale in show_data")
-            log_min, log_max = math.log(min(x_points)), math.log(max(x_points))
-            print(log_min, log_max, math.exp(log_min), math.exp(log_max))
-            axes.set_xlim([math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
-            axes.set(xscale="log")
-            axes.spines['right'].set_visible(False)
-        else:
-            axes.set(xscale="linear")
-            axes.spines['left'].set_position(('data', 0.))
-            axes.spines['right'].set_position(('data', 0.))
-            axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
-        if self.data_handler.logy_flag:
-            print("Setting log y-scale in show_data")
-            axes.set(yscale="log")
-            log_min, log_max = math.log(min(y_points)), math.log(max(y_points))
-            axes.set_ylim([math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
-            axes.spines['top'].set_visible(False)
-        else:
-            axes.set(yscale="linear")
-            axes.spines['top'].set_position(('data', 0.))
-            axes.spines['bottom'].set_position(('data', 0.))
-            axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
-        axes.set_facecolor(self._bg_color)
-
-        min_X, max_X = min(x_points), max(x_points)
-        min_Y, max_Y = min(y_points), max(y_points)
-        #  proportion between xmin and xmax where the zero lies
-        # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
-        tx = max(0., -min_X / (max_X - min_X))
-        ty = max(0., -min_Y / (max(max_Y - min_Y, 1e-5)))
-        offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
-
-        axes.xaxis.set_label_coords(1.050, offset_Y + ty)
-        axes.yaxis.set_label_coords(offset_X + tx, +0.750)
-
-        plt.tight_layout()
-        plt.savefig(new_image_path)
-
-        # replace the splash graphic with the plot
-        self._image_path = new_image_path
-        self.switch_image()
-
-        # if we're showing the image, we want the optimizer to be working with this data
-        if self._showing_fit_image:
-            data = self.data_handler.data
-            self._optimizer.set_data_to(data)
-
-        # add logx and logy to plot options frame
-        self.show_log_buttons()
-
-        # if it's a histogram, add an option to normalize the data to the plot options frame
-        if self.data_handler.histogram_flag:
-            # normalize behaves... badly and confusingly with logged data
-            if not self.data_handler.logx_flag and not self.data_handler.logy_flag:
-                self.show_normalize_button()
-        else:
-            self.hide_normalize_button()
-
-    def begin_brute_loop(self):
-        self._gui.update_idletasks()
-        self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
-        self.add_message(f"{self.optimizer.gen_idx:>10} models tested")
-        self._gui.after_idle(self.maintain_brute_loop)
-    def maintain_brute_loop(self):
-        # TODO: add a model counter to show how many have been tested
-        # should also auto-pause when red chi sqr reaches ~1. Same for procedural, to avoid overfitting
-        # (the linear data is a good example of fits that become infinitesimally better with more parameters)
-        if self.brute_forcing:
-            status = self.optimizer.async_find_best_model_for_dataset()
-            if status != "":
-                self.pause_command()
-                self.add_message(f"\n\n >>> End of brute-forcing reached <<< {status}\n\n")
-            # self.optimizer.show_fit(pause_on_image=True)
-            if self.current_rchisqr != self._optimizer.top5_rchisqrs[0]:
-                self.make_top_shown()
-                self.save_show_fit_image()
-                if self.current_rchisqr < 0.001:
-                    self.add_message(f"\n \n >>> Perfect fit found <<< {status}\n\n")
-                    self.pause_command()
-            self.update_top5_dropdown()
-            self.update_number_tested()
-            self._gui.after(1, self.maintain_brute_loop)
-
-        self.update_pause_button()
-    def create_pause_button(self):
-        if self._new_user_stage % 37 == 0:
+    def create_custom_function_button(self):
+        if self._new_user_stage % 41 == 0:
             return
-        self._new_user_stage *= 37
+        self._new_user_stage *= 41
+        left_panel_bottom = tk.Frame(self._gui.children['!frame'],
+                                     bg='white')
+        left_panel_bottom.grid(row=10, column=0, sticky='s')
+        self._gui.children['!frame'].rowconfigure(2, weight=1)
+        left_panel_bottom.rowconfigure(0, weight=1)
 
-        self._pause_button = tk.Button(self._fit_options_frame,
-                                       text="Pause",
-                                       command=self.pause_command
-                                       )
-        self._pause_button.grid(row=0, column=2, padx=(5, 0), sticky='w')
-        self._pause_button.configure(width=8)
-    def hide_pause_button(self):
-        if self._new_user_stage % 37 != 0:
+        custom_function_button = tk.Button(
+            master=left_panel_bottom,
+            text="Custom\nFunction",
+            command=self.dialog_box_new_function
+        )
+        custom_function_button.grid(row=10, column=0, sticky="ews", padx=5, pady=10)
+        self._custom_function_button = custom_function_button
+    def hide_custom_function_button(self):
+        if self._new_user_stage % 41 != 0:
             return
-        self._pause_button.grid_forget()
-    def show_pause_button(self):
-        if self._new_user_stage % 37 != 0:
-            self.create_pause_button()
-            return
-        self._pause_button.grid(row=0, column=2, padx=(5, 0), pady=5, sticky='w')
-        self.update_pause_button()
-    def update_pause_button(self):
-        if self._new_user_stage % 37 != 0:
+        self._custom_function_button.grid_forget()
+    def show_custom_function_button(self):
+        if self._new_user_stage % 41 != 0:
+            self.create_custom_function_button()
             return
 
-        if self.brute_forcing:
-            self._pause_button.configure(text="Pause")
-        else:
-            self._pause_button.configure(text="Go")
-    def pause_command(self):
-        if self.brute_forcing:
-            self.brute_forcing = False
-            self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
-            self.print_results_to_console()
-        else:
-            self.brute_forcing = True
-            # it's actually a go button
-            self.begin_brute_loop()
+        self._custom_function_button.grid(row=10, column=0, sticky="ws", padx=5, pady=10)
+    def dialog_box_new_function(self):
 
-    def update_number_tested(self):
+        dialog_box = tk.Toplevel()
+        dialog_box.geometry(f"{round(self._os_width / 4)}x{round(self._os_height / 4)}")
+        dialog_box.title("New Custom Function")
+        dialog_box.iconbitmap(f"{Frontend.get_package_path()}/icon.ico")
 
-        self._progress_label.configure(text=f"{self.optimizer.gen_idx:>10} models tested")
+        data_frame = tk.Frame(master=dialog_box)
+        data_frame.grid(row=0, column=0, sticky='ew')
+        # data_frame.columnconfigure(1,minsize=500)
+        exp_frame = tk.Frame(master=dialog_box)
+        exp_frame.grid(row=1, column=0, sticky='w')
+
+        name_label = tk.Label(master=data_frame, text="Function Name")
+        name_label.grid(row=0, column=0, sticky='w')
+        name_data = tk.Entry(master=data_frame, width=25)
+        name_data.insert(0, "")
+        name_data.grid(row=0, column=1, sticky='w')
+
+        form_label = tk.Label(master=data_frame, text="Functional Form")
+        form_label.grid(row=1, column=0, sticky='w')
+        form_data = tk.Entry(master=data_frame, width=25)
+        form_data.insert(0, "")
+        form_data.grid(row=1, column=1, sticky='w')
+
+        name_example_label = tk.Label(master=data_frame, text="\nName Example")
+        name_example_label.grid(row=2, column=0, sticky='w')
+        name_example_data = tk.Entry(master=data_frame, width=25)
+        name_example_data.insert(0, "cool_thing_2")
+        name_example_data.grid(row=2, column=1, sticky='ws')
+
+        form_example_label = tk.Label(master=data_frame, text="Form Example")
+        form_example_label.grid(row=3, column=0, sticky='w')
+        form_example_data = tk.Entry(master=data_frame, width=25)
+        form_example_data.insert(0, "np.atan(x)*np.exp(-x*x)")
+        form_example_data.grid(row=3, column=1, sticky='w')
+
+        explanation_label = tk.Label(master=exp_frame, text="\nSupports numpy functions. Avoid special characters "
+                                                            "and spaces. \n The first letter of the name should come "
+                                                            "before 's' in the alphabet.")
+        explanation_label.grid(row=4, column=0, sticky='w')
+
+        close_dialog_button = tk.Button(
+            master=data_frame,
+            text="OK",
+            command=self.close_dialog_box_command_custom_function
+        )
+        close_dialog_button.grid(row=0, column=10, padx=5, pady=0, sticky='ns')
+        dialog_box.bind('<Return>', self.close_dialog_box_command_custom_function)
+        dialog_box.focus_force()
+
+        self._popup_window = dialog_box
+        self._gui.wait_window(dialog_box)
+    # noinspection PyUnusedLocal
+    def close_dialog_box_command_custom_function(self, bind_command=None):
+
+        if self._popup_window is None:
+            print("Window already closed")
+        name_str = self._popup_window.children['!frame'].children['!entry'].get()
+        form_str = self._popup_window.children['!frame'].children['!entry2'].get()
+
+        if " " in name_str:
+            self.add_message("\nYou can't have a name with a space in it.")
+            return
+        if name_str == '':
+            self.add_message("\nYou can't have a blank name.")
+            return
+        if name_str in [x for x in regex.split(' ',self._custom_function_names) if x] :
+            self.add_message("\nYou can't reuse names.")
+            return
+        if " " in form_str:
+            self.add_message("\nYou can't have a name with a space in it.")
+            return
+        if form_str == '':
+            self.add_message("\nYou can't have a blank name.\n")
+            return
+
+        self._custom_function_names += f" {name_str}"
+        self._custom_function_forms += f" {form_str}"
+        self._changed_optimizer_opts_flag = True
+        self.update_custom_checkbox()
+        self.update_optimizer()
+        self.save_defaults()
+        self._popup_window.destroy()
+
+        print(f">{self._custom_function_names}<")
+        print(f">{self._custom_function_forms}<")
+
+
+    # RIGHT PANEL FUNCTIONS ------------------------------------------------------------------------------------------->
+
+    def add_message(self, message_string):
+
+        # TODO: consider also printing to a log file
+
+        text_frame = self._gui.children['!frame3']
+        text_frame.update()
+
+
+        for line in regex.split(f"\n", message_string):
+            if line == "":
+                continue
+            new_message_label = tk.Label(master=text_frame, text=line,
+                                         bg=hexx(self._console_color),
+                                         fg=hexx(self._printout_color), font=("consolas", 12))
+
+            new_message_label.grid(row=self._num_messages_ever, column=0, sticky=tk.W)
+            self._num_messages += 1
+            self._num_messages_ever += 1
+
+            new_message_label.update()  # required to scroll the console up when the buffer is filled
+            self._MAX_MESSAGE_LENGTH = self._gui.winfo_height() // new_message_label.winfo_height()
+
+            self._progress_label = new_message_label
+
+        if self._num_messages > self._MAX_MESSAGE_LENGTH:
+            self.remove_n_messages(self._num_messages - self._MAX_MESSAGE_LENGTH)
+    def remove_n_messages(self, n):
+
+        text_frame = self._gui.children['!frame3']
+
+        key_removal_list = []
+        for key in text_frame.children.keys():
+            key_removal_list.append(key)
+            if len(key_removal_list) == n:
+                break
+
+        for key in key_removal_list:
+            text_frame.children[key].destroy()
+
+        self._num_messages = len(text_frame.children)
     def print_results_to_console(self):
         print_string = ""
         if self.current_model.name == "Linear":
@@ -1236,7 +1308,7 @@ class Frontend:
                 print_string += f"\n   C{sub(deg - n)} = {val:+.2E}  \u00B1  {sig:+.2E}\n"
             print_string += f"Goodness of fit: \U0001D6D8{sup(2)}/dof = " \
                             f"{self._optimizer.reduced_chi_squared_of_fit(self.current_model):.2F}\n"
-        elif self.current_model.name in ["Gaussian", "Normal"] and self.data_handler.normalized:
+        elif self.current_model.name == "Normal":
             args, uncs = self.current_args, self.current_uncs
             if self.data_handler.logy_flag:
                 print_string += f"\n>  {self.current_model.name} fit is LY ="
@@ -1349,6 +1421,22 @@ class Frontend:
                 print_string += f"  c{idx} =  {par:+.2E}  \u00B1  {unc:.2E}\n"
             print_string += "\n \n> As a tree, this is \n"
             print_string += self.current_model.tree_as_string_with_args() + "\n"
+        elif self._model_name_tkstr.get() == "Manual":
+            if self.data_handler.logy_flag:
+                print_string += f"\n> Selected model is LY = {self.current_model.name}"
+            else:
+                print_string += f"\n> Selected model is y = {self.current_model.name}"
+            if self.data_handler.logx_flag:
+                print_string += f"(LX) w/ {self.current_model.dof} dof and where\n"
+            else:
+                print_string += f"(x) w/ {self.current_model.dof} dof and where\n"
+            for idx, (par, unc) in enumerate(zip(self.current_args, self.current_uncs)):
+                print_string += f"  c{idx} =  {par:+.2E}  \u00B1  {unc:.2E}\n"
+            print_string += f"\n \n> This has \U0001D6D8{sup(2)}/dof = "
+            print_string += f"{self.current_rchisqr:.2F}," if self.current_rchisqr > 0.01 \
+                else f"{self.current_rchisqr:.2E},"
+            print_string += f" and as a tree, this is \n"
+            print_string += self.current_model.tree_as_string_with_args() + "\n"
         else:
             print(f"{self.current_model.name=} {self.data_handler.normalized=}")
             raise EnvironmentError
@@ -1361,81 +1449,145 @@ class Frontend:
             print_string += f"Keep in mind that LX = log(x/{self.data_handler.X0:.2E})\n"
         self.add_message(print_string)
 
-    """
-    Middle Panel
-    """
-    def create_middle_panel(self):
-        self._gui.columnconfigure(1, minsize=72)  # image panel
-        middle_panel_frame = tk.Frame(master=self._gui)
-        middle_panel_frame.grid(row=0, column=1, sticky='nsew')
-        self.create_image_frame()  # aka image frame
-        self.create_data_perusal_frame()  # aka inspect frame
-        self.create_fit_options_frame()  # aka dropdown/checkbox frame
-        self.create_plot_options_frame()  # aka log normalize frame
-        self.create_depth_frame()  # aka procedural options frame
-        self.create_polynomial_frame()  # aka polynomial frame
-        self.create_gaussian_frame()  # aka gaussian frame
-        self.create_manual_frame()
-    # Frames
+    def create_colors_console_menu(self):
+
+        head_menu = tk.Menu(master=self._gui, tearoff=0)
+
+        console_menu = tk.Menu(master=head_menu, tearoff=0)
+        console_menu.add_command(label="Default", command=self.console_color_default)
+        console_menu.add_command(label="Pale", command=self.console_color_pale)
+        console_menu.add_command(label="White", command=self.console_color_white)
+
+        printout_menu = tk.Menu(master=head_menu, tearoff=0)
+        printout_menu.add_command(label="Default", command=self.printout_color_default)
+        printout_menu.add_command(label="White", command=self.printout_color_white)
+        printout_menu.add_command(label="Black", command=self.printout_color_black)
+
+        head_menu.add_cascade(label="Background Colour", menu=console_menu)
+        head_menu.add_cascade(label="Message Colour", menu=printout_menu)
+
+        self._colors_console_menu = head_menu
+    def do_colors_console_popup(self, event: tk.Event):
+        image_colors_menu: tk.Menu = self._colors_console_menu
+        try:
+            image_colors_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            image_colors_menu.grab_release()
+
+    # MIDDLE PANEL FUNCTIONS ------------------------------------------------------------------------------------------>
+
     def create_image_frame(self):  # !frame : image only
         image_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
         image_frame.grid(row=0, column=0, sticky='w')
         self.load_splash_image()
-
     def create_data_perusal_frame(self):  # !frame2 : inspect, left<>right buttons
-        data_perusal_frame = tk.Frame(
-            master=self._gui.children['!frame2']
-        )
-        data_perusal_frame.grid(row=1, column=0, sticky='ew')
-        data_perusal_frame.grid_columnconfigure(0, weight=1)
-        self.create_left_data_perusal_frame()
-        self.create_right_data_perusal_frame()
-    def create_left_data_perusal_frame(self):
-        data_perusal_frame_left = tk.Frame(
-            master=self._gui.children['!frame2'].children['!frame2']
-        )
-        data_perusal_frame_left.grid(row=0, column=0, sticky='w')
-    def create_right_data_perusal_frame(self):
-        data_perusal_frame_right = tk.Frame(
-            master=self._gui.children['!frame2'].children['!frame2']
-        )
-        data_perusal_frame_right.grid(row=0, column=1, sticky='e')
+        self._data_perusal_frame = tk.Frame(master=self._gui.children['!frame2'])
+        self._data_perusal_frame.grid(row=1, column=0, sticky='ew')
+        self._data_perusal_frame.grid_columnconfigure(0, weight=1)
 
-    def create_fit_options_frame(self):  # !frame3 : fit type, procedural top5, procedural checkboxes
+        data_perusal_frame_left = tk.Frame(master=self._data_perusal_frame)
+        data_perusal_frame_left.grid(row=0, column=0, sticky='w')
+
+        data_perusal_frame_right = tk.Frame(master=self._data_perusal_frame)
+        data_perusal_frame_right.grid(row=0, column=1, sticky='e')
+    def create_fit_options_frame(self):  # !frame3 : fit type, procedural top5, pause/go, refit
         self._fit_options_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
-        self._fit_options_frame.grid(row=3, column=0, sticky='w')
+        self._fit_options_frame.grid(row=3, column=0, sticky='w')  # row2 is reserved for the black line
     def create_plot_options_frame(self):  # !frame4 : logx, logy, normalize
         self._gui.children['!frame2'].columnconfigure(1, minsize=50)
         self._plot_options_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
         self._plot_options_frame.grid(row=0, column=1, sticky='ns')
-    def create_depth_frame(self):  # !frame5 : depth of procedural fits
-        self._depth_frame = tk.Frame(
-            master=self._gui.children['!frame2']
-        )
-        self._depth_frame.grid(row=4, column=0, sticky='w')
+    # def create_linear_frame(self) : pass
     def create_polynomial_frame(self):  # !frame6 : depth of procedural fits
         self._polynomial_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
-        self._polynomial_frame.grid(row=5, column=0, sticky='w')
+        self._polynomial_frame.grid(row=4, column=0, sticky='w')
     def create_gaussian_frame(self):  # !frame7 : depth of procedural fits
         self._gaussian_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
-        self._gaussian_frame.grid(row=5, column=0, sticky='w')
-    def create_manual_frame(self):  # !frame8 : depth of procedural fits
+        self._gaussian_frame.grid(row=4, column=0, sticky='w')
+    # def create_sigmoid_frame(self) : pass
+    def create_procedural_frame(self):  # !frame5 : checkboxes, depth of procedural fit
+        self._procedural_frame = tk.Frame(
+            master=self._gui.children['!frame2']
+        )
+        self._procedural_frame.grid(row=4, column=0, sticky='w')
+    # def create_brute_force_frame(self) : pass
+    def create_manual_frame(self):  # !frame6 : depth of procedural fits
         self._manual_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
-        self._gaussian_frame.grid(row=5, column=0, sticky='w')
+        self._manual_frame.grid(row=4, column=0, sticky='w')
 
-    # Buttons and their commands
+    # IMAGE frame ----------------------------------------------------------------------------------------------------->
+    def load_splash_image(self):
+        self._image_path = f"{Frontend.get_package_path()}/splash.png"
+
+        img_raw = Image.open(self._image_path)
+        img_resized = img_raw.resize((round(img_raw.width * self._image_r),
+                                      round(img_raw.height * self._image_r)))
+        self._image = ImageTk.PhotoImage(img_resized)
+        self._image_frame = tk.Label(master=self._gui.children['!frame2'].children['!frame'],
+                                     image=self._image,
+                                     relief=tk.SUNKEN)
+        print(f"Created frame {self._image_frame}")
+        self._image_frame.grid(row=0, column=0)
+        self._image_frame.grid_propagate(True)
+        self.create_colors_image_menu()
+        self._image_frame.bind('<Button-3>', self.do_colors_image_popup)
+        self._image_frame.bind('<MouseWheel>', self.do_image_resize)
+    def switch_image(self):
+        img_raw = Image.open(self._image_path)
+        img_resized = img_raw.resize((round(img_raw.width * self._image_r),
+                                      round(img_raw.height * self._image_r)))
+        self._image = ImageTk.PhotoImage(img_resized)
+        self._image_frame.configure(image=self._image)
+    def do_image_resize(self, event):
+
+        d = event.delta / 120
+        self._image_r *= (1 + d / 10)
+
+        self.switch_image()
+    def create_colors_image_menu(self):
+
+        head_menu = tk.Menu(master=self._gui, tearoff=0)
+
+        background_menu = tk.Menu(master=head_menu, tearoff=0)
+        background_menu.add_command(label="Default", command=self.bg_color_default)
+        background_menu.add_command(label="White", command=self.bg_color_white)
+        background_menu.add_command(label="Dark", command=self.bg_color_dark)
+        background_menu.add_command(label="Black", command=self.bg_color_black)
+
+        dataaxis_menu = tk.Menu(master=head_menu, tearoff=0)
+        dataaxis_menu.add_command(label="Default", command=self.dataaxes_color_default)
+        dataaxis_menu.add_command(label="White", command=self.dataaxes_color_white)
+
+        fit_colour_menu = tk.Menu(master=head_menu, tearoff=0)
+        fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
+        fit_colour_menu.add_command(label="White", command=self.fit_color_white)
+        fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
+
+        head_menu.add_cascade(label="Background Colour", menu=background_menu)
+        head_menu.add_cascade(label="Data/Axis Colour", menu=dataaxis_menu)
+        head_menu.add_cascade(label="Fit Colour", menu=fit_colour_menu)
+
+        self._colors_image_menu = head_menu
+    def do_colors_image_popup(self, event: tk.Event):
+        image_colors_menu: tk.Menu = self._colors_image_menu
+        try:
+            image_colors_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            image_colors_menu.grab_release()
+
+    # DATA PERUSAL frame ---------------------------------------------------------------------------------------------->
     def create_inspect_button(self):
 
         # TODO: also make a save figure button
@@ -1493,8 +1645,8 @@ class Frontend:
         self._showing_fit_all_image = False
 
         if self._showing_fit_image:
-            self.show_current_data_with_fit()
-            # self.set_which5_no_trace(f"{self.current_rchisqr:.2F}: {self.current_model.name}")
+            # self.show_current_data_with_fit()  # for refitting
+            self.save_show_fit_image()
         else:
             self.show_current_data()
 
@@ -1509,6 +1661,39 @@ class Frontend:
 
         if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"]:
             self.update_top5_chisqrs()
+
+    def create_error_bands_button(self):
+        self._error_bands_button = tk.Button(
+            master=self._gui.children['!frame2'].children['!frame2'].children['!frame2'],
+            text="Error Bands",
+            command=self.show_error_bands_command
+        )
+        self._error_bands_button.grid(row=0, column=0, pady=5, sticky='e')
+        self._show_error_bands = 0
+    def show_error_bands_command(self):
+        if self._error_bands_button['text'] == "Error Bands":
+            print("Switching to 1-\u03C3 confidence region")
+            self._error_bands_button.configure(text="       1-\u03C3       ")
+            self._show_error_bands = 1
+        elif self._error_bands_button['text'] == "       1-\u03C3       ":
+            print("Switching to 2-\u03C3 confidence region")
+            self._error_bands_button.configure(text="       2-\u03C3       ")
+            self._show_error_bands = 2
+        elif self._error_bands_button['text'] == "       2-\u03C3       ":
+            print("Switching to both confidence regions")
+            self._error_bands_button.configure(text=" 1- and 2-\u03C3")
+            self._show_error_bands = 3
+        elif self._error_bands_button['text'] == " 1- and 2-\u03C3":
+            print("Switching to 1-\u03C3 confidence region")
+            self._error_bands_button.configure(text="Error Bands")
+            self._show_error_bands = 0
+        else:
+            print("Can't change from", self._error_bands_button['text'])
+
+        if self._showing_fit_all_image:
+            self.fit_all_command(quiet=True)
+            return
+        self.save_show_fit_image()
 
     def create_residuals_button(self):
         self._residuals_button = tk.Button(
@@ -1725,7 +1910,6 @@ class Frontend:
             self.add_message(f"  Anderson-Darling   : p < {sig[threshold_idx] * 0.01:.2F}")
 
         # kolmogorov, kol_pvalue = scipy.stats.kstest(residuals,'norm')
-        from scipy import stats
         kolmogorov, kol_pvalue = scipy.stats.kstest(self.sample_standardize(residuals), 'norm')  # mean 0, variance 1
         print(f"{kolmogorov=} {kol_pvalue=}")
         if kol_pvalue > 1e-5:
@@ -1749,39 +1933,7 @@ class Frontend:
         sigma = np_sample.std()
         return list((np_sample - mu) / sigma)
 
-    def create_error_bands_button(self):
-        self._error_bands_button = tk.Button(
-            master=self._gui.children['!frame2'].children['!frame2'].children['!frame2'],
-            text="Error Bands",
-            command=self.show_error_bands_command
-        )
-        self._error_bands_button.grid(row=0, column=0, pady=5, sticky='e')
-        self._show_error_bands = 0
-    def show_error_bands_command(self):
-        if self._error_bands_button['text'] == "Error Bands":
-            print("Switching to 1-\u03C3 confidence region")
-            self._error_bands_button.configure(text="       1-\u03C3       ")
-            self._show_error_bands = 1
-        elif self._error_bands_button['text'] == "       1-\u03C3       ":
-            print("Switching to 2-\u03C3 confidence region")
-            self._error_bands_button.configure(text="       2-\u03C3       ")
-            self._show_error_bands = 2
-        elif self._error_bands_button['text'] == "       2-\u03C3       ":
-            print("Switching to both confidence regions")
-            self._error_bands_button.configure(text=" 1- and 2-\u03C3")
-            self._show_error_bands = 3
-        elif self._error_bands_button['text'] == " 1- and 2-\u03C3":
-            print("Switching to 1-\u03C3 confidence region")
-            self._error_bands_button.configure(text="Error Bands")
-            self._show_error_bands = 0
-        else:
-            print("Can't change from", self._error_bands_button['text'])
-
-        if self._showing_fit_all_image:
-            self.fit_all_command(quiet=True)
-            return
-        self.save_show_fit_image()
-
+    # FIT OPTIONS frame ----------------------------------------------------------------------------------------------->
     def show_function_dropdown(self):
         if self._new_user_stage % 7 == 0:
             return
@@ -1796,9 +1948,8 @@ class Frontend:
         black_line_as_frame.grid(row=2, column=0, sticky='ew')
 
         func_list = ["Linear", "Polynomial", "Gaussian", "Sigmoid", "Procedural", "Brute-Force", "Manual"]
-        tkstr = tk.StringVar(value="hellooo")
-        tkstr.set("omega")
-        self._model_name_tkstr = tk.StringVar(self._fit_options_frame)
+
+        # self._model_name_tkstr = tk.StringVar(self._fit_options_frame)
         self._model_name_tkstr.set(self._default_fit_type)
 
         function_dropdown = tk.OptionMenu(
@@ -1831,21 +1982,32 @@ class Frontend:
             self.hide_pause_button()
 
         if model_choice in ["Procedural", "Brute-Force"]:
-            self.show_custom_function_button()
             if self._optimizer and len(self._optimizer.top5_args) > 0:
                 self.show_top5_dropdown()
                 self.update_top5_dropdown()
         else:
-            self.hide_custom_function_button()
             self.hide_top5_dropdown()
-            self.fit_data_command()
-
+            if model_choice == "Manual" and self._manual_model is None :
+                pass
+            else :
+                self.fit_data_command()
         if model_choice == "Procedural":
-            self.show_default_checkboxes()
-            self.show_depth_buttons()
+            self.show_procedural_options()
         else:
-            self.hide_default_checkboxes()
-            self.hide_depth_buttons()
+            self.hide_procedural_options()
+
+        if model_choice == "Manual" :
+            self.show_manual_fields()
+            self._use_func_dict_name_tkbool["custom"].set(value=True)
+            self._changed_optimizer_opts_flag = True
+            self.update_optimizer()
+        else :
+            self.hide_manual_fields()
+
+        if model_choice in ["Procedural","Brute-Force","Manual"] :
+            self.show_custom_function_button()
+        else :
+            self.hide_custom_function_button()
     def create_top5_dropdown(self):
 
         if self._new_user_stage % 29 == 0:
@@ -1967,6 +2129,7 @@ class Frontend:
             return
         self._refit_button.grid(row=0, column=3, padx=5, pady=5, sticky='w')
 
+    # PLOT OPTIONS frame ---------------------------------------------------------------------------------------------->
     def show_log_buttons(self):
         if self._new_user_stage % 13 == 0:
             return
@@ -1984,9 +2147,8 @@ class Frontend:
             command=self.logy_command
         )
         self._logy_button.grid(row=1, column=0, padx=5, sticky='w')
-    # TODO: if logging x or y, the top5 functions should be reset
     def logx_command(self):
-
+        # TODO: if logging x or y, the top5 functions should be reset
         # flip-flop
         if self.data_handler.logx_flag:
             self.data_handler.logx_flag = False
@@ -2002,9 +2164,8 @@ class Frontend:
             self.show_current_data_with_fit()
         else:
             self.show_current_data()
-    # TODO: clear the top5 models list, since the top5 stored models fit "different" data
     def logy_command(self):
-
+        # TODO: clear the top5 models list, since the top5 stored models fit "different" data
         if self.data_handler.logy_flag:
             self.data_handler.logy_flag = False
         else:
@@ -2063,6 +2224,7 @@ class Frontend:
     def normalize_command(self):
         if self.data_handler.normalized:
             self.add_message("\n \nCan't de-normalize a histogram. You'll have to restart AutoFit.\n")
+            return
         self.data_handler.normalize_histogram_data()
         self._normalize_button.configure(relief=tk.SUNKEN)
         if self._showing_fit_image:
@@ -2084,68 +2246,8 @@ class Frontend:
         else:
             self._normalize_button.configure(relief=tk.RAISED)
 
-    # Helper functions
-    def load_splash_image(self):
-        self._image_path = f"{Frontend.get_package_path()}/splash.png"
-
-        img_raw = Image.open(self._image_path)
-        img_resized = img_raw.resize((round(img_raw.width * self._image_r),
-                                      round(img_raw.height * self._image_r)))
-        self._image = ImageTk.PhotoImage(img_resized)
-        self._image_frame = tk.Label(master=self._gui.children['!frame2'].children['!frame'],
-                                     image=self._image,
-                                     relief=tk.SUNKEN)
-        print(f"Created frame {self._image_frame}")
-        self._image_frame.grid(row=0, column=0)
-        self._image_frame.grid_propagate(True)
-        self.create_colors_image_menu()
-        self._image_frame.bind('<Button-3>', self.do_colors_image_popup)
-        self._image_frame.bind('<MouseWheel>', self.do_image_resize)
-    def do_image_resize(self, event):
-
-        d = event.delta / 120
-        self._image_r *= (1 + d / 10)
-
-        self.switch_image()
-    def switch_image(self):
-        img_raw = Image.open(self._image_path)
-        img_resized = img_raw.resize((round(img_raw.width * self._image_r),
-                                      round(img_raw.height * self._image_r)))
-        self._image = ImageTk.PhotoImage(img_resized)
-        self._image_frame.configure(image=self._image)
-    def create_colors_image_menu(self):
-
-        head_menu = tk.Menu(master=self._gui, tearoff=0)
-
-        background_menu = tk.Menu(master=head_menu, tearoff=0)
-        background_menu.add_command(label="Default", command=self.bg_color_default)
-        background_menu.add_command(label="White", command=self.bg_color_white)
-        background_menu.add_command(label="Dark", command=self.bg_color_dark)
-        background_menu.add_command(label="Black", command=self.bg_color_black)
-
-        dataaxis_menu = tk.Menu(master=head_menu, tearoff=0)
-        dataaxis_menu.add_command(label="Default", command=self.dataaxes_color_default)
-        dataaxis_menu.add_command(label="White", command=self.dataaxes_color_white)
-
-        fit_colour_menu = tk.Menu(master=head_menu, tearoff=0)
-        fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
-        fit_colour_menu.add_command(label="White", command=self.fit_color_white)
-        fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
-
-        head_menu.add_cascade(label="Background Colour", menu=background_menu)
-        head_menu.add_cascade(label="Data/Axis Colour", menu=dataaxis_menu)
-        head_menu.add_cascade(label="Fit Colour", menu=fit_colour_menu)
-
-        self._colors_image_menu = head_menu
-    def do_colors_image_popup(self, event: tk.Event):
-        image_colors_menu: tk.Menu = self._colors_image_menu
-        try:
-            image_colors_menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            image_colors_menu.grab_release()
-
     def update_data_select(self):
-        text_label: tk.Label = self._gui.children['!frame2'].children['!frame2'].children['!frame'].children['!label']
+        text_label: tk.Label = self._data_perusal_frame.children['!frame'].children['!label']  # left frame
         if self._showing_fit_all_image:
             text_label.configure(text=f"-/{len(self._data_handlers)}")
         else:
@@ -2423,10 +2525,12 @@ class Frontend:
         # this fits the data again, unlike save_show_fit
         self.update_optimizer()
 
-        if self.current_model.name == "Normal" and not self.data_handler.normalized:
+        if self._model_name_tkstr.get() == "Gaussian" and self.current_model.name == "Normal" \
+                and not self.data_handler.normalized:
             self.fit_data_command()
             return
-        elif self.current_model.name == "Gaussian" and self.data_handler.normalized:
+        elif self._model_name_tkstr.get() == "Gaussian" and self.current_model.name == "Gaussian" \
+                and self.data_handler.normalized:
             self.fit_data_command()
             return
 
@@ -2438,7 +2542,7 @@ class Frontend:
             self.print_results_to_console()
         self.save_show_fit_image()
 
-    # polynomial
+    # POLYNOMIAL frame ------------------------------------------------------------------------------------------------>
     def create_degree_up_down_buttons(self):
         if self._new_user_stage % 19 == 0:
             return
@@ -2474,20 +2578,19 @@ class Frontend:
         if self._polynomial_degree_tkint.get() > 0:
             self._polynomial_degree_tkint.set(self._polynomial_degree_tkint.get() - 1)
         else:
-            self.add_message(f"> Polynomials must have a degree of at least 0\n")
+            self.add_message(f"\n \n> Polynomials must have a degree of at least 0\n")
         self._polynomial_degree_label.configure(text=f"Degree: {self._polynomial_degree_tkint.get()}")
     def degree_up_command(self):
         if self._polynomial_degree_tkint.get() < self.max_poly_degree():
             self._polynomial_degree_tkint.set(self._polynomial_degree_tkint.get() + 1)
         else:
-            self.add_message(f"> Polynomial degree cannot exceed the number of x-positions\n")
-        # noinspection PyTypeChecker
-        depth_label: tk.Label = self._gui.children['!frame2'].children['!frame6'].children['!label']
-        depth_label.configure(text=f"Degree: {self._polynomial_degree_tkint.get()}")
+            self.add_message(f"\n \n> Degree greater than {self._polynomial_degree_tkint.get()}"
+                             f" will lead to an overfit.")
+        self._polynomial_degree_label.configure(text=f"Degree: {self._polynomial_degree_tkint.get()}")
     def max_poly_degree(self):
         return len(set([datum.pos for datum in self.data_handler.data])) - 1
 
-    # gaussian
+    # GAUSSIAN frame -------------------------------------------------------------------------------------------------->
     def create_modal_up_down_buttons(self):
         if self._new_user_stage % 47 == 0:
             return
@@ -2536,14 +2639,28 @@ class Frontend:
     def max_modal(self):
         return len(set([datum.pos for datum in self.data_handler.data])) // 3
 
-    # procedural
-    def create_default_checkboxes(self):
-
+    # PROCEDURAL frame ------------------------------------------------------------------------------------------------>
+    def create_procedural_options(self):
         if self._new_user_stage % 31 == 0:
             return
         self.create_depth_up_down_buttons()
         self._new_user_stage *= 31
 
+        self.create_default_checkboxes()
+        self.create_depth_up_down_buttons()
+    def hide_procedural_options(self):
+        if self._new_user_stage % 31 != 0:
+            return
+        self._procedural_frame.grid_forget()
+    def show_procedural_options(self):
+        if self._new_user_stage % 31 != 0:
+            self.create_procedural_options()
+            return
+        self._procedural_frame.grid(row=4, column=0, sticky='w')
+    def create_default_checkboxes(self):
+
+        if self._new_user_stage % 31 != 0:
+            return
         # still to add:
         # fit data / vs / search models on Procedural
         # sliders for initial parameter guesses
@@ -2551,80 +2668,484 @@ class Frontend:
         for idx, name in enumerate(self._checkbox_names_list):
             print(regex.split(f" ", self._custom_function_names))
             checkbox = tk.Checkbutton(
-                master=self._fit_options_frame,
-                text=name if idx < len(self._checkbox_names_list) - 1
-                else name + ": " + ', '.join([f"{name}" for name in regex.split(' ', self._custom_function_names)]),
+                master=self._procedural_frame,
+                text=name,
                 variable=self._use_func_dict_name_tkbool[name],
                 onvalue=True,
                 offvalue=False,
                 command=self.checkbox_on_off_command
             )
-            checkbox.grid(row=idx + 1, column=0, sticky='w')
-    def hide_default_checkboxes(self):
+            checkbox.grid(row=idx % ( len(self._checkbox_names_list)-1),
+                          column=2* ((idx+1)//len(self._checkbox_names_list)), sticky='w')
+            if idx == len(self._checkbox_names_list) - 1:
+                self._custom_checkbox = checkbox
+
+        self.update_custom_checkbox()
+        self.create_custom_remove_menu()
+    def update_custom_checkbox(self):
         if self._new_user_stage % 31 != 0:
             return
-        self._fit_options_frame.grid_forget()
-        # checkbox0 = self._fit_options_frame.children['!checkbutton']
-        # checkbox0.grid_forget()
-        # for idx in range(len(self._use_func_dict_name_tkbool) - 1):
-        #     checkbox_n = self._fit_options_frame.children[f"!checkbutton{idx + 2}"]
-        #     checkbox_n.grid_forget()
-    def show_default_checkboxes(self):
-        if self._new_user_stage % 31 != 0:
-            self.create_default_checkboxes()
-            return
-        self._fit_options_frame.grid(row=3, column=0, sticky='w')
-        # checkbox0 = self._fit_options_frame.children['!checkbutton']
-        # checkbox0.grid(row=1, column=0, sticky='w')
-        # for idx in range(len(self._use_func_dict_name_tkbool) - 1):
-        #     checkbox_n = self._fit_options_frame.children[f"!checkbutton{idx + 2}"]
-        #     checkbox_n.grid(row=idx + 2, column=0, sticky='w')
+        self._custom_binding = self._custom_checkbox.bind("<Button-3>", self.do_custom_remove_popup)
+        self._custom_checkbox.configure(text="custom: " + ', '.join([x for x in regex.split(' ', self._custom_function_names) if x]))
+        self.create_custom_remove_menu()
     def checkbox_on_off_command(self):
         print("Activated re-build of composite list")
         self._changed_optimizer_opts_flag = True
     def create_depth_up_down_buttons(self):
         # duplication taken care of with % 31 i.e. default_checkboxes
-        depth_text = tk.Label(
-            master=self._depth_frame,
+        self._depth_label = tk.Label(
+            master=self._procedural_frame,
             text=f"Depth: {self._max_functions_tkint.get()}"
         )
-        down_button = tk.Button(self._depth_frame,
+        down_button = tk.Button(self._procedural_frame,
                                 text="\U0001F847",
                                 command=self.depth_down_command
                                 )
-        up_button = tk.Button(self._depth_frame,
+        up_button = tk.Button(self._procedural_frame,
                               text="\U0001F845",
                               command=self.depth_up_command
                               )
 
-        depth_text.grid(row=0, column=0, sticky='w')
-        down_button.grid(row=0, column=1, padx=(5, 0), pady=5, sticky='w')
-        up_button.grid(row=0, column=2, sticky='w')
-    def hide_depth_buttons(self):
-        if self._new_user_stage % 31 != 0:
-            return
-        self._depth_frame.grid_forget()
-    def show_depth_buttons(self):
-        if self._new_user_stage % 31 != 0:
-            self.create_default_checkboxes()
-            return
-        self._depth_frame.grid(row=4, column=0, sticky='w')
+        self._depth_label.grid(row=100, column=0, sticky='w')
+        down_button.grid(row=100, column=1, padx=(5, 0), pady=5, sticky='w')
+        up_button.grid(row=100, column=2, sticky='w')
     def depth_down_command(self):
         if self._max_functions_tkint.get() > 1:
             self._max_functions_tkint.set(self._max_functions_tkint.get() - 1)
         else:
             self.add_message(f"> Must have a depth of at least 1\n")
-        self._polynomial_degree_label.configure(text=f"Depth: {self._max_functions_tkint.get()}")
+        # noinspection PyTypeChecker
+        self._depth_label.configure(text=f"Depth: {self._max_functions_tkint.get()}")
         self._changed_optimizer_opts_flag = True
     def depth_up_command(self):
-        if self._max_functions_tkint.get() < 7:
-            self._max_functions_tkint.set(self._max_functions_tkint.get() + 1)
+        if self._max_functions_tkint.get() >= 7:
+            self.add_message(f"\n \n> Cannot exceed a depth of 7\n")
+        elif self._max_functions_tkint.get() >= self.max_poly_degree()+1 :
+            self.add_message(f"\n \n> Depth greater than {self.max_poly_degree()+1} will lead to an overfit.")
         else:
-            self.add_message(f"> Cannot exceed a depth of 7\n")
+            self._max_functions_tkint.set(self._max_functions_tkint.get() + 1)
         # noinspection PyTypeChecker
-        depth_label: tk.Label = self._gui.children['!frame2'].children['!frame5'].children['!label']
-        depth_label.configure(text=f"Depth: {self._max_functions_tkint.get()}")
+        self._depth_label.configure(text=f"Depth: {self._max_functions_tkint.get()}")
         self._changed_optimizer_opts_flag = True
+
+    def create_custom_remove_menu(self):
+
+        head_menu = tk.Menu(master=self._gui, tearoff=0)
+
+        names_menu = tk.Menu(master=head_menu, tearoff=0)
+        names_menu.add_command(label="All Functions", command=lambda: self.remove_named_custom("All"))
+        for name in [x for x in regex.split(' ', self._custom_function_names) if x] :
+            names_menu.add_command(label=name, command=lambda: self.remove_named_custom(name))
+
+        head_menu.add_cascade(label="Remove Custom", menu=names_menu)
+
+        self._custom_remove_menu = head_menu
+    def do_custom_remove_popup(self, event: tk.Event):
+        try:
+            self._custom_remove_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self._custom_remove_menu.grab_release()
+    def remove_named_custom(self, name: str):
+
+        if name == '' :
+            return
+        elif name == "All" :
+            print("Removing all custom functions")
+            custom_names = [x for x in regex.split(' ', self._custom_function_names) if x]
+            custom_forms = [x for x in regex.split(' ', self._custom_function_forms) if x]
+
+            for idx, (iname, iform) in enumerate(zip(custom_names[:], custom_forms[:])):
+                custom_names.remove(iname)
+                custom_forms.remove(iform)
+
+                del PrimitiveFunction.built_in_dict()[iname]
+        else :
+            print(f"Remove named custom {name}")
+            custom_names = [x for x in regex.split(' ', self._custom_function_names) if x]
+            custom_forms = [x for x in regex.split(' ', self._custom_function_forms) if x]
+
+            for idx, (iname, iform) in enumerate(zip(custom_names[:],custom_forms[:])) :
+                if iname == name :
+                    custom_names.remove(iname)
+                    custom_forms.remove(iform)
+
+                    self.optimizer._primitive_function_list.remove(PrimitiveFunction.built_in_dict()[iname])
+                    del PrimitiveFunction.built_in_dict()[iname]
+                    break
+
+        self._custom_function_names = ' '.join(custom_names)
+        self._custom_function_forms = ' '.join(custom_forms)
+        self._changed_optimizer_opts_flag = True
+        self.save_defaults()
+        self.update_optimizer()
+        self.update_custom_checkbox()
+
+    # brute force -- also associated with fit_options panel for the pause button
+    def begin_brute_loop(self):
+        self._gui.update_idletasks()
+        self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
+        self.add_message(f"{self.optimizer.gen_idx:>10} models tested")
+        self._gui.after_idle(self.maintain_brute_loop)
+    def maintain_brute_loop(self):
+        # TODO: add a model counter to show how many have been tested
+        # should also auto-pause when red chi sqr reaches ~1. Same for procedural, to avoid overfitting
+        # (the linear data is a good example of fits that become infinitesimally better with more parameters)
+        if self.brute_forcing:
+            status = self.optimizer.async_find_best_model_for_dataset()
+            if status != "":
+                self.pause_command()
+                self.add_message(f"\n\n >>> End of brute-forcing reached <<< {status}\n\n")
+            # self.optimizer.show_fit(pause_on_image=True)
+            if self.current_rchisqr != self._optimizer.top5_rchisqrs[0]:
+                self.make_top_shown()
+                self.save_show_fit_image()
+                if self.current_rchisqr < 0.001:
+                    self.add_message(f"\n \n >>> Perfect fit found <<< {status}\n\n")
+                    self.pause_command()
+            self.update_top5_dropdown()
+            self.update_number_tested()
+            self._gui.after(1, self.maintain_brute_loop)
+
+        self.update_pause_button()
+    def create_pause_button(self):
+        if self._new_user_stage % 37 == 0:
+            return
+        self._new_user_stage *= 37
+
+        self._pause_button = tk.Button(self._fit_options_frame,
+                                       text="Pause",
+                                       command=self.pause_command
+                                       )
+        self._pause_button.grid(row=0, column=2, padx=(5, 0), sticky='w')
+        self._pause_button.configure(width=8)
+    def hide_pause_button(self):
+        if self._new_user_stage % 37 != 0:
+            return
+        self._pause_button.grid_forget()
+    def show_pause_button(self):
+        if self._new_user_stage % 37 != 0:
+            self.create_pause_button()
+            return
+        self._pause_button.grid(row=0, column=2, padx=(5, 0), pady=5, sticky='w')
+        self.update_pause_button()
+    def update_pause_button(self):
+        if self._new_user_stage % 37 != 0:
+            return
+
+        if self.brute_forcing:
+            self._pause_button.configure(text="Pause")
+        else:
+            self._pause_button.configure(text="Go")
+    def pause_command(self):
+        if self.brute_forcing:
+            self.brute_forcing = False
+            self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
+            self.print_results_to_console()
+        else:
+            self.brute_forcing = True
+            # it's actually a go button
+            self.begin_brute_loop()
+    def update_number_tested(self):
+        self._progress_label.configure(text=f"{self.optimizer.gen_idx:>10} models tested")
+
+    # manual model
+    def create_manual_fields(self):
+        if self._new_user_stage % 53 == 0:
+            return
+        self._new_user_stage *= 53
+
+        name_label = tk.Label(master=self._manual_frame, text="Function's Name")
+        name_label.grid(row=0, column=0, sticky='w')
+        name_data = tk.Entry(master=self._manual_frame, width=30)
+        name_data.insert(0, "CustomStatsFunc" if self._default_manual_name == "N/A" else self._default_manual_name)
+        name_data.grid(row=0, column=1, sticky='w')
+
+        # form_label = tk.Label(master=self._manual_frame, text="Function's Form")
+        # form_label.grid(row=1, column=0, sticky='w')
+        # form_data = tk.Entry(master=self._manual_frame, width=60)
+        # form_data.insert(0, "sin(pow1)+sin(pow1)+sin(pow1)+sin(pow1)")
+        # form_data.grid(row=1, column=1, sticky='w')
+
+        long_label = tk.Label(master=self._manual_frame, text="Function's Form")
+        long_label.grid(row=1, column=0, sticky='nw')
+        long_data = tk.Text(master=self._manual_frame, width=55, height=5)
+        long_data.insert('1.0', "logistic(pow1+pow0)" if self._default_manual_form == "N/A"
+                                                      else self._default_manual_form)
+        long_data.grid(row=1, column=1, sticky='w')
+
+        self._error_label = tk.Label(master=self._manual_frame, text=f"", fg="#EF0909")
+        self._error_label.grid(row=2, column=1, sticky='w', pady=5)
+
+        current_name_title_label = tk.Label(master=self._manual_frame, text=f"Current Name:")
+        current_name_title_label.grid(row=3, column=0, sticky='w', pady=(5,0))
+        self._current_name_label = tk.Label(master=self._manual_frame, text=f"N/A")
+        self._current_name_label.grid(row=3, column=1, sticky='w', pady=(5,0))
+        current_form_title_label = tk.Label(master=self._manual_frame, text=f"Current Form:")
+        current_form_title_label.grid(row=4, column=0, sticky='w')
+        self._current_form_label = tk.Label(master=self._manual_frame, text=f"N/A")
+        self._current_form_label.grid(row=4, column=1, sticky='w')
+
+        submit_button = tk.Button(
+            master=self._manual_frame,
+            text="Validate",
+            command=self.validate_manual_function_command
+        )
+        submit_button.grid(row=1, column=10, padx=5, pady=0, sticky='s')
+        self.create_library_options()
+
+        if self._default_manual_name != "N/A" :
+            manual_model = CompositeFunction.construct_model_from_str(form=self._default_manual_form,
+                                                                      error_handler=self.error_handling,
+                                                                      name=self._default_manual_name)
+            if manual_model is None:
+                return
+
+            self._current_name_label.configure(text=self._default_manual_name)
+            self._current_form_label.configure(text=self._default_manual_form)
+            manual_model.print_tree()
+            self._manual_model = manual_model
+    def hide_manual_fields(self):
+        if self._new_user_stage % 53 != 0:
+            return
+        self._manual_frame.grid_forget()
+        self.hide_library_options()
+    def show_manual_fields(self):
+        if self._new_user_stage % 53 != 0:
+            self.create_manual_fields()
+            return
+
+        self._manual_frame.grid(row=4, column=0, sticky='w')
+        self.show_library_options()
+    def validate_manual_function_command(self) -> bool:
+
+        self.add_message(f"\n \nValidating {self._manual_frame.children['!entry'].get()} with form")
+        # self.add_message(f"  Form string is {self._manual_frame.children['!entry2'].get()}")
+        self.add_message(f"{self._manual_frame.children['!text'].get('1.0',tk.END)}")
+        valid = False
+
+        namestr = ''.join( self._manual_frame.children['!entry'].get().split() )
+        formstr = ''.join( self._manual_frame.children['!text'].get('1.0','end-1c').split() )
+        if ',' in formstr :
+            return self.error_handling("Support for special functions with parameters are not yet implemented.")
+        elif '-' in formstr :
+            return self.error_handling("Subtraction '-' is not a valid symbol.")
+        elif '/' in formstr :
+            return self.error_handling("Division '/' is not a valid symbol.")
+        elif '^' in formstr :
+            return self.error_handling("Exponentiation through '^' is not permitted.")
+        elif '.' in formstr :
+            return self.error_handling("Subpackage functions (with '.') are not permitted.")
+        elif ")(" in formstr :
+            return self.error_handling("Implicit multiplication with ')(' is not supported. Use '*' or '·'.")
+        elif "++" in formstr :
+            return self.error_handling("Invalid sequence '++'")
+        elif "+)" in formstr :
+            return self.error_handling("Invalid sequence '+)'")
+        elif "+*" in formstr :
+            return self.error_handling("Invalid sequence '+*'")
+        elif "+·" in formstr :
+            return self.error_handling("Invalid sequence '+·'")
+        elif "*+" in formstr :
+            return self.error_handling("Invalid sequence '*+'")
+        elif "*)" in formstr :
+            return self.error_handling("Invalid sequence '*)'")
+        elif "**" in formstr :
+            return self.error_handling("You may not use '**' to indicate powers.")
+        elif "*·" in formstr :
+            return self.error_handling("Invalid sequence '*·'")
+        elif "·+" in formstr :
+            return self.error_handling("Invalid sequence '·+'")
+        elif "·)" in formstr :
+            return self.error_handling("Invalid sequence '·)'")
+        elif "·*" in formstr :
+            return self.error_handling("Invalid sequence '·*'")
+        elif "··" in formstr :
+            return self.error_handling("Invalid sequence '··'")
+        elif "(+" in formstr :
+            return self.error_handling("Invalid sequence '(+'")
+        elif "()" in formstr :
+            return self.error_handling("Invalid sequence '()'")
+        elif "(*" in formstr :
+            return self.error_handling("Invalid sequence '(*'")
+        elif "(·" in formstr :
+            return self.error_handling("Invalid sequence '(·'")
+        elif "((" in formstr :
+            return self.error_handling("Invalid sequence '(('")
+        open_paren = 0
+        for c in formstr :
+            if c == '(' :
+                open_paren += 1
+            elif c == ')' :
+                open_paren -= 1
+            if open_paren < 0 :
+                self.add_message("\n \n> Mismatched parentheses.")
+                return False
+        if open_paren != 0 :
+            self.add_message("\n \n> Mismatched parentheses.")
+            return False
+        if formstr[0] in ["·","+",")","*"]:
+            self.error_handling(f"You can't start a function with an operation '{formstr[0]}'.")
+
+        manual_model = CompositeFunction.construct_model_from_str(form=formstr,
+                                                                  error_handler=self.error_handling,
+                                                                  name=self._default_manual_name)
+        if manual_model is None :
+            return False
+
+        self._default_manual_name = namestr
+        self._default_manual_form = formstr
+        self._current_name_label.configure(text=self._default_manual_name)
+        self._current_form_label.configure(text=self._default_manual_form)
+        manual_model.print_tree()
+        print(manual_model.tree_as_string_with_dimensions())
+        self._manual_model = manual_model
+        self.save_defaults()
+        return True
+    def error_handling(self, error_msg) -> bool:
+        self._error_label.configure(text=error_msg)
+        return False
+
+    def create_library_options(self):
+        if self._new_user_stage % 59 == 0:
+            return
+        self._new_user_stage *= 59
+
+        self._library_numpy = tk.Button(self._fit_options_frame,
+                                        text="<numpy>",
+                                        command=self.print_numpy_library
+                                       )
+        self._library_numpy.grid(row=0, column=1, padx=(5, 0), sticky='w')
+        self._library_numpy.configure(width=8)
+
+        self._library_special = tk.Button(self._fit_options_frame,
+                                          text="<special>",
+                                          command=self.print_special_library
+                                         )
+        self._library_special.grid(row=0, column=2, sticky='w')
+        self._library_special.configure(width=8)
+
+        self._library_stats = tk.Button(self._fit_options_frame,
+                                        text="<stats>",
+                                        command=self.print_stats_library
+                                       )
+        self._library_stats.grid(row=0, column=3, sticky='w')
+        self._library_stats.configure(width=8)
+
+        self._library_math = tk.Button(self._fit_options_frame,
+                                       text="<math>",
+                                       command=self.print_math_library
+                                      )
+        self._library_math.grid(row=0, column=4, sticky='w')
+        self._library_math.configure(width=8)
+
+        self._library_autofit = tk.Button(self._fit_options_frame,
+                                          text="<autofit>",
+                                          command=self.print_autofit_library
+                                         )
+        self._library_autofit.grid(row=0, column=5, sticky='w')
+        self._library_autofit.configure(width=8)
+    def hide_library_options(self):
+        if self._new_user_stage % 59 != 0:
+            return
+        self._library_numpy.grid_forget()
+        self._library_special.grid_forget()
+        self._library_stats.grid_forget()
+        self._library_math.grid_forget()
+        self._library_autofit.grid_forget()
+    def show_library_options(self):
+        if self._new_user_stage % 59 != 0:
+            self.create_library_options()
+            return
+        self._library_numpy.grid(row=0, column=1, padx=(5, 0), sticky='w')
+        self._library_special.grid(row=0, column=2, sticky='w')
+        self._library_stats.grid(row=0, column=3, sticky='w')
+        self._library_math.grid(row=0, column=4, sticky='w')
+        self._library_autofit.grid(row=0, column=5, sticky='w')
+
+    def print_numpy_library(self):
+        buffer = "\n \n  <numpy> options: \n  "
+        for memb in dir(np):
+            fn: np.ufunc = getattr(np, memb)
+            if type(fn) is np.ufunc and fn.nin == 1 and 'f->f' in fn.types:
+                try:
+                    y = fn(np.pi / 4)
+                except TypeError:
+                    print(f"{memb} not 1D")
+                except ValueError:
+                    print(f"{memb} doesn't accept float values")
+                else:
+                    print(memb, y)
+                    buffer += f"{memb}, "
+            if len(buffer) > 50 :
+                self.add_message(buffer[:-2])
+                buffer = "  "
+        self.add_message(buffer[:-2])
+    def print_special_library(self):
+        buffer = "\n \n  <scipy.special> options: \n  "
+        for memb in dir(scipy.special):
+            fn = getattr(scipy.special, memb)
+            if type(fn) is np.ufunc and fn.nin == 1 and 'f->f' in fn.types:
+                try:
+                    y = fn(np.pi / 4)
+                except TypeError:
+                    print(f"{memb} not 1D")
+                except ValueError:
+                    print(f"{memb} doesn't accept float values")
+                else:
+                    print(memb, y)
+                    buffer += f"{memb}, "
+            if len(buffer) > 50 :
+                self.add_message(buffer[:-2])
+                buffer = "  "
+        self.add_message(buffer[:-2])
+    def print_stats_library(self):
+        buffer = "\n \n  <scipy.stats> options: \n  "
+        for memb in dir(scipy.stats._continuous_distns):
+            fn = getattr(scipy.stats._continuous_distns, memb)
+            if str(type(fn))[:20] == "<class 'scipy.stats.":
+                try:
+                    y = fn.pdf(np.pi / 4)
+                except TypeError:
+                    print(f"{memb} not 1D")
+                except ValueError:
+                    print(f"{fn} should be ok?")
+                else:
+                    print(memb, y)
+                    buffer += f"{memb}, "
+            if len(buffer) > 50 :
+                self.add_message(buffer[:-2])
+                buffer = "  "
+        self.add_message(buffer[:-2])
+    def print_math_library(self):
+        buffer = "\n \n <math> options: \n  "
+        for memb in dir(math):
+            fn = getattr(math, memb)
+            if str(type(fn)) == "<class 'builtin_function_or_method'>":
+                try:
+                    y = fn(np.pi / 4)
+                except TypeError:
+                    print(f"{memb} not 1D")
+                except ValueError:
+                    print(f"{memb} doesn't accept float values")
+                else:
+                    if type(y) == float:
+                        print(memb, y)
+                        buffer += f"{memb}, "
+            if len(buffer) > 50:
+                self.add_message(buffer[:-2])
+                buffer = "  "
+        self.add_message(buffer[:-2])
+    def print_autofit_library(self):
+        buffer = "\n \n  <autofit> options: \n  "
+        for key, prim in PrimitiveFunction.build_built_in_dict().items():
+            print(prim.name)
+            buffer += f"{prim.name}, "
+            if len(buffer) > 50 :
+                self.add_message(buffer[:-2])
+                buffer = "  "
+        self.add_message(buffer[:-2])
+
+    # Would be a good idea to ask for initial guesses here -- sliders are cool!
 
     """
 
@@ -2632,87 +3153,10 @@ class Frontend:
 
     """
 
-    def create_right_panel(self):
-        self._gui.columnconfigure(2, minsize=700, weight=1)  # image panel
-        console_frame = tk.Frame(master=self._gui, bg=hexx(self._console_color))
-        console_frame.grid(row=0, column=2, sticky='news')
-        self.add_message("> Welcome to MIW's AutoFit!")
-        self.create_colors_console_menu()
-        console_frame.bind('<Button-3>', self.do_colors_console_popup)
-
-    def create_colors_console_menu(self):
-
-        head_menu = tk.Menu(master=self._gui, tearoff=0)
-
-        console_menu = tk.Menu(master=head_menu, tearoff=0)
-        console_menu.add_command(label="Default", command=self.console_color_default)
-        console_menu.add_command(label="Pale", command=self.console_color_pale)
-        console_menu.add_command(label="White", command=self.console_color_white)
-
-        printout_menu = tk.Menu(master=head_menu, tearoff=0)
-        printout_menu.add_command(label="Default", command=self.printout_color_default)
-        printout_menu.add_command(label="White", command=self.printout_color_white)
-        printout_menu.add_command(label="Black", command=self.printout_color_black)
-
-        head_menu.add_cascade(label="Background Colour", menu=console_menu)
-        head_menu.add_cascade(label="Message Colour", menu=printout_menu)
-
-        self._colors_console_menu = head_menu
-
-    def do_colors_console_popup(self, event: tk.Event):
-        image_colors_menu: tk.Menu = self._colors_console_menu
-        try:
-            image_colors_menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            image_colors_menu.grab_release()
-
-    def add_message(self, message_string):
-
-        # TODO: consider also printing to a log file
-
-        text_frame = self._gui.children['!frame3']
-        text_frame.update()
 
 
-        for line in regex.split(f"\n", message_string):
-            if line == "":
-                continue
-            new_message_label = tk.Label(master=text_frame, text=line,
-                                         bg=hexx(self._console_color),
-                                         fg=hexx(self._printout_color), font=("consolas", 12))
 
-            new_message_label.grid(row=self._num_messages_ever, column=0, sticky=tk.W)
-            self._num_messages += 1
-            self._num_messages_ever += 1
-
-            new_message_label.update()  # required to scroll the console up when the buffer is filled
-            self._MAX_MESSAGE_LENGTH = self._gui.winfo_height() // new_message_label.winfo_height()
-
-            self._progress_label = new_message_label
-
-        if self._num_messages > self._MAX_MESSAGE_LENGTH:
-            self.remove_n_messages(self._num_messages - self._MAX_MESSAGE_LENGTH)
-    def remove_n_messages(self, n):
-
-        text_frame = self._gui.children['!frame3']
-
-        key_removal_list = []
-        for key in text_frame.children.keys():
-            key_removal_list.append(key)
-            if len(key_removal_list) == n:
-                break
-
-        for key in key_removal_list:
-            text_frame.children[key].destroy()
-
-        self._num_messages = len(text_frame.children)
-
-    """
-
-    Frontend functions
-
-    """
-
+    # Properties and frontend functions ------------------------------------------------------------------------------->
     @staticmethod
     def get_package_path():
 
@@ -2733,12 +3177,10 @@ class Frontend:
                 return fallback
 
         return loc
-
     def show_current_data(self):
         self.show_data()
         self._showing_fit_image = False
         self._showing_fit_all_image = False
-
     def update_image(self):
         if self._showing_fit_all_image:
             self.fit_all_command()
@@ -2755,7 +3197,6 @@ class Frontend:
     @property
     def brute_forcing(self):
         return self._brute_forcing_tkbool.get()
-
     @brute_forcing.setter
     def brute_forcing(self, val):
         self._brute_forcing_tkbool.set(val)
@@ -2765,29 +3206,31 @@ class Frontend:
             self.optimizer = Optimizer(data=self.data_handler.data,
                                        use_functions_dict=self.use_functions_dict,
                                        max_functions=self.max_functions)
+            self._changed_optimizer_opts_flag = True
         if self._changed_optimizer_opts_flag:  # max depth, changed dict
             self.optimizer.update_opts(use_functions_dict=self.use_functions_dict, max_functions=self.max_functions)
             if self._custom_function_forms != "":
-                print(f"Including custom functions "
+                print(f"Update_optimizer: Including custom functions "
                       f">{self._custom_function_names}< with forms >{self._custom_function_forms}<")
-                for name, form in zip(regex.split(' ', self._custom_function_names),
-                                      regex.split(' ', self._custom_function_forms)):
+                for name, form in zip([x for x in regex.split(' ', self._custom_function_names) if x],
+                                      [x for x in regex.split(' ', self._custom_function_forms) if x]):
                     info_str = self._optimizer.add_primitive_to_list(name, form)
                     if info_str != "":
-                        self.add_message(f"\n{info_str}\n")
+                        self.add_message(f"\n \n>>> {info_str} <<<\n \n")
+                        if info_str[:9] == "Corrupted" :
+                            self.remove_named_custom("All")
+                        if info_str[:9] == "One of th" :
+                            self.remove_named_custom(name)
             self._changed_optimizer_opts_flag = False
         if self._changed_data_flag:
             self.optimizer.set_data_to(self.data_handler.data)
             self._changed_data_flag = False
-
     @property
     def optimizer(self):
         return self._optimizer
-
     @optimizer.setter
     def optimizer(self, other):
         self._optimizer = other
-
     def make_top_shown(self):
         if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"]:
             self.optimizer.shown_model = self.optimizer.top_model
@@ -2797,7 +3240,6 @@ class Frontend:
     @property
     def current_model(self) -> CompositeFunction:
         return self.optimizer.shown_model
-
     @current_model.setter
     def current_model(self, other):
         self.optimizer.shown_model = other
@@ -2805,23 +3247,18 @@ class Frontend:
     @property
     def current_args(self) -> list[float]:
         return self.optimizer.shown_parameters
-
     @property
     def current_uncs(self) -> list[float]:
         return self.optimizer.shown_uncertainties
-
     @property
     def current_covariance(self) -> np.ndarray:
         return self.optimizer.shown_covariance
-
     @current_covariance.setter
     def current_covariance(self, other):
         self.optimizer.shown_covariance = other
-
     @property
     def current_rchisqr(self) -> float:
         return self.optimizer.shown_rchisqr
-
     @current_rchisqr.setter
     def current_rchisqr(self, other):
         self.optimizer.shown_rchisqr = other
@@ -2829,7 +3266,6 @@ class Frontend:
     @property
     def use_functions_dict(self):
         return {key: tkBoolVar.get() for key, tkBoolVar in self._use_func_dict_name_tkbool.items()}
-
     @property
     def max_functions(self) -> int:
         return self._max_functions_tkint.get()
@@ -2839,19 +3275,16 @@ class Frontend:
         self._bg_color = (112 / 255, 146 / 255, 190 / 255)
         self.update_image()
         self.save_defaults()
-
     def bg_color_white(self):
         self._default_bg_colour = "White"
         self._bg_color = (1., 1., 1.)
         self.update_image()
         self.save_defaults()
-
     def bg_color_dark(self):
         self._default_bg_colour = "Dark"
         self._bg_color = (0.2, 0.2, 0.2)
         self.update_image()
         self.save_defaults()
-
     def bg_color_black(self):
         self._default_bg_colour = "Black"
         self._bg_color = (0., 0., 0.)
@@ -2863,7 +3296,6 @@ class Frontend:
         self._dataaxes_color = (0., 0., 0.)
         self.update_image()
         self.save_defaults()
-
     def dataaxes_color_white(self):
         self._default_dataaxes_colour = "White"
         self._dataaxes_color = (1., 1., 1.)
@@ -2875,13 +3307,11 @@ class Frontend:
         self._fit_color = (1., 0., 0.)
         self.update_image()
         self.save_defaults()
-
     def fit_color_white(self):
         self._default_fit_colour = "White"
         self._fit_color = (1., 1., 1.)
         self.update_image()
         self.save_defaults()
-
     def fit_color_black(self):
         self._default_fit_colour = "Black"
         self._fit_color = (0., 0., 0.)
@@ -2893,13 +3323,11 @@ class Frontend:
         self._console_color = (0, 0, 0)
         self.save_defaults()
         self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
-
     def console_color_pale(self):
         self._default_console_colour = "Pale"
         self._console_color = (240, 240, 240)
         self.save_defaults()
         self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
-
     def console_color_white(self):
         self._default_console_colour = "White"
         self._console_color = (255, 255, 255)
@@ -2910,12 +3338,10 @@ class Frontend:
         self._default_printout_colour = "Default"
         self._printout_color = (0, 200, 0)
         self.save_defaults()
-
     def printout_color_black(self):
         self._default_printout_colour = "Black"
         self._printout_color = (0, 0, 0)
         self.save_defaults()
-
     def printout_color_white(self):
         self._default_printout_colour = "White"
         self._printout_color = (255, 255, 255)
@@ -2925,7 +3351,6 @@ class Frontend:
         print("Increasing resolution / decreasing text size")
         self._default_os_scaling -= 0.1
         self.restart_command()
-
     def size_up(self):
         print("Decreasing resolution / increasing text size")
         self._default_os_scaling += 0.1

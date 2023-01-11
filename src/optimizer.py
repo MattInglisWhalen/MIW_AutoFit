@@ -8,6 +8,8 @@ from scipy.optimize import curve_fit
 from scipy.fft import fft, fftshift, fftfreq
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.special
+import scipy.stats
 from tkinter import Label as tk_label
 
 # internal classes
@@ -310,7 +312,7 @@ class Optimizer:
 
         if depth == 0 :
             if regen_built_ins :
-                print(self._primitive_names_list)
+                print("Composite generator:",self._primitive_names_list)
                 print("Starting new generator at 0 depth")
                 self._gen_idx = 0
                 for model in CompositeFunction.built_in_list() :
@@ -628,7 +630,21 @@ class Optimizer:
         code_str += f"dict = PrimitiveFunction.built_in_dict()\n"
         code_str += f"dict[\"{name}\"] = new_prim\n"
 
-        exec(code_str)
+        try:
+            exec(code_str)
+        except SyntaxError :
+            return f"Corrupted custom function {name} " \
+                   f"with form={functional_form}, returning to blank slate."
+
+        print("add_primitive_to...")
+        for key, val in PrimitiveFunction.built_in_dict().items() :
+            print(f"{key}, {val}")
+
+        try :
+            PrimitiveFunction.built_in(name).eval_at(np.pi/4)
+        except NameError :
+            return f"One of the functions used in your custom function {name} \n" \
+                   f"with form {functional_form } does not exist."
 
         self._primitive_function_list.append( PrimitiveFunction.built_in(name) )
 
@@ -1156,10 +1172,10 @@ class Optimizer:
                     try:
                         xmul = ( 2*math.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
                     except TypeError :
-                        print(self._sin_freq_list_dup)
-                        print(self._sin_freq_list)
-                        print(self._cos_freq_list_dup)
-                        print(self._cos_freq_list)
+                        print("find_set_initial_guess_scaling TypeError",self._sin_freq_list_dup)
+                        print("find_set_initial_guess_scaling TypeError",self._sin_freq_list)
+                        print("find_set_initial_guess_scaling TypeError",self._cos_freq_list_dup)
+                        print("find_set_initial_guess_scaling TypeError",self._cos_freq_list)
                         raise SystemExit
         elif composite.parent.prim.name == "my_sin" :
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / (1e-5 * composite.prim.arg)

@@ -29,11 +29,16 @@ class PrimitiveFunction:
 
     _built_in_prims_dict = {}
 
-    def __init__(self, func : Callable[[float,float],float] = None, name : str = "", arg : float = 1.):
+    def __init__(self, func : Callable[[float,float],float] = None,
+                 name : str = "", arg : float = 1., other_callable : Callable[[float],float] = None):
 
+        self._callable_1param : Callable[[float],float] = other_callable
         self._func : Callable[[float,float],float] = func  # valid functions must all be of the type f(x,arg)
         if func is None:
-            self._func = PrimitiveFunction.pow1
+            if other_callable is not None :
+                self._func = self.callable_2param
+            else :
+                self._func = PrimitiveFunction.pow1
 
         self._name : str = name
         if name == "" :
@@ -56,6 +61,9 @@ class PrimitiveFunction:
     @func.setter
     def func(self, other):
         self._func = other
+
+    def callable_2param(self,x,arg) -> float :
+        return arg*self._callable_1param(x)
 
     @property
     def arg(self) -> float:
@@ -88,10 +96,7 @@ class PrimitiveFunction:
             return 1e5
     @staticmethod
     def pow0(x, arg) -> float:
-        try :
-            return arg*x**0
-        except TypeError:
-            print(f"{arg=} {x=}")
+        return arg*x**0
     @staticmethod
     def pow1(x, arg) -> float:
         return arg*x
@@ -107,38 +112,31 @@ class PrimitiveFunction:
 
     @staticmethod
     def my_sin(x, arg) -> float:
-        # arg^2 is needed to break the tie between A*sin(omega*t) and -A*sin(-omega*t)
         return arg*np.sin(x)
     @staticmethod
     def my_cos(x, arg) -> float:
-        # there is a tie between A*cos(omega*t) and A*cos(-omega*t). How to break this tie?
         return arg*np.cos(x)
     @staticmethod
     def my_exp(x, arg) -> float:
-        try :
-            return arg*np.exp(x)
-        except RuntimeWarning:
-            print("Too big!")
-            return 1e5
-
+        return arg*np.exp(x)
     @staticmethod
     def my_log(x, arg) -> float:
         return arg*np.log(x)
 
-    """Variations for special functions"""
 
-    @staticmethod
-    def pow1_fpos(x, arg) -> float:  # to delete
-        return arg*x if arg > 0 else 1e5
-    @staticmethod
-    def pow1_fneg(x, arg) -> float:  # to delete
-        return arg*x if arg < 0 else 1e5
-    @staticmethod
-    def pow_neg1_fpos(x, arg) -> float:  # to delete
-        return arg/x if arg > 0 else 1e5
-    @staticmethod
-    def pow2_fneg(x, arg) -> float:  # to delete
-        return arg*x*x if arg < 0 else 1e5
+    #
+    # @staticmethod
+    # def pow1_fpos(x, arg) -> float:  # to delete
+    #     return arg*x if arg > 0 else 1e5
+    # @staticmethod
+    # def pow1_fneg(x, arg) -> float:  # to delete
+    #     return arg*x if arg < 0 else 1e5
+    # @staticmethod
+    # def pow_neg1_fpos(x, arg) -> float:  # to delete
+    #     return arg/x if arg > 0 else 1e5
+    # @staticmethod
+    # def pow2_fneg(x, arg) -> float:  # to delete
+    #     return arg*x*x if arg < 0 else 1e5
 
     # dim 2 specials
     @staticmethod
@@ -170,25 +168,25 @@ class PrimitiveFunction:
 
         # Powers
         prim_pow_neg1 = PrimitiveFunction(func=PrimitiveFunction.pow_neg1 )
-        prim_pow_neg1_fpos = PrimitiveFunction(func=PrimitiveFunction.pow_neg1_fpos)
+        # prim_pow_neg1_fpos = PrimitiveFunction(func=PrimitiveFunction.pow_neg1_fpos)
         prim_pow0 = PrimitiveFunction(func=PrimitiveFunction.pow0 )
         prim_pow1 = PrimitiveFunction(func=PrimitiveFunction.pow1 )
-        prim_pow1_fpos = PrimitiveFunction(func=PrimitiveFunction.pow1_fpos )
-        prim_pow1_fneg = PrimitiveFunction(func=PrimitiveFunction.pow1_fneg )
+        # prim_pow1_fpos = PrimitiveFunction(func=PrimitiveFunction.pow1_fpos )
+        # prim_pow1_fneg = PrimitiveFunction(func=PrimitiveFunction.pow1_fneg )
         prim_pow2 = PrimitiveFunction(func=PrimitiveFunction.pow2 )
-        prim_pow2_fneg = PrimitiveFunction(func=PrimitiveFunction.pow2_fneg)
+        # prim_pow2_fneg = PrimitiveFunction(func=PrimitiveFunction.pow2_fneg)
         prim_pow3 = PrimitiveFunction(func=PrimitiveFunction.pow3 )
         prim_pow4 = PrimitiveFunction(func=PrimitiveFunction.pow4 )
         prim_sum = PrimitiveFunction(func=PrimitiveFunction.sum_)
 
         PrimitiveFunction._built_in_prims_dict["pow_neg1"] = prim_pow_neg1
-        PrimitiveFunction._built_in_prims_dict["pow_neg1_fpos"] = prim_pow_neg1_fpos
+        # PrimitiveFunction._built_in_prims_dict["pow_neg1_fpos"] = prim_pow_neg1_fpos
         PrimitiveFunction._built_in_prims_dict["pow0"] = prim_pow0
         PrimitiveFunction._built_in_prims_dict["pow1"] = prim_pow1
-        PrimitiveFunction._built_in_prims_dict["pow1_fpos"] = prim_pow1_fpos
-        PrimitiveFunction._built_in_prims_dict["pow1_fneg"] = prim_pow1_fneg
+        # PrimitiveFunction._built_in_prims_dict["pow1_fpos"] = prim_pow1_fpos
+        # PrimitiveFunction._built_in_prims_dict["pow1_fneg"] = prim_pow1_fneg
         PrimitiveFunction._built_in_prims_dict["pow2"] = prim_pow2
-        PrimitiveFunction._built_in_prims_dict["pow2_fneg"] = prim_pow2_fneg
+        # PrimitiveFunction._built_in_prims_dict["pow2_fneg"] = prim_pow2_fneg
         PrimitiveFunction._built_in_prims_dict["pow3"] = prim_pow3
         PrimitiveFunction._built_in_prims_dict["pow4"] = prim_pow4
         PrimitiveFunction._built_in_prims_dict["sum"] = prim_sum

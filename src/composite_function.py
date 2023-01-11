@@ -2,11 +2,14 @@ from __future__ import annotations
 
 # built-in libraries
 import math
-from math import floor
 from typing import Callable, Union
+import re as regex
+
 
 # external libraries
 import numpy as np
+import scipy.special
+import scipy.stats
 
 # internal classes
 from autofit.src.primitive_function import PrimitiveFunction
@@ -328,109 +331,148 @@ class CompositeFunction:
 
         return num_dof - len(self._constraints)
 
-    def tree_as_string(self, buffer_chars=0, head_mul = 0, end_sig=0):
+    def tree_as_string(self, buffer_chars=""):
 
         buff_num = 10
-        if head_mul == 0 :
-            head_mul = 1 if (self.younger_brother is not None
-                             and self._younger_brother is not None and self.parent is None) else 0
+        info_str = f"{self._prim.name[:10] : <10}"  # pads and truncates to ensure a length of 10
 
-        tree_str = "   " if (self.younger_brother is not None
-                             and self.parent is None and self._older_brother is None) else ""
-        tree_str += f"{self._prim.name[:10] : <10}"  # pads and truncates to ensure a length of 10
-        for idx, child in enumerate(self._children_list) :
-            if idx > 0 :
-                tree_str += " | " * head_mul + " " * buff_num
-                for n in range( floor(buffer_chars/buff_num) ) :
-                    if end_sig == 1:
-                        tree_str += "   "
-                    else:
-                        tree_str += " | "
-                    tree_str += " " * buff_num
-            if idx == len(self._children_list)-1:
-                end_sig = 1
-            tree_str += " ~ "
-            tree_str += child.tree_as_string(buffer_chars=buffer_chars+buff_num, head_mul=head_mul, end_sig=end_sig)
-            tree_str += "\n"
-        if self._younger_brother is not None :
-            if tree_str[-1] != '\n':
-                tree_str += '\n'
-            for n in range(floor(buffer_chars / buff_num)):
-                tree_str += " | " + " " * buff_num
-            tree_str += f" x "
-            bro_str = self._younger_brother.tree_as_string(buffer_chars=buffer_chars,head_mul=head_mul,end_sig=end_sig)
-            tree_str += f"{bro_str}".rstrip('\n')
-        return tree_str.rstrip('\n') if self.parent is None and self._older_brother is None else tree_str
-    def tree_as_string_with_args(self, buffer_chars=0, head_mul = 0, end_sig=0):
+        bools = self.parent is not None, self.older_brother is not None, self.younger_brother is not None
+
+        if bools == (True, True, True) :
+            next_buffer = " | " + " " * buff_num
+            tree_str = f" x {info_str}"
+        elif bools == (True, True, False) :
+            next_buffer = "   " + " " * buff_num
+            tree_str = f" x {info_str}"
+        elif bools == (True, False, True) :
+            next_buffer = " | " + " " * buff_num
+            tree_str = f" ~ {info_str}"
+        elif bools == (True, False, False) :
+            next_buffer = "   " + " " * buff_num
+            tree_str = f" ~ {info_str}"
+
+        elif bools == (False, True, True) :
+            next_buffer = " | " + " " * buff_num
+            tree_str = f" x {info_str}"
+        elif bools == (False, True, False) :
+            next_buffer = "   " + " " * buff_num
+            tree_str = f" x {info_str}"
+        elif bools == (False, False, True) :
+            next_buffer = " | " + " " * buff_num
+            tree_str = f"   {info_str}"
+        elif bools == (False, False, False) :
+            next_buffer = "" + " " * buff_num
+            tree_str = f"{info_str}"
+        else :
+            next_buffer = ""
+            tree_str = ""
+
+        for idx, child in enumerate(self._children_list):
+            if idx > 0:
+                tree_str += buffer_chars+next_buffer
+            tree_str += child.tree_as_string(buffer_chars=buffer_chars+next_buffer)
+
+        if self.younger_brother is not None :
+            tree_str += buffer_chars
+            bro_str = self._younger_brother.tree_as_string(buffer_chars=buffer_chars)
+            tree_str += bro_str
+
+        return tree_str.rstrip('\n') + "\n"
+    def tree_as_string_with_args(self, buffer_chars=""):
 
         buff_num = 19
-        if head_mul == 0 :
-            head_mul = 1 if (self.younger_brother is not None
-                             and self._younger_brother is not None and self.parent is None) else 0
+        info_str = f"{self._prim.arg:+.2E}{self._prim.name[:10] : <10}"  # pads and truncates to ensure a length of 10
 
-        tree_str = "   " if (self.younger_brother is not None
-                             and self.parent is None and self._older_brother is None) else ""
-        tree_str += f"{self._prim.arg:+.2E}{self._prim.name[:10] : <10}"  # pads and truncates to ensure a length of 10
-        for idx, child in enumerate(self._children_list) :
-            if idx > 0 :
-                tree_str += " | " * head_mul + " " * buff_num
-                for n in range( floor(buffer_chars/buff_num) ) :
-                    if end_sig == 1:
-                        tree_str += "   "
-                    else:
-                        tree_str += " | "
-                    tree_str += " " * buff_num
-            if idx == len(self._children_list)-1:
-                end_sig = 1
-            tree_str += " ~ "
-            tree_str += child.tree_as_string_with_args(buffer_chars=buffer_chars+buff_num,
-                                                       head_mul=head_mul, end_sig=end_sig)
-            tree_str += "\n"
-        if self._younger_brother is not None :
-            if tree_str[-1] != '\n':
-                tree_str += '\n'
-            for n in range(floor(buffer_chars / buff_num)):
-                tree_str += " | " + " " * buff_num
-            tree_str += f" x "
-            bro_str = self._younger_brother.tree_as_string_with_args(buffer_chars=buffer_chars,
-                                                                     head_mul=head_mul,end_sig=end_sig)
-            tree_str += f"{bro_str}".rstrip('\n')
-        return tree_str.rstrip('\n') if self.parent is None and self._older_brother is None else tree_str
-    def tree_as_string_with_dimensions(self, buffer_chars=0, head_mul = 0, end_sig=0):
+        bools = self.parent is not None, self.older_brother is not None, self.younger_brother is not None
+
+        if bools == (True, True, True) :
+            next_buffer = " | " + " " * buff_num
+            tree_str = f" x {info_str}"
+        elif bools == (True, True, False) :
+            next_buffer = "   " + " " * buff_num
+            tree_str = f" x {info_str}"
+        elif bools == (True, False, True) :
+            next_buffer = " | " + " " * buff_num
+            tree_str = f" ~ {info_str}"
+        elif bools == (True, False, False) :
+            next_buffer = "   " + " " * buff_num
+            tree_str = f" ~ {info_str}"
+
+        elif bools == (False, True, True) :
+            next_buffer = " | " + " " * buff_num
+            tree_str = f" x {info_str}"
+        elif bools == (False, True, False) :
+            next_buffer = "   " + " " * buff_num
+            tree_str = f" x {info_str}"
+        elif bools == (False, False, True) :
+            next_buffer = " | " + " " * buff_num
+            tree_str = f"   {info_str}"
+        elif bools == (False, False, False) :
+            next_buffer = "" + " " * buff_num
+            tree_str = f"{info_str}"
+        else :
+            next_buffer = ""
+            tree_str = ""
+
+        for idx, child in enumerate(self._children_list):
+            if idx > 0:
+                tree_str += buffer_chars+next_buffer
+            tree_str += child.tree_as_string_with_args(buffer_chars=buffer_chars+next_buffer)
+
+        if self.younger_brother is not None :
+            tree_str += buffer_chars
+            bro_str = self._younger_brother.tree_as_string_with_args(buffer_chars=buffer_chars)
+            tree_str += bro_str
+
+        return tree_str.rstrip('\n') + "\n"
+    def tree_as_string_with_dimensions(self, buffer_chars=""):
+
         buff_num = 15
+        info_str = f"{self.dimension_arg:+}/{self.dimension_func:+}{self._prim.name[:10] : <10}"
 
-        if head_mul == 0 :
-            head_mul = 1 if (self.younger_brother is not None
-                             and self._younger_brother is not None and self.parent is None) else 0
+        bools = self.parent is not None, self.older_brother is not None, self.younger_brother is not None
 
-        tree_str = "   " if (self.younger_brother is not None
-                             and self.parent is None and self._older_brother is None) else ""
-        tree_str += f"{self.dimension_arg:+}/{self.dimension_func:+}{self._prim.name[:10] : <10}"
-        for idx, child in enumerate(self._children_list) :
-            if idx > 0 :
-                tree_str += " | " * head_mul + " " * buff_num
-                for n in range( floor(buffer_chars/buff_num) ) :
-                    if end_sig == 1:
-                        tree_str += "   "
-                    else:
-                        tree_str += " | "
-                    tree_str += " " * buff_num
-            if idx == len(self._children_list)-1:
-                end_sig = 1
-            tree_str += " ~ "
-            tree_str += child.tree_as_string_with_dimensions(buffer_chars=buffer_chars+buff_num,
-                                                             head_mul=head_mul, end_sig=end_sig)
-            tree_str += "\n"
-        if self._younger_brother is not None :
-            if tree_str[-1] != '\n':
-                tree_str += '\n'
-            for n in range(floor(buffer_chars / buff_num)):
-                tree_str += " | " + " " * buff_num
-            tree_str += f" x "
-            bro_str = self._younger_brother.tree_as_string_with_dimensions(buffer_chars=buffer_chars,
-                                                                           head_mul=head_mul,end_sig=end_sig)
-            tree_str += f"{bro_str}".rstrip('\n')
-        return tree_str.rstrip('\n') if self.parent is None and self._older_brother is None else tree_str
+        if bools == (True, True, True) :
+            next_buffer = " | " + " " * buff_num
+            tree_str = f" x {info_str}"
+        elif bools == (True, True, False) :
+            next_buffer = "   " + " " * buff_num
+            tree_str = f" x {info_str}"
+        elif bools == (True, False, True) :
+            next_buffer = " | " + " " * buff_num
+            tree_str = f" ~ {info_str}"
+        elif bools == (True, False, False) :
+            next_buffer = "   " + " " * buff_num
+            tree_str = f" ~ {info_str}"
+
+        elif bools == (False, True, True) :
+            next_buffer = " | " + " " * buff_num
+            tree_str = f" x {info_str}"
+        elif bools == (False, True, False) :
+            next_buffer = "   " + " " * buff_num
+            tree_str = f" x {info_str}"
+        elif bools == (False, False, True) :
+            next_buffer = " | " + " " * buff_num
+            tree_str = f"   {info_str}"
+        elif bools == (False, False, False) :
+            next_buffer = "" + " " * buff_num
+            tree_str = f"{info_str}"
+        else :
+            next_buffer = ""
+            tree_str = ""
+
+        for idx, child in enumerate(self._children_list):
+            if idx > 0:
+                tree_str += buffer_chars+next_buffer
+            tree_str += child.tree_as_string_with_dimensions(buffer_chars=buffer_chars+next_buffer)
+
+        if self.younger_brother is not None :
+            tree_str += buffer_chars
+            bro_str = self._younger_brother.tree_as_string_with_dimensions(buffer_chars=buffer_chars)
+            tree_str += bro_str
+
+        return tree_str.rstrip('\n') + "\n"
+
     def print_tree(self):
         print(f"{self.name}:")
         # print(self.tree_as_string())
@@ -705,9 +747,160 @@ class CompositeFunction:
 
         return all_args
 
-    def construct_model_from_name(self, given_name):
-        # should be able to construct a model purely from a name given as a string
-        pass
+    @staticmethod
+    def construct_model_from_str(form: str, error_handler: Callable[[str],None], name: str = "") -> CompositeFunction:
+
+        # get all the names of the primitives used
+        split_form = regex.split(f"[·+()*]", form)
+        prim_names = [x for x in split_form if x]
+
+        # check that the name can be used as a function
+        prim_list = []
+        error_handler(" ")
+        for prim in prim_names:
+            valid = False
+            library_list = [np,scipy.special,scipy.stats._continuous_distns,math]
+            library_names = ["numpy","scipy.special","scipy.stats","math"]
+
+            for lib, lib_name in zip(library_list, library_names) :
+                if not valid and getattr(lib, prim, None) is not None:
+                    # print(f"{prim} exists in {lib_name}")
+                    try :
+                        if lib == scipy.stats._continuous_distns :
+                            y = getattr(lib, prim).pdf(np.pi / 4)
+                        else :
+                            y = getattr(lib,prim)(np.pi/4)
+                        y = 0.1*y
+                    except TypeError :
+                        error_handler(f"<{lib_name}> function {prim} has multiple arguments, "
+                                      f"or only takes integers as input.")
+                    else :
+                        if lib == scipy.stats._continuous_distns:
+                            prim_list.append(PrimitiveFunction(other_callable=getattr(lib, prim).pdf, name=prim))
+                        else :
+                            prim_list.append( PrimitiveFunction(other_callable=getattr(lib, prim),name=prim) )
+                        valid = True
+            if not valid and prim in PrimitiveFunction.built_in_dict():
+                # print(f"{prim} exists in PrimitiveFunction")
+                try :
+                    fn = PrimitiveFunction.built_in(prim).copy()
+                    fn.eval_at(np.pi/4)
+                except TypeError :
+                    error_handler(f"<autofit> function {prim} has multiple arguments, "
+                                  f"or only takes integers as input.")
+                else :
+                    prim_list.append(fn)
+                    valid = True
+            if not valid :
+                error_handler(f"Could not find a valid version of \"{prim}\" in the list of known functions.")
+                # error_handler(f"  You can try creating it yourself using the Custom Function button.")
+                # noinspection PyTypeChecker
+                return None
+
+        form_it, prim_it = 0, 0
+        last_char = "+"
+        man_model = CompositeFunction(name=name,prim_=PrimitiveFunction.built_in("sum"))
+
+        while form_it < len(form) :
+
+            c = form[form_it]
+            if c == '(' :
+                sub_form = ""
+                open_paren = 1
+                while open_paren > 0 :
+                    c = form[form_it+1]
+                    if c == '(':
+                        open_paren += 1
+                    elif c == ')':
+                        open_paren -= 1
+                    sub_form += c
+                    form_it += 1
+
+                sub_model = CompositeFunction.construct_model_from_str(form=sub_form[:-1], error_handler=error_handler)
+                if last_char == '+' :
+                    man_model.add_child(sub_model)
+                elif last_char in ['·','*'] :
+                    man_model.children_list[-1].add_younger_brother(sub_model)
+                else :
+                    if sub_model.younger_brother is None :
+                        for sub_child in sub_model.children_list :
+                            man_model.children_list[-1].add_child(sub_child)
+                    else :
+                        man_model.children_list[-1].add_child(sub_model)
+                last_char = c
+                form_it += 1
+            elif c in ['+','·','*'] :
+                last_char = c
+                form_it += 1
+            else :
+                prim_to_add_name = c
+                while form[form_it+1] not in ['+','·','*','('] :
+                    c = form[form_it+1]
+                    prim_to_add_name += c
+                    form_it += 1
+                    if form_it+1 == len(form) :
+                        break
+
+                if form_it+1 == len(form) or form[form_it+1] in ['+','·','*'] :
+                    prim_to_add : PrimitiveFunction = None
+                    for prim in prim_list[:] :
+                        if prim_to_add_name == prim.name :
+
+                            prim_to_add = prim
+                            prim_list.remove(prim)
+                            break
+                    if last_char == '+':
+                        man_model.add_child(prim_to_add)
+                    elif last_char in ['·', '*']:
+                        man_model.children_list[-1].add_younger_brother(prim_to_add)
+                    else:
+                        man_model.children_list[-1].add_child(prim_to_add)
+                    last_char = c
+                    form_it += 1
+                elif form[form_it+1] == '(' :
+                    # it's actually a composite, we continue until we reach the closing brace
+
+                    composed_fn_name = "("
+                    form_it += 1
+                    open_paren2 = 1
+                    while open_paren2 > 0 :
+                        c = form[form_it + 1]
+                        if c == '(' :
+                            open_paren2 += 1
+                        elif c == ')' :
+                            open_paren2 -= 1
+                        composed_fn_name += c
+                        form_it += 1
+                        if form_it + 1 == len(form):
+                            break
+                    prim_with_composition = CompositeFunction.construct_model_from_str(prim_to_add_name,
+                                                                                       error_handler=error_handler)
+                    composed_fn = CompositeFunction.construct_model_from_str(composed_fn_name,
+                                                                             error_handler=error_handler)
+                    if composed_fn.prim.name == "sum_" and composed_fn.younger_brother is None :
+                        for composed_child in composed_fn.children_list :
+                            prim_with_composition.add_child(composed_child)
+                    else :
+                        prim_with_composition.add_child(composed_fn)
+                    if last_char == '+':
+                        man_model.add_child(prim_with_composition)
+                    elif last_char in ['·', '*']:
+                        man_model.children_list[-1].add_younger_brother(prim_with_composition)
+                    else:
+                        man_model.children_list[-1].add_child(prim_with_composition)
+                    last_char = ')'
+                    form_it += 1
+                else :
+                    raise RuntimeError
+
+        # man_model.print_tree()
+
+        if man_model.prim.name == "sum_" and man_model.num_children() == 1 and man_model.younger_brother is None :
+            man_model = man_model.children_list[0]
+            man_model.parent = None
+
+        error_handler("")
+        return man_model
 
     def submodel_without_node_idx(self, n) -> CompositeFunction:
 
@@ -750,7 +943,6 @@ class CompositeFunction:
         self.set_args(*args)
         return self.eval_at(x)
 
-
     @staticmethod
     def build_built_in_dict() -> None:
 
@@ -791,7 +983,6 @@ class CompositeFunction:
         CompositeFunction._built_in_comps_dict["Gaussian"] = gaussian
         CompositeFunction._built_in_comps_dict["Normal"] = normal
         CompositeFunction._built_in_comps_dict["Sigmoid"] = sigmoid
-
     @staticmethod
     def built_in_list() -> list[CompositeFunction]:
         built_ins = []
@@ -800,11 +991,9 @@ class CompositeFunction:
         for key, comp in CompositeFunction.built_in_dict().items():
             built_ins.append(comp)
         return built_ins
-
     @staticmethod
     def built_in_dict() -> dict[str,CompositeFunction]:
         return CompositeFunction._built_in_comps_dict
-
     @staticmethod
     def built_in(key) -> CompositeFunction:
         if not CompositeFunction._built_in_comps_dict :
@@ -851,7 +1040,6 @@ class CompositeFunction:
         if self._younger_brother is not None :
             dim += self._younger_brother.net_function_dimension_self_and_younger_siblings
         return dim
-
     @property
     def dimension_arg(self) -> int:
 
@@ -872,7 +1060,6 @@ class CompositeFunction:
                     - self.net_function_dimension_self_and_younger_siblings)
         # else, e.g. self.parent.func.name in ["my_cos","my_sin","my_exp","my_log"] :
         return -self.net_function_dimension_self_and_younger_siblings
-
     @property
     def dimension_func(self) -> int:
         # untested with siblings
@@ -916,19 +1103,18 @@ class CompositeFunction:
 
         # probably a custom function
         return 0
-
     @ property
     def dimension(self) -> int:
         return self.dimension_arg + self.net_function_dimension_self_and_younger_siblings
 
 
-def sameness_constraint(x):
-    return x
-# Normalization of A exp[ B(x+C)^2 ] requires A=sqrt(1 / 2 pi sigma^2) and B= - 1 / 2 sigma^2
-def gaussian_normalization_constraint1(x):
-    return np.sqrt(np.abs(x)/np.pi)
-def gaussian_normalization_constraint(x):
-    return -np.pi*np.power(x,2)
+# def sameness_constraint(x):  # to delete
+#     return x
+# # Normalization of A exp[ B(x+C)^2 ] requires A=sqrt(1 / 2 pi sigma^2) and B= - 1 / 2 sigma^2
+# def gaussian_normalization_constraint1(x):  # to delete
+#     return np.sqrt(np.abs(x)/np.pi)
+# def gaussian_normalization_constraint(x):  # to delete
+#     return -np.pi*np.power(x,2)
 
 
 def do_new_things():
