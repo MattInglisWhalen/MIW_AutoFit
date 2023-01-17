@@ -32,100 +32,100 @@ class Frontend:
     def __init__(self):
 
         # UX
-        self._new_user_stage: int = 1  # uses prime factors to notate which actions the user has taken
+        self._new_user_stage= 1  # uses prime factors to notate which actions the user has taken
 
         # UI
-        self._gui: tk.Tk = tk.Tk()
-        self._os_width: int = self._gui.winfo_screenwidth()
-        self._os_height: int = self._gui.winfo_screenheight()
+        self._gui= tk.Tk()
+        self._os_width= self._gui.winfo_screenwidth()
+        self._os_height= self._gui.winfo_screenheight()
 
         # file handling
-        self._filepaths: list[str] = []
-        self._data_handlers: list[DataHandler] = []
-        self._changed_data_flag: bool = True
+        self._filepaths= []
+        self._data_handlers= []
+        self._changed_data_flag= True
 
         # backend connections
-        self._optimizer: Optimizer = None  # Optimizer
-        self._changed_optimizer_opts_flag: bool = True
+        self._optimizer= None  # Optimizer
+        self._changed_optimizer_opts_flag= True
 
         # panels
-        self._left_panel_frame: tk.Frame = None
-        self._middle_panel_frame : tk.Frame = None
-        self._right_panel_frame : tk.Frame = None
+        self._left_panel_frame= None
+        self._middle_panel_frame = None
+        self._right_panel_frame = None
 
         # left panel ------------------------------------------------------------------------------------------------->
-        self._fit_data_button: tk.Button = None
+        self._fit_data_button= None
 
         # Excel input
-        self._popup_window: tk.Toplevel = None
-        self._excel_x_range: str = None
-        self._excel_y_range: str = None
-        self._excel_sigmax_range: str = None
-        self._excel_sigmay_range: str = None
-        self._all_sheets_in_file: tk.BooleanVar = tk.BooleanVar(value=False)
+        self._popup_window= None
+        self._excel_x_range= None
+        self._excel_y_range= None
+        self._excel_sigmax_range= None
+        self._excel_sigmay_range= None
+        self._all_sheets_in_file= tk.BooleanVar(value=False)
 
         # right panel ------------------------------------------------------------------------------------------------->
         self._MAX_MESSAGE_LENGTH = 20
-        self._num_messages_ever: int = 0
-        self._num_messages: int = 0
+        self._num_messages_ever= 0
+        self._num_messages= 0
 
-        self._colors_console_menu: tk.Menu = None
-        self._console_color: tuple[int, int, int] = (0, 0, 0)  # these tk colors work differently than matplotlib colors
-        self._printout_color: tuple[int, int, int] = (0, 200, 0)
+        self._colors_console_menu= None
+        self._console_color= (0, 0, 0)  # these tk colors work differently than matplotlib colors
+        self._printout_color= (0, 200, 0)
 
         self._progress_label = None
 
         # middle panel ------------------------------------------------------------------------------------------------>
-        self._middle_panel_frame: tk.Frame = None
+        self._middle_panel_frame= None
 
-        self._data_perusal_frame : tk.Frame = None
-        self._fit_options_frame : tk.Frame = None
-        self._plot_options_frame: tk.Frame = None
-        self._polynomial_frame: tk.Frame = None
-        self._procedural_frame: tk.Frame = None
-        self._gaussian_frame: tk.Frame = None
-        self._manual_frame: tk.Frame = None
+        self._data_perusal_frame = None
+        self._fit_options_frame = None
+        self._plot_options_frame= None
+        self._polynomial_frame= None
+        self._procedural_frame= None
+        self._gaussian_frame= None
+        self._manual_frame= None
 
         # image frame
-        self._curr_image_num: int = -1
-        self._image_path: str = None
-        self._image: ImageTk.PhotoImage = None
-        self._image_frame: tk.Label = None
+        self._curr_image_num= -1
+        self._image_path= None
+        self._image= None
+        self._image_frame= None
 
-        self._showing_fit_image: bool = False  # conjugate to showing data-only image
-        self._showing_fit_all_image: bool = False
-        self._bg_color: tuple[float, float, float] = (112 / 255, 146 / 255, 190 / 255)
-        self._fit_color: tuple[float, float, float] = (1., 0., 0.)
-        self._dataaxes_color: tuple[float, float, float] = (1., 1., 1.)
-        self._color_name_tkstr: tk.StringVar = tk.StringVar(value="Colour")
-        self._colors_image_menu: tk.Menu = None
+        self._showing_fit_image= False  # conjugate to showing data-only image
+        self._showing_fit_all_image= False
+        self._bg_color= (112 / 255, 146 / 255, 190 / 255)
+        self._fit_color= (1., 0., 0.)
+        self._dataaxes_color= (1., 1., 1.)
+        self._color_name_tkstr= tk.StringVar(value="Colour")
+        self._colors_image_menu= None
 
         # data perusal frame
-        self._residuals_button: tk.Button = None
-        self._error_bands_button: tk.Button = None
+        self._residuals_button= None
+        self._error_bands_button= None
         self._show_error_bands = 0
 
         # fit options frame
-        self._model_name_tkstr : tk.StringVar = tk.StringVar(value="")
-        self._which5_name_tkstr : tk.StringVar = None
+        self._model_name_tkstr = tk.StringVar(value="")
+        self._which5_name_tkstr = None
         self._which_tr_id = None
 
-        self._pause_button: tk.Button = None
-        self._refit_button: tk.Button = None
+        self._pause_button= None
+        self._refit_button= None
         self._refit_on_click = True
 
         # plot options frame
-        self._logx_button: tk.Button = None
-        self._logy_button: tk.Button = None
-        self._normalize_button: tk.Button = None
+        self._logx_button= None
+        self._logy_button= None
+        self._normalize_button= None
 
         # polynomial frame
-        self._polynomial_degree_tkint: tk.IntVar = tk.IntVar(value=2)
-        self._polynomial_degree_label: tk.Label = None
+        self._polynomial_degree_tkint= tk.IntVar(value=2)
+        self._polynomial_degree_label= None
 
         # gaussian frame
-        self._gaussian_modal_tkint: tk.IntVar = tk.IntVar(value=1)
-        self._gaussian_modal_label: tk.Label = None
+        self._gaussian_modal_tkint= tk.IntVar(value=1)
+        self._gaussian_modal_label= None
 
         # procedural frame
         self._checkbox_names_list = ["cos(x)", "sin(x)", "exp(x)", "log(x)",
@@ -136,26 +136,26 @@ class Frontend:
         for name in self._checkbox_names_list:
             self._use_func_dict_name_tkbool[name] = tk.BooleanVar(value=False)
         self._max_functions_tkint = tk.IntVar(value=3)
-        self._depth_label : tk.Label = None
-        self._custom_checkbox : tk.Checkbutton = None
+        self._depth_label = None
+        self._custom_checkbox = None
         self._custom_binding = None
-        self._custom_remove_menu : tk.Menu = None
+        self._custom_remove_menu = None
 
         # brute-force frame
         self._brute_forcing_tkbool = tk.BooleanVar(value=False)
 
         # manual frame
-        self._manual_name_tkstr : tk.StringVar = tk.StringVar(value="")
-        self._manual_form_tkstr : tk.StringVar = tk.StringVar(value="")
-        self._manual_model : CompositeFunction = None
-        self._library_numpy : tk.Button = None
-        self._library_special : tk.Button = None
-        self._library_stats : tk.Button = None
-        self._library_math : tk.Button = None
-        self._library_autofit : tk.Button = None
-        self._error_label : tk.Label = None
-        self._current_name_label : tk.Label = None
-        self._current_form_label : tk.Label = None
+        self._manual_name_tkstr = tk.StringVar(value="")
+        self._manual_form_tkstr = tk.StringVar(value="")
+        self._manual_model = None
+        self._library_numpy = None
+        self._library_special = None
+        self._library_stats = None
+        self._library_math = None
+        self._library_autofit = None
+        self._error_label = None
+        self._current_name_label = None
+        self._current_form_label = None
 
         # defaults config --------------------------------------------------------------------------------------------->
         self._default_fit_type = "Linear"
@@ -195,7 +195,7 @@ class Frontend:
         self.load_splash_screen()
 
         self.add_message(f"Directory is{':' if Frontend._meipass_flag else ''} {Frontend.get_package_path()}")
-        print(f"{Frontend._meipass_flag=}")
+        print(f"{Frontend._meipass_flag}")
 
     def touch_defaults(self):
         try:
@@ -402,7 +402,7 @@ class Frontend:
                     # and pow2_on and pow3_on and pow4_on
                     and custom_on):
                 print("You shouldn't have all functions turned on for a procedural fit. Use brute-force instead.")
-                print(f" {self.brute_forcing=} {self._default_fit_type=}")
+                print(f" {self.brute_forcing} {self._default_fit_type}")
             file.write(f"#COS_ON {cos_on}\n")
             file.write(f"#SIN_ON {sin_on}\n")
             file.write(f"#EXP_ON {exp_on}\n")
@@ -630,7 +630,7 @@ class Frontend:
         for path in new_filepaths[:]:
             if path[-4:] in [".xls", "xlsx", ".ods"] and self._new_user_stage % 23 != 0:
                 self.dialog_box_get_excel_data_ranges()
-                print(f"{self._excel_x_range=} {self._excel_y_range=}")
+                print(f"{self._excel_x_range} {self._excel_y_range}")
                 if self._excel_x_range is None:
                     # the user didn't actually want to load that file
                     new_filepaths.remove(path)
@@ -1112,14 +1112,14 @@ class Frontend:
         for idx, _ in enumerate(list_of_args[0]):
             sum_args = 0
             for par_list in list_of_args:
-                sum_args += par_list[idx]
+                sum_args += par_list
             mean = sum_args / N
 
             sum_uncertainty_sqr = 0
             sum_variance = 0
             for par_list, unc_list in zip(list_of_args, list_of_uncertainties):
-                sum_uncertainty_sqr += unc_list[idx] ** 2 / N ** 2
-                sum_variance += (par_list[idx] - mean) ** 2 / (N - 1) if N > 1 else 0
+                sum_uncertainty_sqr += unc_list ** 2 / N ** 2
+                sum_variance += (par_list - mean) ** 2 / (N - 1) if N > 1 else 0
 
             ratio = sum_variance / (sum_variance + sum_uncertainty_sqr)
             effective_variance = ratio * sum_variance + (1 - ratio) * sum_uncertainty_sqr
@@ -1483,7 +1483,7 @@ class Frontend:
             print_string += f" and as a tree, this is \n"
             print_string += self.current_model.tree_as_string_with_args() + "\n"
         else:
-            print(f"{self.current_model.name=} {self.data_handler.normalized=}")
+            print(f"{self.current_model.name} {self.data_handler.normalized}")
             raise EnvironmentError
         if self.data_handler.logy_flag and self.data_handler.logx_flag:
             print_string += f"Keep in mind that LY = log(y/{self.data_handler.Y0:.2E}) " \
@@ -1512,8 +1512,8 @@ class Frontend:
         head_menu.add_cascade(label="Message Colour", menu=printout_menu)
 
         self._colors_console_menu = head_menu
-    def do_colors_console_popup(self, event: tk.Event):
-        image_colors_menu: tk.Menu = self._colors_console_menu
+    def do_colors_console_popup(self, event):
+        image_colors_menu= self._colors_console_menu
         try:
             image_colors_menu.tk_popup(event.x_root, event.y_root)
         finally:
@@ -1527,7 +1527,7 @@ class Frontend:
         )
         image_frame.grid(row=0, column=0, sticky='w')
         self.load_splash_image()
-    def create_data_perusal_frame(self):  # !frame2 : inspect, left<>right buttons
+    def create_data_perusal_frame(self):  # !frame2 , left<>right buttons
         self._data_perusal_frame = tk.Frame(master=self._gui.children['!frame2'])
         self._data_perusal_frame.grid(row=1, column=0, sticky='ew')
         self._data_perusal_frame.grid_columnconfigure(0, weight=1)
@@ -1537,12 +1537,12 @@ class Frontend:
 
         data_perusal_frame_right = tk.Frame(master=self._data_perusal_frame)
         data_perusal_frame_right.grid(row=0, column=1, sticky='e')
-    def create_fit_options_frame(self):  # !frame3 : fit type, procedural top5, pause/go, refit
+    def create_fit_options_frame(self):  # !frame3 , procedural top5, pause/go, refit
         self._fit_options_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
         self._fit_options_frame.grid(row=3, column=0, sticky='w')  # row2 is reserved for the black line
-    def create_plot_options_frame(self):  # !frame4 : logx, logy, normalize
+    def create_plot_options_frame(self):  # !frame4 , logy, normalize
         self._gui.children['!frame2'].columnconfigure(1, minsize=50)
         self._plot_options_frame = tk.Frame(
             master=self._gui.children['!frame2']
@@ -1560,7 +1560,7 @@ class Frontend:
         )
         self._gaussian_frame.grid(row=4, column=0, sticky='w')
     # def create_sigmoid_frame(self) : pass
-    def create_procedural_frame(self):  # !frame5 : checkboxes, depth of procedural fit
+    def create_procedural_frame(self):  # !frame5 , depth of procedural fit
         self._procedural_frame = tk.Frame(
             master=self._gui.children['!frame2']
         )
@@ -1626,8 +1626,8 @@ class Frontend:
         head_menu.add_cascade(label="Fit Colour", menu=fit_colour_menu)
 
         self._colors_image_menu = head_menu
-    def do_colors_image_popup(self, event: tk.Event):
-        image_colors_menu: tk.Menu = self._colors_image_menu
+    def do_colors_image_popup(self, event):
+        image_colors_menu= self._colors_image_menu
         try:
             image_colors_menu.tk_popup(event.x_root, event.y_root)
         finally:
@@ -1811,7 +1811,7 @@ class Frontend:
             count = len(residuals)
             manual_gaussian = CompositeFunction.built_in("Gaussian")
             manual_gaussian.set_args(count * res_handler.bin_width() / np.sqrt(2 * np.pi * sigma ** 2), sigma, mu)
-            print(f"{res_handler.bin_width()=}")
+            print(f"{res_handler.bin_width()}")
             print(count * res_handler.bin_width() / np.sqrt(2 * np.pi * sigma ** 2), sigma, mu)
             res_optimizer.shown_model = manual_gaussian
         res_optimizer.show_fit()
@@ -1941,11 +1941,11 @@ class Frontend:
         self.add_message(f"\n \n> p-values from standard normality tests:\n")
         # other normality tests
         W, alpha = scipy.stats.shapiro(residuals)  # free mean, free variance
-        print(f"\n{W=} {alpha=}")
-        self.add_message(f"  Shapiro-Wilk       : p = {alpha:.5F}")
+        print(f"\n{W} {alpha}")
+        self.add_message(f"  Shapiro-Wilk       = {alpha:.5F}")
 
         A2, crit, sig = scipy.stats.anderson(residuals, dist='norm')  # free mean, free variance
-        print(f"{A2=} {crit=} {sig=}")
+        print(f"{A2} {crit} {sig}")
         threshold_idx = -1
         for idx, icrit in enumerate(crit):
             if A2 > icrit:
@@ -1957,19 +1957,19 @@ class Frontend:
 
         # kolmogorov, kol_pvalue = scipy.stats.kstest(residuals,'norm')
         kolmogorov, kol_pvalue = scipy.stats.kstest(self.sample_standardize(residuals), 'norm')  # mean 0, variance 1
-        print(f"{kolmogorov=} {kol_pvalue=}")
+        print(f"{kolmogorov} {kol_pvalue}")
         if kol_pvalue > 1e-5:
-            self.add_message(f"  Kolmogorov-Smirnov : p = {kol_pvalue:.5F}")
+            self.add_message(f"  Kolmogorov-Smirnov = {kol_pvalue:.5F}")
         else:
-            self.add_message(f"  Kolmogorov-Smirnov : p = {kol_pvalue:.2E}")
+            self.add_message(f"  Kolmogorov-Smirnov = {kol_pvalue:.2E}")
 
         if len(residuals) > 8:
             dagostino, dag_pvalue = scipy.stats.normaltest(residuals)  # free mean, free variance
-            print(f"{dagostino=} {dag_pvalue=}")
+            print(f"{dagostino} {dag_pvalue}")
             if dag_pvalue > 1e-5:
-                self.add_message(f"  d'Agostino         : p = {dag_pvalue:.5F}")
+                self.add_message(f"  d'Agostino         = {dag_pvalue:.5F}")
             else:
-                self.add_message(f"  d'Agostino         : p = {dag_pvalue:.2E}")
+                self.add_message(f"  d'Agostino         = {dag_pvalue:.2E}")
 
         # TODO: I've noticed that there's a bad interaction with all tests when logging-y
     @staticmethod
@@ -2083,7 +2083,7 @@ class Frontend:
         self._which5_name_tkstr.set(arg)
         self._which_tr_id = self._which5_name_tkstr.trace('w', self.which5_dropdown_trace)
     # noinspection PyUnusedLocal
-    def which5_dropdown_trace(self, *args) -> None:
+    def which5_dropdown_trace(self, *args)  :
         which5_choice = self._which5_name_tkstr.get()
         print(f"Changed top5_dropdown to {which5_choice}")
         # show the fit of the selected model
@@ -2091,7 +2091,7 @@ class Frontend:
         try:
             selected_model_idx = self.optimizer.top5_names.index(model_name)
         except ValueError:
-            print(f"{model_name=} is not in {self.optimizer.top5_names}")
+            print(f"{model_name} is not in {self.optimizer.top5_names}")
             selected_model_idx = 0
 
         self.current_model = self.optimizer.top5_models[selected_model_idx]
@@ -2099,7 +2099,7 @@ class Frontend:
         self.current_rchisqr = self.optimizer.top5_rchisqrs[selected_model_idx]
 
         # also update the fit of the current model
-        print(f"{self._refit_on_click=} {self._changed_data_flag=}")
+        print(f"{self._refit_on_click} {self._changed_data_flag}")
         if self._refit_on_click and self._changed_data_flag:
             print("||| REFIT ON CLICK |||")
             self.show_current_data_with_fit(do_halving=True)
@@ -2115,7 +2115,7 @@ class Frontend:
             return
 
         # update options
-        top5_dropdown: tk.OptionMenu = self._fit_options_frame.children['!optionmenu2']
+        top5_dropdown= self._fit_options_frame.children['!optionmenu2']
         top5_dropdown['menu'].delete(0, tk.END)
         top5_list = [f"{rx_sqr:.2F}: {name}" for rx_sqr, name
                      in zip(self.optimizer.top5_rchisqrs, self.optimizer.top5_names)]
@@ -2194,7 +2194,7 @@ class Frontend:
         )
         self._logy_button.grid(row=1, column=0, padx=5, sticky='w')
     def logx_command(self):
-        # TODO: if logging x or y, the top5 functions should be reset
+        # TODO, the top5 functions should be reset
         # flip-flop
         if self.data_handler.logx_flag:
             self.data_handler.logx_flag = False
@@ -2293,7 +2293,7 @@ class Frontend:
             self._normalize_button.configure(relief=tk.RAISED)
 
     def update_data_select(self):
-        text_label: tk.Label = self._data_perusal_frame.children['!frame'].children['!label']  # left frame
+        text_label= self._data_perusal_frame.children['!frame'].children['!label']  # left frame
         if self._showing_fit_all_image:
             text_label.configure(text=f"-/{len(self._data_handlers)}")
         else:
@@ -2374,7 +2374,7 @@ class Frontend:
 
         plt.xlabel(handler.x_label)
         plt.ylabel(handler.y_label)
-        axes: plt.axes = plt.gca()
+        axes= plt.gca()
         if axes.get_xlim()[0] > 0:
             axes.set_xlim([0, axes.get_xlim()[1]])
         elif axes.get_xlim()[1] < 0:
@@ -2436,7 +2436,7 @@ class Frontend:
 
         plt.close()
         fig = plt.figure()
-        axes: plt.axes = plt.gca()
+        axes= plt.gca()
 
         for idx, (handler, args) in enumerate(zip(self._data_handlers, args_list)):
 
@@ -2448,7 +2448,7 @@ class Frontend:
             sum_len += len(x_points)
             smooth_x_for_fit = np.linspace(x_points[0], x_points[-1], 4 * len(x_points))
             plot_model.args = args
-            print(f"{plot_model.args=}")
+            print(f"{plot_model.args}")
             if handler.logx_flag and handler.logy_flag:
                 fit_vals = [plot_model.eval_at(xi, X0=handler.X0, Y0=handler.Y0)
                             for xi in smooth_x_for_fit]
@@ -2464,7 +2464,7 @@ class Frontend:
             col_tuple = [(icol / max(self._dataaxes_color) if max(self._dataaxes_color) > 0 else 1)
                          * (idx / num_sets) for icol in self._dataaxes_color]
             # col = idx / num_sets
-            # print(f"{col=}")
+            # print(f"{col}")
             # set_color = (col,col,col)
             axes.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color=col_tuple)
             plt.plot(smooth_x_for_fit, fit_vals, '-', color=col_tuple)
@@ -2786,12 +2786,12 @@ class Frontend:
         head_menu.add_cascade(label="Remove Custom", menu=names_menu)
 
         self._custom_remove_menu = head_menu
-    def do_custom_remove_popup(self, event: tk.Event):
+    def do_custom_remove_popup(self, event):
         try:
             self._custom_remove_menu.tk_popup(event.x_root, event.y_root)
         finally:
             self._custom_remove_menu.grab_release()
-    def remove_named_custom(self, name: str):
+    def remove_named_custom(self, name):
 
         if name == '' :
             return
@@ -2962,7 +2962,7 @@ class Frontend:
 
         self._manual_frame.grid(row=4, column=0, sticky='w')
         self.show_library_options()
-    def validate_manual_function_command(self) -> bool:
+    def validate_manual_function_command(self)  :
 
         self.add_message(f"\n \nValidating {self._manual_frame.children['!entry'].get()} with form")
         # self.add_message(f"  Form string is {self._manual_frame.children['!entry2'].get()}")
@@ -3047,7 +3047,7 @@ class Frontend:
         self._manual_model = manual_model
         self.save_defaults()
         return True
-    def error_handling(self, error_msg) -> bool:
+    def error_handling(self, error_msg)  :
         self._error_label.configure(text=error_msg)
         return False
 
@@ -3111,7 +3111,7 @@ class Frontend:
     def print_numpy_library(self):
         buffer = "\n \n  <numpy> options: \n  "
         for memb in dir(np):
-            fn: np.ufunc = getattr(np, memb)
+            fn= getattr(np, memb)
             if type(fn) is np.ufunc and fn.nin == 1 and 'f->f' in fn.types:
                 try:
                     y = fn(np.pi / 4)
@@ -3284,26 +3284,26 @@ class Frontend:
             self.optimizer.shown_rchisqr = self.optimizer.top_rchisqr
 
     @property
-    def current_model(self) -> CompositeFunction:
+    def current_model(self)  :
         return self.optimizer.shown_model
     @current_model.setter
     def current_model(self, other):
         self.optimizer.shown_model = other
 
     @property
-    def current_args(self) -> list[float]:
+    def current_args(self)  :
         return self.optimizer.shown_parameters
     @property
-    def current_uncs(self) -> list[float]:
+    def current_uncs(self)  :
         return self.optimizer.shown_uncertainties
     @property
-    def current_covariance(self) -> np.ndarray:
+    def current_covariance(self)  :
         return self.optimizer.shown_covariance
     @current_covariance.setter
     def current_covariance(self, other):
         self.optimizer.shown_covariance = other
     @property
-    def current_rchisqr(self) -> float:
+    def current_rchisqr(self)  :
         return self.optimizer.shown_rchisqr
     @current_rchisqr.setter
     def current_rchisqr(self, other):
@@ -3313,7 +3313,7 @@ class Frontend:
     def use_functions_dict(self):
         return {key: tkBoolVar.get() for key, tkBoolVar in self._use_func_dict_name_tkbool.items()}
     @property
-    def max_functions(self) -> int:
+    def max_functions(self)  :
         return self._max_functions_tkint.get()
 
     def bg_color_default(self):
@@ -3424,7 +3424,7 @@ class Frontend:
     #     self._curr_best_red_chi_sqr = self._optimizer.shown_rchisqr
 
 
-def sup(s: int):
+def sup(s):
     subs_dict = {'0': '\U00002070',
                  '1': '\U000000B9',
                  '2': '\U000000B2',
@@ -3438,9 +3438,9 @@ def sup(s: int):
     s_str = str(s)
     ret_str = ""
     for char in s_str:
-        ret_str += subs_dict[char]
+        ret_str += subs_dict
     return ret_str
-def sub(s: int):
+def sub(s):
     subs_dict = {'0': '\U00002080',
                  '1': '\U00002081',
                  '2': '\U00002082',
@@ -3455,9 +3455,9 @@ def sub(s: int):
     s_str = str(s)
     ret_str = ""
     for char in s_str:
-        ret_str += subs_dict[char]
+        ret_str += subs_dict
     return ret_str
-def hexx(vec) -> str:
+def hexx(vec)  :
     hex_str = "#"
     for c255 in vec:
         to_add = f"{int(c255):x}"
