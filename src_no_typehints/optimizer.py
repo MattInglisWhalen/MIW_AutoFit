@@ -655,7 +655,7 @@ class Optimizer:
         self._data = sorted(other_data)
 
     # does not change self._data
-    def fit_setup(self, fourier_condition = True) -> tuple[list[float], list[float], list[float], bool]:
+    def fit_setup(self, fourier_condition = True)  :
 
         x_points = []
         y_points = []
