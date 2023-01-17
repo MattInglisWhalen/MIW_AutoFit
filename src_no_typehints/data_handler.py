@@ -128,7 +128,7 @@ class DataHandler:
                     else:
                         datum.sigma_pos = datum.sigma_pos * datum.pos
         self._logx_flag = new_flag
-        print(f"Finished logging x with {self._X0=}")
+        print(f"Finished logging x with {self._X0}")
     @property
     def Y0(self)  :
         return self._Y0
@@ -156,7 +156,7 @@ class DataHandler:
                 datum.val = self._Y0 * math.exp( datum.val )
                 datum.sigma_val = datum.sigma_val*datum.val
         self._logy_flag = new_flag
-        print(f"Finished logging y with {self._Y0=}")
+        print(f"Finished logging y with {self._Y0}")
 
     @property
     def unlogged_x_data(self)  :
@@ -343,7 +343,7 @@ class DataHandler:
         minval, maxval, count = min(vals), max(vals), len(vals)
 
         if minval < 0 and self._logx_flag :
-            print(f"Can't x-log histogram when {minval=}<0")
+            print(f"Can't x-log histogram when {minval}<0")
             self._logx_flag = False
 
         if minval - math.floor(minval) < 2/count :
@@ -367,7 +367,7 @@ class DataHandler:
             hist_counts, hist_bounds = np.histogram(vals,  bins=np.linspace(minval, maxval, num=num_bins+1) )
         print(f"Made histogram with bin counts {hist_counts}")
         if 0 in hist_counts :
-            print(f"Histogram creation error with {hist_bounds=}")
+            print(f"Histogram creation error with {hist_bounds}")
         if self._logx_flag :
             for idx, count in enumerate(hist_counts) :
                 geom_mean = math.sqrt(hist_bounds[idx+1]*hist_bounds[idx])
@@ -418,16 +418,16 @@ class DataHandler:
         try:
             left, right = regex.split(f":", excel_vec)
         except ValueError :
-            print(f"{excel_vec=}")
+            print(f"{excel_vec}")
             raise ValueError
-        # print(f"{left=} {right=}")
+        # print(f"{left} {right}")
         left_chars = regex.split( f"[0-9]", left)[0]
         left_ints = regex.split( f"[A-Z]", left)[-1]
 
         right_chars = regex.split( f"[0-9]", right)[0]
         right_ints = regex.split( f"[A-Z]", right)[-1]
 
-        # print(f"{left_chars=} {left_ints=} {right_chars=} {right_ints=}")
+        # print(f"{left_chars} {left_ints} {right_chars} {right_ints}")
 
         # print([idx for idx in
         #        range(DataHandler.excel_chars_as_idx(left_chars), DataHandler.excel_chars_as_idx(right_chars) + 1)])

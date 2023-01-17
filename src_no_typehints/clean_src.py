@@ -14,6 +14,7 @@ def clean_src():
         print(filename, cleaned_files+"/cleaned_"+filename)
         with open(filename,'r') as infile, open(cleaned_files+"/"+filename,'w') as outfile :
             for line in infile :
+
                 stripped_line_1 = regex.sub("->[.a-zA-Z\[\]\s]*:"," :",line)  # no type hinting for returns
                 stripped_line_2 = regex.sub("Callable\[[,a-zA-Z\[\]\s]*]","Callable",stripped_line_1)  # no type hinting for callable
                 stripped_line_3 = regex.sub("Union\[[,a-zA-Z\[\]\s]*]", "Union",stripped_line_2)  # no type hinting for Union
@@ -23,8 +24,9 @@ def clean_src():
                 stripped_line_7 = regex.sub(":[.a-zA-Z\s]*,", ",", stripped_line_6)  # no type hinting for function args
                 stripped_line_8 = regex.sub(":[.,a-zA-Z\s]*\)", ")", stripped_line_7)  # no type hinting for function args -- clash with array slicing
                 stripped_line_9 = regex.sub(":[.,a-zA-Z\s]*=", "=", stripped_line_8)  # no type hinting for function args -- clash with array slicing
-                stripped_line = regex.sub("=}", "}", stripped_line_9)  # python 3.6 has no {var=} in fstrings
-                outfile.write(stripped_line_9)
+                stripped_line_99 = regex.sub("=\}", "}", stripped_line_9)  # python 3.6 has no {var=} in fstrings
+                stripped_line = regex.sub("from __future__ import annotations", "", stripped_line_99)  # python 3.6 has no {var=} in fstrings
+                outfile.write(stripped_line)
 
 
 if __name__ == "__main__" :

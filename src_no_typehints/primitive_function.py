@@ -1,4 +1,4 @@
-from __future__ import annotations
+
 
 # built-in libraries
 from typing import Callable, Union

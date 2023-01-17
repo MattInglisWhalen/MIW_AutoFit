@@ -1,4 +1,4 @@
-from __future__ import annotations
+
 
 # built-in libraries
 import math
@@ -652,7 +652,7 @@ class CompositeFunction:
 
     def eval_at(self,x, X0 = 0, Y0 = 0):
         if X0 :
-            # print(f"{X0=}")
+            # print(f"{X0}")
             # the model is working with LX as the independent variable, but we're being passed x
             LX = math.log(x/X0)
             x = LX
@@ -672,7 +672,7 @@ class CompositeFunction:
         for child in self._children_list :
             children_eval_to += child.eval_at(x)
         if Y0 :
-            # print(f"{Y0=}")
+            # print(f"{Y0}")
             # the model is working with LY as the dependent variable, but we're expecting to return x
             LY = self._prim.eval_at(children_eval_to)
             if self._younger_brother is not None:
@@ -721,7 +721,7 @@ class CompositeFunction:
             it += brother_dof
 
         if it != len(args_as_list) :
-            print(f"Trying to set {args_as_list=} in {self.name}")
+            print(f"Trying to set {args_as_list} in {self.name}")
             raise RuntimeError
     def get_args(self, skip_flag=0)  :
         # get all arguments normally, then pop off the ones with constraints once we get to the head

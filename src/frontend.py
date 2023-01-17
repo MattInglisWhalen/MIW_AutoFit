@@ -9,7 +9,6 @@ import re as regex
 import tkinter as tk
 import tkinter.filedialog as fd
 
-import numpy
 import numpy as np
 import pandas as pd
 
@@ -17,7 +16,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import scipy.stats
 import scipy.special
-from PIL import ImageTk, Image, ImageFont
+from PIL import ImageTk, Image
 
 # internal classes
 from autofit.src.composite_function import CompositeFunction
