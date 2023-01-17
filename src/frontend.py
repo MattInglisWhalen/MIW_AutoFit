@@ -1,13 +1,9 @@
 # default libraries
+import _tkinter
 import math
-# from dataclasses import field
-from math import floor
 import sys
 import os as os
 import re as regex
-
-from inspect import getmembers, isfunction, ismethod, isroutine
-
 
 # external libraries
 import tkinter as tk
@@ -21,7 +17,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import scipy.stats
 import scipy.special
-from PIL import ImageTk, Image
+from PIL import ImageTk, Image, ImageFont
 
 # internal classes
 from autofit.src.composite_function import CompositeFunction
@@ -34,6 +30,9 @@ class Frontend:
     _meipass_flag = True
 
     def __init__(self):
+
+        tcl = tk.Tcl()
+        print(tcl.call("info","patchlevel"))
 
         # UX
         self._new_user_stage: int = 1  # uses prime factors to notate which actions the user has taken
@@ -180,6 +179,12 @@ class Frontend:
         self._default_manual_name = "N/A"
         self._default_manual_form = "N/A"
         self._custom_function_button = None
+
+        self.sym_chi = "\U0001D6D8"
+        self.sym_left = "\U0001F844"
+        self.sym_up = "\U0001F845"
+        self.sym_right = "\U0001F846"
+        self.sym_down = "\U0001F846"
 
         # default configs
         self.touch_defaults()  # required for free version
@@ -466,7 +471,11 @@ class Frontend:
         # icon image and window title
         loc = Frontend.get_package_path()
         gui.iconbitmap(f"{loc}/icon.ico")
-        gui.title("AutoFit")
+        if sys.platform == "darwin" :
+            iconify = Image.open(f"{loc}/splash.png")
+            photo = ImageTk.PhotoImage(iconify)
+            gui.wm_iconphoto(False,photo)
+        gui.title("MIW's AutoFit")
 
         # menus
         self.create_file_menu()
@@ -512,14 +521,35 @@ class Frontend:
         fit_colour_menu.add_command(label="White", command=self.fit_color_white)
         fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
 
+        image_size_menu = tk.Menu(master=preferences_menu, tearoff=0)
+        event_up = tk.Event()
+        event_up.delta = 120
+        event_down = tk.Event()
+        event_down.delta = -120
+        image_size_menu.add_command(label="Up", command=lambda: self.do_image_resize(event_up))
+        image_size_menu.add_command(label="Down", command=lambda: self.do_image_resize(event_down))
+
+        printout_background_menu = tk.Menu(master=preferences_menu, tearoff=0)
+        printout_background_menu.add_command(label="Default", command=self.console_color_default)
+        printout_background_menu.add_command(label="White", command=self.console_color_white)
+        printout_background_menu.add_command(label="Pale", command=self.console_color_pale)
+
+        printout_menu = tk.Menu(master=preferences_menu, tearoff=0)
+        printout_menu.add_command(label="Default", command=self.printout_color_default)
+        printout_menu.add_command(label="White", command=self.printout_color_white)
+        printout_menu.add_command(label="Black", command=self.printout_color_black)
+
         gui_resolution_menu = tk.Menu(master=preferences_menu, tearoff=0)
         gui_resolution_menu.add_command(label="Up", command=self.size_up)
         gui_resolution_menu.add_command(label="Down", command=self.size_down)
 
         file_menu.add_cascade(label="Settings", menu=preferences_menu)
-        preferences_menu.add_cascade(label="Background Colour", menu=background_menu)
+        preferences_menu.add_cascade(label="Image Background", menu=background_menu)
         preferences_menu.add_cascade(label="Data/Axis Colour", menu=dataaxis_menu)
         preferences_menu.add_cascade(label="Fit Colour", menu=fit_colour_menu)
+        preferences_menu.add_cascade(label="Image Size", menu=image_size_menu)
+        preferences_menu.add_cascade(label="Printout Background", menu=printout_background_menu)
+        preferences_menu.add_cascade(label="Printout Colour", menu=printout_menu)
         preferences_menu.add_cascade(label="Text Size", menu=gui_resolution_menu)
 
         # File
@@ -563,7 +593,15 @@ class Frontend:
         self._gui.columnconfigure(2, minsize=700, weight=1)  # image panel
         self._right_panel_frame = tk.Frame(master=self._gui, bg=hexx(self._console_color))
         self._right_panel_frame.grid(row=0, column=2, sticky='news')
-        self.add_message("> Welcome to MIW's AutoFit!")
+        try :
+            self.add_message("> Welcome to MIW's AutoFit! \U0001D179")
+        except _tkinter.TclError :
+            self.add_message("> Welcome to MIW's AutoFit!")
+            self.sym_chi = "\U000003C7"
+            self.sym_left = "\U00002190"
+            self.sym_up = "\U00002191"
+            self.sym_right = "\U00002192"
+            self.sym_down = "\U00002193"
         self.create_colors_console_menu()
         self._right_panel_frame.bind('<Button-3>', self.do_colors_console_popup)
 
@@ -1236,9 +1274,12 @@ class Frontend:
         for line in regex.split(f"\n", message_string):
             if line == "":
                 continue
+            my_font = "consolas", 12
+            if sys.platform == "darwin" :
+                my_font = "courier new bold", 12
             new_message_label = tk.Label(master=text_frame, text=line,
                                          bg=hexx(self._console_color),
-                                         fg=hexx(self._printout_color), font=("consolas", 12))
+                                         fg=hexx(self._printout_color), font=my_font)
 
             new_message_label.grid(row=self._num_messages_ever, column=0, sticky=tk.W)
             self._num_messages += 1
@@ -1286,8 +1327,15 @@ class Frontend:
             # TODO: this needs to do something more complicated when fitting all
             print_string += f"Goodness of fit: R\U000000B2 = " \
                             f"{self._optimizer.r_squared(self.current_model):.4F}"
-            print_string += f"  ,  \U0001D6D8{sup(2)}/dof = " \
+            print_string += f"  ,  {self.sym_chi}{sup(2)}/dof = " \
                             f"{self._optimizer.reduced_chi_squared_of_fit(self.current_model):.2F}\n"
+            # expX = np.array([datum.pos for datum in self.data_handler.data]).mean()
+            # expY = np.array([datum.val for datum in self.data_handler.data]).mean()
+            # expXX = np.array([datum.pos * datum.pos for datum in self.data_handler.data]).mean()
+            # expXY = np.array([datum.pos * datum.val for datum in self.data_handler.data]).mean()
+            # expYY = np.array([datum.val * datum.val for datum in self.data_handler.data]).mean()
+            # rho = (expXY - expX*expY) / np.sqrt( (expXX-expX**2)*(expYY-expY**2) ) if expXX and expYY > 0 else 0
+            # print_string += f"Pearson correlation \U000003C1 = {rho:.4F}\n"
         elif self.current_model.name[:10] == "Polynomial":
             deg = self._polynomial_degree_tkint.get()
             args = self.current_args
@@ -1306,7 +1354,7 @@ class Frontend:
             for n in range(deg + 1):
                 val, sig = args[n], uncs[n]
                 print_string += f"\n   C{sub(deg - n)} = {val:+.2E}  \u00B1  {sig:+.2E}\n"
-            print_string += f"Goodness of fit: \U0001D6D8{sup(2)}/dof = " \
+            print_string += f"Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
                             f"{self._optimizer.reduced_chi_squared_of_fit(self.current_model):.2F}\n"
         elif self.current_model.name == "Normal":
             args, uncs = self.current_args, self.current_uncs
@@ -1324,7 +1372,7 @@ class Frontend:
             mu, sigmamu = args[1], uncs[1]
             print_string += f"   \u03BC = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
             print_string += f"   \u03C3 =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
-            print_string += f"Goodness of fit: \U0001D6D8{sup(2)}/dof = " \
+            print_string += f"Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
                             f"{self._optimizer.reduced_chi_squared_of_fit(self.current_model):.2F}\n"
             print([datum.val for datum in self.data_handler.data])
         elif self.current_model.name == "Gaussian":
@@ -1344,7 +1392,7 @@ class Frontend:
             print_string += f"   A = {A:+.2E}  \u00B1  {sigmaA:.2E}\n"
             print_string += f"   \u03BC = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
             print_string += f"   \u03C3 =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
-            print_string += f"Goodness of fit: \U0001D6D8{sup(2)}/dof = " \
+            print_string += f"Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
                             f"{self.current_rchisqr:.2F}\n"
         elif self.current_model.name[-8:] == "Gaussian" and self._gaussian_modal_tkint.get() > 1:
             if self.data_handler.logy_flag:
@@ -1368,7 +1416,7 @@ class Frontend:
                 print_string += f"   A{sub(idx + 1)} = {A:+.2E}  \u00B1  {sigmaA:.2E}\n"
                 print_string += f"   \u03BC{sub(idx + 1)} = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
                 print_string += f"   \u03C3{sub(idx + 1)} =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
-            print_string += f"Goodness of fit: \U0001D6D8{sup(2)}/dof = " \
+            print_string += f"Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
                             f"{self.current_rchisqr:.2F}\n"
         elif self.current_model.name == "Sigmoid":
             args, uncs = self.current_args, self.current_uncs
@@ -1390,7 +1438,7 @@ class Frontend:
             print_string += f"   H  = {H:+.2E}  \u00B1  {sigmaH:.2E}\n"
             print_string += f"   w  =  {w:.2E}  \u00B1  {sigmaW:.2E}\n"
             print_string += f"   x0 = {x0:+.2E}  \u00B1  {sigmax0:.2E}\n"
-            print_string += f"Goodness of fit: \U0001D6D8{sup(2)}/dof = " \
+            print_string += f"Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
                             f"{self.current_rchisqr:.2F}\n"
         elif self._model_name_tkstr.get() == "Procedural":
             if self.data_handler.logy_flag:
@@ -1403,7 +1451,7 @@ class Frontend:
                 print_string += f"(x) w/ {self.current_model.dof} dof and where\n"
             for idx, (par, unc) in enumerate(zip(self.current_args, self.current_uncs)):
                 print_string += f"  c{idx} =  {par:+.2E}  \u00B1  {unc:.2E}\n"
-            print_string += f"\n \n> This has \U0001D6D8{sup(2)}/dof = "
+            print_string += f"\n \n> This has {self.sym_chi}{sup(2)}/dof = "
             print_string += f"{self.current_rchisqr:.2F}," if self.current_rchisqr > 0.01 \
                 else f"{self.current_rchisqr:.2E},"
             print_string += f" and as a tree, this is \n"
@@ -1432,7 +1480,7 @@ class Frontend:
                 print_string += f"(x) w/ {self.current_model.dof} dof and where\n"
             for idx, (par, unc) in enumerate(zip(self.current_args, self.current_uncs)):
                 print_string += f"  c{idx} =  {par:+.2E}  \u00B1  {unc:.2E}\n"
-            print_string += f"\n \n> This has \U0001D6D8{sup(2)}/dof = "
+            print_string += f"\n \n> This has {self.sym_chi}{sup(2)}/dof = "
             print_string += f"{self.current_rchisqr:.2F}," if self.current_rchisqr > 0.01 \
                 else f"{self.current_rchisqr:.2E},"
             print_string += f" and as a tree, this is \n"
@@ -1552,6 +1600,7 @@ class Frontend:
         self._image_frame.configure(image=self._image)
     def do_image_resize(self, event):
 
+        print(type(event))
         d = event.delta / 120
         self._image_r *= (1 + d / 10)
 
@@ -1620,7 +1669,7 @@ class Frontend:
         self._new_user_stage *= 5
 
         left_button = tk.Button(master=self._gui.children['!frame2'].children['!frame2'].children['!frame'],
-                                text="\U0001F844",
+                                text=self.sym_left,
                                 command=self.image_left_command
                                 )
         count_text = tk.Label(
@@ -1628,7 +1677,7 @@ class Frontend:
             text=f"{self._curr_image_num % len(self._data_handlers) + 1}/{len(self._data_handlers)}"
         )
         right_button = tk.Button(master=self._gui.children['!frame2'].children['!frame2'].children['!frame'],
-                                 text="\U0001F846",
+                                 text=self.sym_right,
                                  command=self.image_right_command
                                  )
         left_button.grid(row=0, column=1, padx=5, pady=5)
@@ -2554,11 +2603,11 @@ class Frontend:
             text=f"Degree: {self._polynomial_degree_tkint.get()}"
         )
         down_button = tk.Button(self._gui.children['!frame2'].children['!frame6'],
-                                text="\U0001F847",
+                                text=self.sym_down,
                                 command=self.degree_down_command
                                 )
         up_button = tk.Button(self._gui.children['!frame2'].children['!frame6'],
-                              text="\U0001F845",
+                              text=self.sym_up,
                               command=self.degree_up_command
                               )
 
@@ -2602,11 +2651,11 @@ class Frontend:
             text=f"Modes: {self._gaussian_modal_tkint.get()}"
         )
         down_button = tk.Button(self._gaussian_frame,
-                                text="\U0001F847",
+                                text=self.sym_down,
                                 command=self.modal_down_command
                                 )
         up_button = tk.Button(self._gaussian_frame,
-                              text="\U0001F845",
+                              text=self.sym_up,
                               command=self.modal_up_command
                               )
 
@@ -2698,11 +2747,11 @@ class Frontend:
             text=f"Depth: {self._max_functions_tkint.get()}"
         )
         down_button = tk.Button(self._procedural_frame,
-                                text="\U0001F847",
+                                text=self.sym_down,
                                 command=self.depth_down_command
                                 )
         up_button = tk.Button(self._procedural_frame,
-                              text="\U0001F845",
+                              text=self.sym_up,
                               command=self.depth_up_command
                               )
 

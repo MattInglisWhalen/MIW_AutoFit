@@ -17,7 +17,7 @@ if __name__ == "__main__" :
 """
 Packaging instructions for standalone version, no saved settings functionality, long startup 
 
-> pyinstaller --windows --onefile --hidden-import autofit frontend_startup.py
+> pyinstaller --windowed --onefile --hidden-import autofit frontend_startup.py
 
 then change datas in the .spec file to include the data you want 
 
