@@ -56,7 +56,7 @@ class PrimitiveFunction:
         return self._name
 
     @property
-    def func(self) -> Callable:
+    def func(self)  :
         return self._func
     @func.setter
     def func(self, other):
@@ -164,7 +164,7 @@ class PrimitiveFunction:
 
 
     @staticmethod
-    def build_built_in_dict() -> dict:
+    def build_built_in_dict()  :
 
         # Powers
         prim_pow_neg1 = PrimitiveFunction(func=PrimitiveFunction.pow_neg1 )
@@ -217,7 +217,7 @@ class PrimitiveFunction:
         return built_ins
 
     @staticmethod
-    def built_in_dict() -> dict:
+    def built_in_dict()  :
         return PrimitiveFunction._built_in_prims_dict
 
     @staticmethod
@@ -232,7 +232,7 @@ class PrimitiveFunction:
                 return arg * x**degree
             return PrimitiveFunction(func=func, name=f"Pow{degree}")
 
-        return PrimitiveFunction._built_in_prims_dict
+        return PrimitiveFunction._built_in_prims_dict[key]
 
 def do_new_things():
 

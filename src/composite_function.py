@@ -60,7 +60,7 @@ class CompositeFunction:
         self._prim : PrimitiveFunction = prim_.copy()
         self._longname : str = None
         self._shortname : str = name
-        self._constraints : (int, Callable[[float], float], int) = []
+        self._constraints : tuple[int, Callable[[float], float], int] = []
         # list of (idx1, func, idx3) triplets, with the interpretation that par[idx1] = func( par[idx2 )]
         # if there are constraints, the add_child and add_brother functions should throw an error
 

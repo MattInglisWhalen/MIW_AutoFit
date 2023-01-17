@@ -3,3 +3,4 @@ autofit.egg-info/
 *.spec
 build/
 __pycache__/
+libdscheme*

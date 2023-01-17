@@ -34,7 +34,7 @@ class Optimizer:
         print("New optimizer created")
 
         # datasets, which are lists of Datum1D instances
-        self._data : list[Datum1D] = []  # the raw datapoints of (x,y), possibly with uncertainties. It may
+        self._data = []  # the raw datapoints of (x,y), possibly with uncertainties. It may
                                          # also represent a binned point if the input file is a list of x_values only
 
         # fit results
@@ -655,7 +655,7 @@ class Optimizer:
         self._data = sorted(other_data)
 
     # does not change self._data
-    def fit_setup(self, fourier_condition = True) -> (list, bool):
+    def fit_setup(self, fourier_condition = True) -> (list[float], list, bool):
 
         x_points = []
         y_points = []
@@ -1289,7 +1289,7 @@ class Optimizer:
         HQIC = AIC + 2 * k * math.log(math.log(N)) - 2 * k
         return HQIC
 
-    def smoothed_data(self, data = None, n=1) -> list[Datum1D]:
+    def smoothed_data(self, data = None, n=1)  :
 
         print("Using smoothed data")
 
@@ -1311,7 +1311,7 @@ class Optimizer:
             return_data.append(Datum1D(pos=new_pos, val=new_val, sigma_pos=new_sigma_pos, sigma_val=new_sigma_val))
 
         return return_data
-    def deriv_n(self, data, n=1) -> list[Datum1D]:
+    def deriv_n(self, data, n=1)  :
 
         # this assumes that data is sequential, i.e. that there are no repeated measurements for each x position
         return_deriv = []
@@ -1338,7 +1338,7 @@ class Optimizer:
 
     # this is only used to find an initial guess for the data, and so more sophisticated techniques like
     # weighted means is not reqired
-    def average_data(self) -> list[Datum1D] :
+    def average_data(self)  :
 
         # get means and number of pos-instances into dict
         sum_val_dict = {}
@@ -1349,7 +1349,7 @@ class Optimizer:
 
         mean_dict = {}
         for ikey, isum in sum_val_dict.items():
-            mean_dict = isum / num_dict
+            mean_dict[ikey] = isum / num_dict[ikey]
 
         propagation_variance_x_dict = {}
         propagation_variance_y_dict = {}
@@ -1363,9 +1363,9 @@ class Optimizer:
 
         averaged_data = []
         for key, val in mean_dict.items():
-            sample_uncertainty_squared = sample_variance_y_dict / (num_dict - 1) if num_dict[
+            sample_uncertainty_squared = sample_variance_y_dict[key] / (num_dict[key] - 1) if num_dict[
                                                                                                   key] > 1 else 0
-            propagation_uncertainty_squared = propagation_variance_y_dict / num_dict
+            propagation_uncertainty_squared = propagation_variance_y_dict[key] / num_dict[key]
             ratio = (sample_uncertainty_squared / (sample_uncertainty_squared + propagation_uncertainty_squared)
                      if propagation_uncertainty_squared > 0 else 1)
 
@@ -1378,7 +1378,7 @@ class Optimizer:
                         1 - ratio) * propagation_uncertainty_squared
 
             averaged_data.append(Datum1D(pos=key, val=val,
-                                         sigma_pos=math.sqrt(propagation_variance_x_dict),
+                                         sigma_pos=math.sqrt(propagation_variance_x_dict[key]),
                                          sigma_val=math.sqrt(effective_uncertainty_squared)
                                          )
                                  )

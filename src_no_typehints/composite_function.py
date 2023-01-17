@@ -60,7 +60,7 @@ class CompositeFunction:
         self._prim = prim_.copy()
         self._longname = None
         self._shortname = name
-        self._constraints : (int, Callable, int) = []
+        self._constraints = []
         # list of (idx1, func, idx3) triplets, with the interpretation that par[idx1] = func( par[idx2 )]
         # if there are constraints, the add_child and add_brother functions should throw an error
 
@@ -702,7 +702,7 @@ class CompositeFunction:
             args_as_list[idx_constrained] = func( args_as_list[idx_other] )
 
         if self.older_brother is None and self._prim.name != "sum_" :
-            self._prim.arg = args_as_list
+            self._prim.arg = args_as_list[it]
             it += 1
         else :
             self._prim.arg = 1
@@ -992,7 +992,7 @@ class CompositeFunction:
             built_ins.append(comp)
         return built_ins
     @staticmethod
-    def built_in_dict() -> dict:
+    def built_in_dict()  :
         return CompositeFunction._built_in_comps_dict
     @staticmethod
     def built_in(key)  :

@@ -1111,14 +1111,14 @@ class Frontend:
         for idx, _ in enumerate(list_of_args[0]):
             sum_args = 0
             for par_list in list_of_args:
-                sum_args += par_list
+                sum_args += par_list[idx]
             mean = sum_args / N
 
             sum_uncertainty_sqr = 0
             sum_variance = 0
             for par_list, unc_list in zip(list_of_args, list_of_uncertainties):
-                sum_uncertainty_sqr += unc_list ** 2 / N ** 2
-                sum_variance += (par_list - mean) ** 2 / (N - 1) if N > 1 else 0
+                sum_uncertainty_sqr += unc_list[idx] ** 2 / N ** 2
+                sum_variance += (par_list[idx] - mean) ** 2 / (N - 1) if N > 1 else 0
 
             ratio = sum_variance / (sum_variance + sum_uncertainty_sqr)
             effective_variance = ratio * sum_variance + (1 - ratio) * sum_uncertainty_sqr
@@ -3437,7 +3437,7 @@ def sup(s):
     s_str = str(s)
     ret_str = ""
     for char in s_str:
-        ret_str += subs_dict
+        ret_str += subs_dict[char]
     return ret_str
 def sub(s):
     subs_dict = {'0': '\U00002080',
@@ -3454,7 +3454,7 @@ def sub(s):
     s_str = str(s)
     ret_str = ""
     for char in s_str:
-        ret_str += subs_dict
+        ret_str += subs_dict[char]
     return ret_str
 def hexx(vec)  :
     hex_str = "#"

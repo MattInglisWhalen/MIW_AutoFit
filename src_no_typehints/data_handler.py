@@ -59,7 +59,7 @@ class DataHandler:
     def shortpath(self)  :
         return regex.split("/", self._filepath)[-1]
     @property
-    def data(self) -> list[Datum1D]:
+    def data(self)  :
         return self._data
     @property
     def x_label(self)  :
