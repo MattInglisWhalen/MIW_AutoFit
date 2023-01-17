@@ -46,8 +46,8 @@ class CompositeFunction:
     _built_in_comps_dict = {}
 
     def __init__(self,
-                 children_list : Union[list = None,
-                 younger_brother : Union[PrimitiveFunction,CompositeFunction] = None,
+                 children_list = None,
+                 younger_brother = None,
                  parent = None,
                  prim_= PrimitiveFunction.built_in("sum"),
                  name = ""):
@@ -182,7 +182,7 @@ class CompositeFunction:
     Manipulation of the tree
     """
 
-    def add_child(self, child : Union[PrimitiveFunction,CompositeFunction], update_name = True):
+    def add_child(self, child , update_name = True):
 
         if len(self._constraints) > 0 :
             raise AttributeError
@@ -198,7 +198,7 @@ class CompositeFunction:
         if update_name:
             self.build_longname()
 
-    def add_younger_brother(self, brother_to_add : Union[PrimitiveFunction,CompositeFunction], update_name = True):
+    def add_younger_brother(self, brother_to_add , update_name = True):
         if len(self._constraints) > 0 :
             raise AttributeError
 
@@ -652,7 +652,7 @@ class CompositeFunction:
 
     def eval_at(self,x, X0 = 0, Y0 = 0):
         if X0 :
-            # print(f"{X0}")
+            # print(f"{X0=}")
             # the model is working with LX as the independent variable, but we're being passed x
             LX = math.log(x/X0)
             x = LX
@@ -672,7 +672,7 @@ class CompositeFunction:
         for child in self._children_list :
             children_eval_to += child.eval_at(x)
         if Y0 :
-            # print(f"{Y0}")
+            # print(f"{Y0=}")
             # the model is working with LY as the dependent variable, but we're expecting to return x
             LY = self._prim.eval_at(children_eval_to)
             if self._younger_brother is not None:
@@ -721,7 +721,7 @@ class CompositeFunction:
             it += brother_dof
 
         if it != len(args_as_list) :
-            print(f"Trying to set {args_as_list} in {self.name}")
+            print(f"Trying to set {args_as_list=} in {self.name}")
             raise RuntimeError
     def get_args(self, skip_flag=0)  :
         # get all arguments normally, then pop off the ones with constraints once we get to the head

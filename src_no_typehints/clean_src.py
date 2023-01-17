@@ -12,17 +12,18 @@ def clean_src():
         if filename[-3:] != ".py" :
             continue
         print(filename, cleaned_files+"/cleaned_"+filename)
-        with open(filename,'r') as infile, open(cleaned_files+"/cleaned_"+filename,'w') as outfile :
+        with open(filename,'r') as infile, open(cleaned_files+"/"+filename,'w') as outfile :
             for line in infile :
                 stripped_line_1 = regex.sub("->[.a-zA-Z\[\]\s]*:"," :",line)  # no type hinting for returns
                 stripped_line_2 = regex.sub("Callable\[[,a-zA-Z\[\]\s]*]","Callable",stripped_line_1)  # no type hinting for callable
-                stripped_line_3 = regex.sub("list\[[,a-zA-Z\[\]\s]*]","list",stripped_line_2)  # no type hinting for list
-                stripped_line_4 = regex.sub("dict\[[,a-zA-Z\[\]\s]*]","dict",stripped_line_3)  # no type hinting for dict
-                stripped_line_5 = regex.sub("tuple\[[,a-zA-Z\[\]\s]*]", "tuple",stripped_line_4)  # no type hinting for tuple
-                stripped_line_6 = regex.sub(":[.a-zA-Z\s]*,", ",", stripped_line_5)  # no type hinting for function args
-                stripped_line_7 = regex.sub(":[.,a-zA-Z\s]*\)", ")", stripped_line_6)  # no type hinting for function args -- clash with array slicing
-                stripped_line_8 = regex.sub(":[.,a-zA-Z\s]*=", "=", stripped_line_7)  # no type hinting for function args -- clash with array slicing
-                stripped_line_9 = regex.sub("=}", "}", stripped_line_8)  # python 3.6 has no {var=} in fstrings
+                stripped_line_3 = regex.sub("Union\[[,a-zA-Z\[\]\s]*]", "Union",stripped_line_2)  # no type hinting for Union
+                stripped_line_4 = regex.sub("list\[[,a-zA-Z\[\]\s]*]","list",stripped_line_3)  # no type hinting for list
+                stripped_line_5 = regex.sub("dict\[[,a-zA-Z\[\]\s]*]","dict",stripped_line_4)  # no type hinting for dict
+                stripped_line_6 = regex.sub("tuple\[[,a-zA-Z\[\]\s]*]", "tuple",stripped_line_5)  # no type hinting for tuple
+                stripped_line_7 = regex.sub(":[.a-zA-Z\s]*,", ",", stripped_line_6)  # no type hinting for function args
+                stripped_line_8 = regex.sub(":[.,a-zA-Z\s]*\)", ")", stripped_line_7)  # no type hinting for function args -- clash with array slicing
+                stripped_line_9 = regex.sub(":[.,a-zA-Z\s]*=", "=", stripped_line_8)  # no type hinting for function args -- clash with array slicing
+                stripped_line = regex.sub("=}", "}", stripped_line_9)  # python 3.6 has no {var=} in fstrings
                 outfile.write(stripped_line_9)
 
 

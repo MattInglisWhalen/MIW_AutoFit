@@ -195,7 +195,7 @@ class Frontend:
         self.load_splash_screen()
 
         self.add_message(f"Directory is{':' if Frontend._meipass_flag else ''} {Frontend.get_package_path()}")
-        print(f"{Frontend._meipass_flag}")
+        print(f"{Frontend._meipass_flag=}")
 
     def touch_defaults(self):
         try:
@@ -402,7 +402,7 @@ class Frontend:
                     # and pow2_on and pow3_on and pow4_on
                     and custom_on):
                 print("You shouldn't have all functions turned on for a procedural fit. Use brute-force instead.")
-                print(f" {self.brute_forcing} {self._default_fit_type}")
+                print(f" {self.brute_forcing=} {self._default_fit_type=}")
             file.write(f"#COS_ON {cos_on}\n")
             file.write(f"#SIN_ON {sin_on}\n")
             file.write(f"#EXP_ON {exp_on}\n")
@@ -630,7 +630,7 @@ class Frontend:
         for path in new_filepaths[:]:
             if path[-4:] in [".xls", "xlsx", ".ods"] and self._new_user_stage % 23 != 0:
                 self.dialog_box_get_excel_data_ranges()
-                print(f"{self._excel_x_range} {self._excel_y_range}")
+                print(f"{self._excel_x_range=} {self._excel_y_range=}")
                 if self._excel_x_range is None:
                     # the user didn't actually want to load that file
                     new_filepaths.remove(path)
@@ -1483,7 +1483,7 @@ class Frontend:
             print_string += f" and as a tree, this is \n"
             print_string += self.current_model.tree_as_string_with_args() + "\n"
         else:
-            print(f"{self.current_model.name} {self.data_handler.normalized}")
+            print(f"{self.current_model.name=} {self.data_handler.normalized=}")
             raise EnvironmentError
         if self.data_handler.logy_flag and self.data_handler.logx_flag:
             print_string += f"Keep in mind that LY = log(y/{self.data_handler.Y0:.2E}) " \
@@ -1811,7 +1811,7 @@ class Frontend:
             count = len(residuals)
             manual_gaussian = CompositeFunction.built_in("Gaussian")
             manual_gaussian.set_args(count * res_handler.bin_width() / np.sqrt(2 * np.pi * sigma ** 2), sigma, mu)
-            print(f"{res_handler.bin_width()}")
+            print(f"{res_handler.bin_width()=}")
             print(count * res_handler.bin_width() / np.sqrt(2 * np.pi * sigma ** 2), sigma, mu)
             res_optimizer.shown_model = manual_gaussian
         res_optimizer.show_fit()
@@ -1941,11 +1941,11 @@ class Frontend:
         self.add_message(f"\n \n> p-values from standard normality tests:\n")
         # other normality tests
         W, alpha = scipy.stats.shapiro(residuals)  # free mean, free variance
-        print(f"\n{W} {alpha}")
+        print(f"\n{W=} {alpha=}")
         self.add_message(f"  Shapiro-Wilk       = {alpha:.5F}")
 
         A2, crit, sig = scipy.stats.anderson(residuals, dist='norm')  # free mean, free variance
-        print(f"{A2} {crit} {sig}")
+        print(f"{A2=} {crit=} {sig=}")
         threshold_idx = -1
         for idx, icrit in enumerate(crit):
             if A2 > icrit:
@@ -1957,7 +1957,7 @@ class Frontend:
 
         # kolmogorov, kol_pvalue = scipy.stats.kstest(residuals,'norm')
         kolmogorov, kol_pvalue = scipy.stats.kstest(self.sample_standardize(residuals), 'norm')  # mean 0, variance 1
-        print(f"{kolmogorov} {kol_pvalue}")
+        print(f"{kolmogorov=} {kol_pvalue=}")
         if kol_pvalue > 1e-5:
             self.add_message(f"  Kolmogorov-Smirnov = {kol_pvalue:.5F}")
         else:
@@ -1965,7 +1965,7 @@ class Frontend:
 
         if len(residuals) > 8:
             dagostino, dag_pvalue = scipy.stats.normaltest(residuals)  # free mean, free variance
-            print(f"{dagostino} {dag_pvalue}")
+            print(f"{dagostino=} {dag_pvalue=}")
             if dag_pvalue > 1e-5:
                 self.add_message(f"  d'Agostino         = {dag_pvalue:.5F}")
             else:
@@ -2091,7 +2091,7 @@ class Frontend:
         try:
             selected_model_idx = self.optimizer.top5_names.index(model_name)
         except ValueError:
-            print(f"{model_name} is not in {self.optimizer.top5_names}")
+            print(f"{model_name=} is not in {self.optimizer.top5_names}")
             selected_model_idx = 0
 
         self.current_model = self.optimizer.top5_models[selected_model_idx]
@@ -2099,7 +2099,7 @@ class Frontend:
         self.current_rchisqr = self.optimizer.top5_rchisqrs[selected_model_idx]
 
         # also update the fit of the current model
-        print(f"{self._refit_on_click} {self._changed_data_flag}")
+        print(f"{self._refit_on_click=} {self._changed_data_flag=}")
         if self._refit_on_click and self._changed_data_flag:
             print("||| REFIT ON CLICK |||")
             self.show_current_data_with_fit(do_halving=True)
@@ -2448,7 +2448,7 @@ class Frontend:
             sum_len += len(x_points)
             smooth_x_for_fit = np.linspace(x_points[0], x_points[-1], 4 * len(x_points))
             plot_model.args = args
-            print(f"{plot_model.args}")
+            print(f"{plot_model.args=}")
             if handler.logx_flag and handler.logy_flag:
                 fit_vals = [plot_model.eval_at(xi, X0=handler.X0, Y0=handler.Y0)
                             for xi in smooth_x_for_fit]
@@ -2464,7 +2464,7 @@ class Frontend:
             col_tuple = [(icol / max(self._dataaxes_color) if max(self._dataaxes_color) > 0 else 1)
                          * (idx / num_sets) for icol in self._dataaxes_color]
             # col = idx / num_sets
-            # print(f"{col}")
+            # print(f"{col=}")
             # set_color = (col,col,col)
             axes.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color=col_tuple)
             plt.plot(smooth_x_for_fit, fit_vals, '-', color=col_tuple)

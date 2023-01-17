@@ -264,7 +264,7 @@ class Optimizer:
                 unc_str_list = [f"{unc:.3F}" for unc in std(covariance)]
 
                 print(f"New top {idx} with red_chisqr={rchisqr:.2F}: "
-                      f"{model} with pars=[" + ', '.join(par_str_list) + "] \u00B1 [" + ', '.join(unc_str_list) + "]")
+                      f"{model=} with pars=[" + ', '.join(par_str_list) + "] \u00B1 [" + ', '.join(unc_str_list) + "]")
                 model.print_tree()
 
                 # also check any parameters for being "equivalent" to zero. If so, remove the d.o.f.
@@ -582,29 +582,29 @@ class Optimizer:
 
         for good in good_list :
             if name == good and remove_flag:
-                print(f"\n\n>>> Why did we remove {name} at {remove_flag} <<<\n\n")
+                print(f"\n\n>>> Why did we remove {name=} at {remove_flag=} <<<\n\n")
                 raise SystemExit
 
         if name == "pow1(pow0+pow0)" and not remove_flag:
-            print(f"\n\n>>> Why did we NOT remove {name} at remove_flag=23 <<<\n\n")
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=23 <<<\n\n")
             raise SystemExit
 
         if name == "pow1·pow1(pow1·pow1)" and not remove_flag:
-            print(f"\n\n>>> Why did we NOT remove {name} at remove_flag=?? <<<\n\n")
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=?? <<<\n\n")
             raise SystemExit
 
         if name == "my_exp(pow1)·my_exp·pow1" and not remove_flag:
-            print(f"\n\n>>> Why did we NOT remove {name} at remove_flag=43 <<<\n\n")
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=43 <<<\n\n")
             print(icomp.has_double_expness())
             raise SystemExit
 
         if (name == "pow1·my_exp(my_exp)" or name == "pow1·my_exp(pow1·my_exp)") and not remove_flag:
-            print(f"\n\n>>> Why did we NOT remove {name} at remove_flag=29 <<<\n\n")
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=29 <<<\n\n")
             print(icomp.has_double_expness())
             raise SystemExit
 
         if name == "my_exp(pow1)·my_exp(pow1)" :
-            print(f"\n\n>>> Why did we NOT remove {name} at remove_flag=?? <<<\n\n")
+            print(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=?? <<<\n\n")
             raise RuntimeWarning
 
         return remove_flag
@@ -693,7 +693,7 @@ class Optimizer:
             self._cos_freq_list_dup = self._cos_freq_list.copy()
             self._sin_freq_list_dup = self._sin_freq_list.copy()
 
-        print(f"\nFitting {model}")
+        print(f"\nFitting {model=}")
         print(model.tree_as_string_with_dimensions())
 
         if model.num_trig() > 0:
@@ -777,7 +777,7 @@ class Optimizer:
                 print(f"\n>>> {model_}: Have to go back to the supermodel {supermodel} for refitting. {model_.submodel_zero_index}")
                 supermodel, _ = self.fit_this_and_get_model_and_covariance(model_=supermodel, change_shown=False,
                                                                            do_halving=do_halving, halved=halved)
-                print(f"rchisqr for supermodel = {self.reduced_chi_squared_of_fit(supermodel)} {do_halving} {halved}")
+                print(f"rchisqr for supermodel = {self.reduced_chi_squared_of_fit(supermodel)} {do_halving=} {halved=}")
                 model = supermodel.submodel_without_node_idx(model_.submodel_zero_index)  # creates a submodel that doesnt think it's a submodel
                 init_guess = model.args
         if model.name[-8:] == "Gaussian" :
@@ -1122,7 +1122,7 @@ class Optimizer:
         if temp_rchisqr < best_rchisqr and model.num_trig() < 1:  # don't want to mess up frequencies
             best_grid_point = weighted_point_norm
             # best_rchisqr = temp_rchisqr
-            # print(f"Using weighted {best_rchisqr} {best_grid_point}")
+            # print(f"Using weighted {best_rchisqr=} {best_grid_point}")
 
         model.set_args( *best_grid_point )
         # model.print_tree()
