@@ -696,10 +696,6 @@ class Optimizer:
         print(f"\nFitting {model=}")
         print(model.tree_as_string_with_dimensions())
 
-        if model.num_trig() > 0:
-            self._cos_freq_list_dup = self._cos_freq_list.copy()
-            self._sin_freq_list_dup = self._sin_freq_list.copy()
-
         # Find an initial guess for the parameters based off scaling arguments
         if initial_guess is None :
             if "Pow" not in model.name :
@@ -1130,6 +1126,8 @@ class Optimizer:
         return best_grid_point
     def find_set_initial_guess_scaling(self, composite: CompositeFunction):
 
+        print(composite, self._sin_freq_list_dup, self._cos_freq_list_dup)
+
         for child in reversed(composite.children_list) :
             # reverse to bias towards more complicated
             # functions first for fourier frequency setting
@@ -1158,7 +1156,7 @@ class Optimizer:
                 pass
         elif composite.parent.prim.name == "sum_" and composite.parent.parent is None:
             ymul = charDiffY
-        elif composite.parent.prim.name == "my_cos" :
+        elif "cos" in composite.parent.prim.name :
             # in cos( Aexp(Lx) ), for small x the inner composition goes like A + ALx
             # = f(0) + x f'(0) and here f'(0) should correspond to the largest fourier component
             # problem is that this answer should be independent of the initial parameter A... it only works from scratch
@@ -1177,7 +1175,7 @@ class Optimizer:
                         print("find_set_initial_guess_scaling TypeError",self._cos_freq_list_dup)
                         print("find_set_initial_guess_scaling TypeError",self._cos_freq_list)
                         raise SystemExit
-        elif composite.parent.prim.name == "my_sin" :
+        elif "sin" in composite.parent.prim.name :
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / (1e-5 * composite.prim.arg)
             if abs(slope_at_zero) > 1e-5 :
                 if len(self._sin_freq_list_dup) > 0 :

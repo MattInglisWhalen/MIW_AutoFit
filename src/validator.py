@@ -8,6 +8,7 @@ import re as regex
 # external libraries
 from tkinter import messagebox
 import tkinter as tk
+from PIL import Image, ImageTk
 # user-defined classes
 
 
@@ -50,7 +51,7 @@ class Validator:
         else :
             stat = os.stat(self._filepath)
             try :
-                modify_epoch = stat.st_mtime + 60*60
+                modify_epoch = stat.st_mtime  # + 60*60  # no off-by-one error on MacOSX
                 creation_epoch = stat.st_birthtime
             except AttributeError :
                 print("11> Linux isn't supported.")
@@ -96,7 +97,11 @@ class Validator:
 
         # icon image and window title
         gui.iconbitmap(f"{Validator.get_package_path()}/icon.ico")
-        gui.title("AutoFit")
+        if sys.platform == "darwin" :
+            iconify = Image.open(f"{Validator.get_package_path()}/splash.png")
+            photo = ImageTk.PhotoImage(iconify)
+            gui.iconphoto(False,photo)
+        gui.title("MIW's AutoFit")
 
         print(Validator.get_package_path())
         error_box = messagebox.showerror("Configuration Error",

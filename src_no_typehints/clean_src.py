@@ -9,7 +9,7 @@ def clean_src():
     os.chdir(src_files)
     print(src_files)
     for filename in os.listdir(src_files) :
-        if filename[-3:] != ".py" :
+        if filename[-3:] != ".py" or filename[:5] == "datum" :
             continue
         print(filename, cleaned_files+"/cleaned_"+filename)
         with open(filename,'r') as infile, open(cleaned_files+"/"+filename,'w') as outfile :

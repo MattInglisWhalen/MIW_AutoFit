@@ -522,9 +522,9 @@ class CompositeFunction:
     def num_trig(self):
         return self.num_cos() + self.num_sin()
     def num_cos(self):
-        return self.name.count("my_cos")
+        return self.longname.count("cos")
     def num_sin(self):
-        return self.name.count("my_sin")
+        return self.longname.count("sin")
 
     def has_exp_children(self):
         for child in self._children_list :
@@ -750,6 +750,8 @@ class CompositeFunction:
     @staticmethod
     def construct_model_from_str(form: str, error_handler: Callable[[str],None], name: str = "") -> CompositeFunction:
 
+        print(f"Entering construction for {form}")
+
         # get all the names of the primitives used
         split_form = regex.split(f"[·+()*]", form)
         prim_names = [x for x in split_form if x]
@@ -762,8 +764,21 @@ class CompositeFunction:
             library_list = [np,scipy.special,scipy.stats._continuous_distns,math]
             library_names = ["numpy","scipy.special","scipy.stats","math"]
 
+            if not valid and prim in PrimitiveFunction.built_in_dict():
+                # print(f"{prim} exists in PrimitiveFunction")
+                try :
+                    fn = PrimitiveFunction.built_in(prim).copy()
+                    fn.eval_at(np.pi/4)
+                except TypeError :
+                    error_handler(f"<autofit> function {prim} has multiple arguments, "
+                                  f"or only takes integers as input.")
+                else :
+                    prim_list.append(fn)
+                    valid = True
             for lib, lib_name in zip(library_list, library_names) :
-                if not valid and getattr(lib, prim, None) is not None:
+                if valid :
+                    break
+                if getattr(lib, prim, None) is not None:
                     # print(f"{prim} exists in {lib_name}")
                     try :
                         if lib == scipy.stats._continuous_distns :
@@ -780,18 +795,9 @@ class CompositeFunction:
                         else :
                             prim_list.append( PrimitiveFunction(other_callable=getattr(lib, prim),name=prim) )
                         valid = True
-            if not valid and prim in PrimitiveFunction.built_in_dict():
-                # print(f"{prim} exists in PrimitiveFunction")
-                try :
-                    fn = PrimitiveFunction.built_in(prim).copy()
-                    fn.eval_at(np.pi/4)
-                except TypeError :
-                    error_handler(f"<autofit> function {prim} has multiple arguments, "
-                                  f"or only takes integers as input.")
-                else :
-                    prim_list.append(fn)
-                    valid = True
+
             if not valid :
+                print(PrimitiveFunction.built_in_dict())
                 error_handler(f"Could not find a valid version of \"{prim}\" in the list of known functions.")
                 # error_handler(f"  You can try creating it yourself using the Custom Function button.")
                 # noinspection PyTypeChecker
@@ -817,6 +823,10 @@ class CompositeFunction:
                     form_it += 1
 
                 sub_model = CompositeFunction.construct_model_from_str(form=sub_form[:-1], error_handler=error_handler)
+                if sub_model is None:
+                    error_handler(f"{form} had a problem creating sub-model with {sub_form[:-1]}")
+                    return None
+
                 if last_char == '+' :
                     man_model.add_child(sub_model)
                 elif last_char in ['·','*'] :
@@ -839,16 +849,20 @@ class CompositeFunction:
                     prim_to_add_name += c
                     form_it += 1
                     if form_it+1 == len(form) :
+                        print(prim_list)
                         break
 
                 if form_it+1 == len(form) or form[form_it+1] in ['+','·','*'] :
                     prim_to_add : PrimitiveFunction = None
                     for prim in prim_list[:] :
-                        if prim_to_add_name == prim.name :
+                        if prim_to_add_name in prim.name :
 
                             prim_to_add = prim
                             prim_list.remove(prim)
                             break
+                        else :
+                            error_handler(f"Couldn't find primitive for {prim_to_add_name}")
+                            return None
                     if last_char == '+':
                         man_model.add_child(prim_to_add)
                     elif last_char in ['·', '*']:
@@ -877,6 +891,9 @@ class CompositeFunction:
                                                                                        error_handler=error_handler)
                     composed_fn = CompositeFunction.construct_model_from_str(composed_fn_name,
                                                                              error_handler=error_handler)
+                    if prim_with_composition is None or composed_fn is None :
+                        error_handler(f"{form} had a problem creating sub-function with {prim.name} or {composed_fn_name}")
+                        return None
                     if composed_fn.prim.name == "sum_" and composed_fn.younger_brother is None :
                         for composed_child in composed_fn.children_list :
                             prim_with_composition.add_child(composed_child)
@@ -1063,7 +1080,7 @@ class CompositeFunction:
     @property
     def dimension_func(self) -> int:
         # untested with siblings
-        if self._prim.name[:3] == "my_":
+        if self._prim.name[:3] == "my_" or "sin" in self._prim.name or "cos" in self._prim.name :
             return 0
         elif self._prim.name == "pow0":
             return 0

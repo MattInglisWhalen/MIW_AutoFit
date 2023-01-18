@@ -38,6 +38,7 @@ class Frontend:
         self._os_width: int = self._gui.winfo_screenwidth()
         self._os_height: int = self._gui.winfo_screenheight()
 
+
         # file handling
         self._filepaths: list[str] = []
         self._data_handlers: list[DataHandler] = []
@@ -157,6 +158,10 @@ class Frontend:
         self._current_form_label : tk.Label = None
 
         # defaults config --------------------------------------------------------------------------------------------->
+        self._default_gui_width = 0
+        self._default_gui_height = 0
+        self._default_gui_x = -10
+        self._default_gui_y = -10
         self._default_fit_type = "Linear"
         self._default_excel_x_range = None
         self._default_excel_y_range = None
@@ -169,6 +174,18 @@ class Frontend:
         self._default_console_colour = None
         self._default_printout_colour = None
         self._default_os_scaling = 1
+        if sys.platform == "darwin" :
+            self._platform_offset = 4
+        else :
+            self._platform_offset = 0
+        if sys.platform == "darwin" :
+            self._platform_scale = 0.85
+        else :
+            self._platform_scale = 0.85
+        if sys.platform == "darwin" :
+            self._platform_border = 0
+        else :
+            self._platform_border = 2
         self._image_r = 1
         self._custom_function_names = ""
         self._custom_function_forms = ""
@@ -180,7 +197,7 @@ class Frontend:
         self.sym_left = "\U0001F844"
         self.sym_up = "\U0001F845"
         self.sym_right = "\U0001F846"
-        self.sym_down = "\U0001F846"
+        self.sym_down = "\U0001F847"
 
         # default configs
         self.touch_defaults()  # required for free version
@@ -188,7 +205,7 @@ class Frontend:
         self.print_defaults()
 
         # Fix OS scaling
-        self._gui.tk.call('tk', 'scaling', self._default_os_scaling)
+        # self._gui.tk.call('tk', 'scaling', self._default_os_scaling)
 
         # load in splash screen
         self.load_splash_screen()
@@ -207,12 +224,33 @@ class Frontend:
     def load_defaults(self):
         with open(f"{Frontend.get_package_path()}/frontend.cfg") as file:
             for line in file:
-                if "#FIT_TYPE" in line:
+                if "#GUI_WIDTH" in line:
+                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "1"
+                    self._default_gui_width = int(arg)
+                    # line = next(file,"")  # could provide a speedup if this is the holdup for lanch
+                elif "#GUI_HEIGHT" in line:
+                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "1"
+                    self._default_gui_height = int(arg)
+                elif "#GUI_X" in line:
+                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "0"
+                    self._default_gui_x = int(arg)
+                elif "#GUI_Y" in line:
+                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "0"
+                    self._default_gui_y = int(arg)
+                elif "#FIT_TYPE" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
                         arg = "Linear"
                     self._default_fit_type = arg
-                if "#PROCEDURAL_DEPTH" in line:
+                elif "#PROCEDURAL_DEPTH" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
                         arg = "3"
@@ -373,9 +411,14 @@ class Frontend:
                         arg = 1.
                     self._image_r = min(max(float(arg), 0.1), 10)
     def save_defaults(self):
+        print("SAVED DEFAULTS")
         if self.brute_forcing or self._default_fit_type == "Brute-Force":
             return
         with open(f"{Frontend.get_package_path()}/frontend.cfg", 'w') as file:
+            file.write(f"#GUI_WIDTH {self._gui.winfo_width()}\n")
+            file.write(f"#GUI_HEIGHT {self._gui.winfo_height()}\n")
+            file.write(f"#GUI_X {self._gui.winfo_x()}\n")
+            file.write(f"#GUI_Y {self._gui.winfo_y()}\n")
             file.write(f"#FIT_TYPE {self._default_fit_type}\n")
             file.write(f"#PROCEDURAL_DEPTH {self.max_functions}\n")
             file.write(f"#EXCEL_RANGE_X {self._default_excel_x_range}\n")
@@ -418,6 +461,10 @@ class Frontend:
             file.write(f"#OS_SCALING {self._default_os_scaling}\n")
             file.write(f"#IMAGE_R {self._image_r}\n")
     def print_defaults(self):
+        print(f"GUI Width >{self._default_gui_width}<")
+        print(f"GUI Height >{self._default_gui_height}<")
+        print(f"GUI X >{self._default_gui_x}<")
+        print(f"GUI Y >{self._default_gui_y}<")
         print(f"Fit-type >{self._default_fit_type}<")
         print(f"Procedural depth >{self.max_functions}<")
         print(f"Excel X-Range >{self._default_excel_x_range}<")
@@ -461,7 +508,15 @@ class Frontend:
         gui = self._gui
 
         # window size and title
-        gui.geometry(f"{round(self._os_width * 5 / 6)}x{round(self._os_height * 5 / 6)}+5+10")
+        if self._default_gui_width < self._os_width / 4 :
+            width = int(self._os_width * 5 / 6)
+        else :
+            width = min( self._default_gui_width , int(self._os_width * 7 / 6) )
+        if self._default_gui_height < self._os_height / 4 :
+            height = int(self._os_height * 5 / 6)
+        else :
+            height = min( self._default_gui_height , int(self._os_width * 7 / 6) )
+        gui.geometry(f"{width}x{height}+{self._default_gui_x}+{self._default_gui_y}")
         gui.rowconfigure(0, minsize=800, weight=1)
 
         # icon image and window title
@@ -478,10 +533,8 @@ class Frontend:
 
         # left panel -- menu buttons
         self.create_left_panel()
-
         # middle panel -- data visualization, fit options, data transforms
         self.create_middle_panel()
-
         # right panel -- text output
         self.create_right_panel()
 
@@ -570,11 +623,12 @@ class Frontend:
 
     # Panels
     def create_left_panel(self):
-        self._left_panel_frame = tk.Frame(master=self._gui, relief=tk.RAISED, bg='white')
+        self._left_panel_frame = tk.Frame(master=self._gui, relief=tk.RAISED, bg='white', height=self._os_height)
         self._left_panel_frame.grid(row=0, column=0, sticky='ns')
+        print(self._left_panel_frame.winfo_height(), self._os_height)
         self.create_load_data_button()
     def create_middle_panel(self):
-        self._gui.columnconfigure(1, minsize=72)  # image panel
+        self._gui.columnconfigure(1, minsize=128)  # image panel
         self._middle_panel_frame = tk.Frame(master=self._gui)
         self._middle_panel_frame.grid(row=0, column=1, sticky='nsew')
         self.create_image_frame()  # aka image frame
@@ -586,7 +640,7 @@ class Frontend:
         self.create_gaussian_frame()  # aka gaussian frame
         self.create_manual_frame()
     def create_right_panel(self):
-        self._gui.columnconfigure(2, minsize=700, weight=1)  # image panel
+        self._gui.columnconfigure(2, minsize=128, weight=1)  # image panel
         self._right_panel_frame = tk.Frame(master=self._gui, bg=hexx(self._console_color))
         self._right_panel_frame.grid(row=0, column=2, sticky='news')
         try :
@@ -608,11 +662,20 @@ class Frontend:
         load_data_button = tk.Button(
             master=self._gui.children['!frame'],
             text="Load Data",
+            width=len("Load Data")-self._platform_offset,
+            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            bd=self._platform_border,
             command=self.load_data_command
         )
         load_data_button.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
     def load_data_command(self):
 
+        print("Existing...", self._gui.winfo_width(), self._gui.winfo_height())
+        print("1...", self._left_panel_frame.winfo_width(), self._left_panel_frame.winfo_height())
+        print("2...", self._middle_panel_frame.winfo_width(), self._middle_panel_frame.winfo_height())
+        print("3...", self._right_panel_frame.winfo_width(), self._right_panel_frame.winfo_height())
+
+        print("4...", self._image_frame.winfo_width(), self._image_frame.winfo_height())
         new_filepaths = list(
             fd.askopenfilenames(initialdir=self._default_load_file_loc, title="Select a file to fit",
                                 filetypes=(("All Files", "*.*"),
@@ -711,7 +774,7 @@ class Frontend:
     def dialog_box_get_excel_data_ranges(self):
 
         dialog_box = tk.Toplevel()
-        dialog_box.geometry(f"{round(self._os_width / 4)}x{round(self._os_height / 4)}")
+        dialog_box.geometry(f"{int(self._image_frame.winfo_width()*4/5)}x{int(self._image_frame.winfo_height()*6/10)}")
         dialog_box.title("Spreadsheet Input Options")
         dialog_box.iconbitmap(f"{Frontend.get_package_path()}/icon.ico")
 
@@ -762,6 +825,9 @@ class Frontend:
         close_dialog_button = tk.Button(
             master=data_frame,
             text="OK",
+            width=len("OK")-self._platform_offset,
+            # font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            bd=self._platform_border,
             command=self.close_dialog_box_command_excel
         )
         close_dialog_button.grid(row=0, column=10, padx=5, pady=0, sticky='ns')
@@ -774,6 +840,7 @@ class Frontend:
 
         self._popup_window = dialog_box
         self._gui.wait_window(dialog_box)
+
     # noinspection PyUnusedLocal
     def close_dialog_box_command_excel(self, bind_command=None):
 
@@ -902,6 +969,9 @@ class Frontend:
         self._fit_data_button = tk.Button(
             master=self._gui.children['!frame'],
             text="Fit Data",
+            width=len("Fit Data")-self._platform_offset,
+            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            bd=self._platform_border,
             command=self.fit_data_command
         )
         self._fit_data_button.grid(row=1, column=0, sticky="ew", padx=5)
@@ -1054,6 +1124,9 @@ class Frontend:
         load_data_button = tk.Button(
             master=self._gui.children['!frame'],
             text="Fit All",
+            width=len("Fit All")-self._platform_offset,
+            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            bd=self._platform_border,
             command=self.fit_all_command
         )
         load_data_button.grid(row=2, column=0, sticky="new", padx=5)
@@ -1154,6 +1227,9 @@ class Frontend:
         custom_function_button = tk.Button(
             master=left_panel_bottom,
             text="Custom\nFunction",
+            width=len("Function")-self._platform_offset,
+            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            bd=self._platform_border,
             command=self.dialog_box_new_function
         )
         custom_function_button.grid(row=10, column=0, sticky="ews", padx=5, pady=10)
@@ -1213,6 +1289,9 @@ class Frontend:
         close_dialog_button = tk.Button(
             master=data_frame,
             text="OK",
+            width=len("OK")-self._platform_offset,
+            # font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            bd=self._platform_border,
             command=self.close_dialog_box_command_custom_function
         )
         close_dialog_button.grid(row=0, column=10, padx=5, pady=0, sticky='ns')
@@ -1270,9 +1349,9 @@ class Frontend:
         for line in regex.split(f"\n", message_string):
             if line == "":
                 continue
-            my_font = "consolas", 12
+            my_font = "consolas", int(12*self._default_os_scaling)
             if sys.platform == "darwin" :
-                my_font = "courier new bold", 12
+                my_font = "courier new bold", int(12*self._default_os_scaling)
             new_message_label = tk.Label(master=text_frame, text=line,
                                          bg=hexx(self._console_color),
                                          fg=hexx(self._printout_color), font=my_font)
@@ -1576,8 +1655,11 @@ class Frontend:
         self._image_path = f"{Frontend.get_package_path()}/splash.png"
 
         img_raw = Image.open(self._image_path)
+        if self._default_gui_width < 2 and self._image_r == 1 :
+            self._image_r = (8/9) * self._os_height / (2*img_raw.height)
         img_resized = img_raw.resize((round(img_raw.width * self._image_r),
                                       round(img_raw.height * self._image_r)))
+
         self._image = ImageTk.PhotoImage(img_resized)
         self._image_frame = tk.Label(master=self._gui.children['!frame2'].children['!frame'],
                                      image=self._image,
@@ -1643,6 +1725,9 @@ class Frontend:
         data_perusal_button = tk.Button(
             master=self._gui.children['!frame2'].children['!frame2'].children['!frame'],
             text="Inspect",
+            width=len("Inspect")-self._platform_offset,
+            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            bd=self._platform_border,
             command=self.inspect_command
         )
         data_perusal_button.grid(row=0, column=0, padx=5, pady=5)
@@ -1666,14 +1751,17 @@ class Frontend:
 
         left_button = tk.Button(master=self._gui.children['!frame2'].children['!frame2'].children['!frame'],
                                 text=self.sym_left,
+                                bd=self._platform_border,
                                 command=self.image_left_command
                                 )
         count_text = tk.Label(
             master=self._gui.children['!frame2'].children['!frame2'].children['!frame'],
-            text=f"{self._curr_image_num % len(self._data_handlers) + 1}/{len(self._data_handlers)}"
+            text=f"{self._curr_image_num % len(self._data_handlers) + 1}/{len(self._data_handlers)}",
+            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale))
         )
         right_button = tk.Button(master=self._gui.children['!frame2'].children['!frame2'].children['!frame'],
                                  text=self.sym_right,
+                                 bd=self._platform_border,
                                  command=self.image_right_command
                                  )
         left_button.grid(row=0, column=1, padx=5, pady=5)
@@ -1711,6 +1799,9 @@ class Frontend:
         self._error_bands_button = tk.Button(
             master=self._gui.children['!frame2'].children['!frame2'].children['!frame2'],
             text="Error Bands",
+            width=len("Error Bands")-self._platform_offset,
+            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            bd=self._platform_border,
             command=self.show_error_bands_command
         )
         self._error_bands_button.grid(row=0, column=0, pady=5, sticky='e')
@@ -1743,7 +1834,10 @@ class Frontend:
     def create_residuals_button(self):
         self._residuals_button = tk.Button(
             master=self._gui.children['!frame2'].children['!frame2'].children['!frame2'],
-            text="Show Residuals",
+            text="Residuals",
+            width=len("Residuals")-self._platform_offset,
+            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            bd=self._platform_border,
             command=self.show_residuals_command
         )
         self._residuals_button.grid(row=0, column=1, padx=5, pady=5, sticky='e')
@@ -2003,6 +2097,9 @@ class Frontend:
             *func_list
         )
         function_dropdown.configure(width=9)
+        function_dropdown.configure(font=('TkDefaultFont', int(12 * self._default_os_scaling* self._platform_scale)) )
+        options = self._fit_options_frame.nametowidget(function_dropdown.menuname)
+        options.configure(font=('TkDefaultFont', int(12 * self._default_os_scaling* self._platform_scale)) )
         function_dropdown.grid(row=0, column=0)
 
         self._model_name_tkstr.trace('w', self.function_dropdown_trace)
@@ -2062,16 +2159,21 @@ class Frontend:
         top5_list = [f"{rx_sqr:.2F}: {name}" for rx_sqr, name
                      in zip(self._optimizer.top5_rchisqrs, self._optimizer.top5_names)]
 
+        max_len = max( [len(x) for x in top5_list] )
+
         self._which5_name_tkstr = tk.StringVar(self._fit_options_frame)
         self._which5_name_tkstr.set("Top 5")
 
-        print(self._new_user_stage, self._new_user_stage % 29)
         top5_dropdown = tk.OptionMenu(
             self._fit_options_frame,
             self._which5_name_tkstr,
             *top5_list
         )
-        top5_dropdown.configure(width=45)
+        top5_dropdown.configure(width=max_len-self._platform_offset)
+
+        top5_dropdown.configure(font=('TkDefaultFont', int(10 * self._default_os_scaling * self._platform_scale)) )
+        options = self._fit_options_frame.nametowidget(top5_dropdown.menuname)
+        options.configure(font=('TkDefaultFont', int(10 * self._default_os_scaling* self._platform_scale)) )
         top5_dropdown.grid(row=0, column=1)
 
         self._which_tr_id = self._which5_name_tkstr.trace_add('write', self.which5_dropdown_trace)
@@ -2115,13 +2217,18 @@ class Frontend:
 
         # update options
         top5_dropdown: tk.OptionMenu = self._fit_options_frame.children['!optionmenu2']
+
+
+        curr_max = top5_dropdown['width']
         top5_dropdown['menu'].delete(0, tk.END)
         top5_list = [f"{rx_sqr:.2F}: {name}" for rx_sqr, name
                      in zip(self.optimizer.top5_rchisqrs, self.optimizer.top5_names)]
         for label in top5_list:
             # noinspection PyProtectedMember
             top5_dropdown['menu'].add_command(label=label, command=tk._setit(self._which5_name_tkstr, label))
-
+        new_max = max( [len(x) for x in top5_list] )
+        if new_max > int(curr_max) :
+            top5_dropdown.configure(width=new_max)
         # update label
         # selected_model_idx = self.optimizer.top5_names.index(self.current_model.name)
         # chisqr = self.optimizer.top5_rchisqrs[selected_model_idx]
@@ -2146,6 +2253,7 @@ class Frontend:
         if self._new_user_stage % 29 != 0:
             self.create_top5_dropdown()
             return
+        print("Show top5", self._fit_options_frame.winfo_width(),self._left_panel_frame.winfo_width(),self._middle_panel_frame.winfo_width(),self._right_panel_frame.winfo_width(),self._gui.winfo_width())
         top5_dropdown = self._fit_options_frame.children['!optionmenu2']
         top5_dropdown.grid(row=0, column=1)
         self.show_refit_button()
@@ -2158,9 +2266,12 @@ class Frontend:
         self._refit_button = tk.Button(
             self._fit_options_frame,
             text="Refit",
+            width=len("Refit")-self._platform_offset,
+            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            bd=self._platform_border,
             command=self.refit_command
         )
-        self._refit_button.grid(row=0, column=3, padx=5, pady=5, sticky='w')
+        self._refit_button.grid(row=0, column=3, padx=5, sticky='nw')
     def refit_command(self):
         self.show_current_data_with_fit(do_halving=True)
         self.set_which5_no_trace(f"{self.current_rchisqr:.2F}: {self.current_model.name}")
@@ -2172,7 +2283,7 @@ class Frontend:
         if self._new_user_stage % 43 != 0:
             self.create_refit_button()
             return
-        self._refit_button.grid(row=0, column=3, padx=5, pady=5, sticky='w')
+        self._refit_button.grid(row=0, column=3, padx=5, sticky='nw')
 
     # PLOT OPTIONS frame ---------------------------------------------------------------------------------------------->
     def show_log_buttons(self):
@@ -2182,6 +2293,9 @@ class Frontend:
         self._logx_button = tk.Button(
             master=self._gui.children['!frame2'].children['!frame4'],
             text="Log X",
+            width=len("Log X")-self._platform_offset,
+            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            bd=self._platform_border,
             command=self.logx_command
         )
         self._logx_button.grid(row=0, column=0, padx=5, pady=(5, 0), sticky='w')
@@ -2189,6 +2303,9 @@ class Frontend:
         self._logy_button = tk.Button(
             master=self._gui.children['!frame2'].children['!frame4'],
             text="Log Y",
+            width=len("Log Y")-self._platform_offset,
+            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            bd=self._platform_border,
             command=self.logy_command
         )
         self._logy_button.grid(row=1, column=0, padx=5, sticky='w')
@@ -2230,15 +2347,17 @@ class Frontend:
     def update_logx_relief(self):
         if self._new_user_stage % 13 != 0:
             return
-
+        print(f"{self._logx_button['bg']=}")
         if self.data_handler.logx_flag:
             # print("Making log_x sunken")
             self._logx_button.configure(relief=tk.SUNKEN)
+            self._logx_button.configure(bg='grey90')
             self.hide_normalize_button()
             print(self._logx_button['relief'])
             return
         # print("Making log_x raised")
         self._logx_button.configure(relief=tk.RAISED)
+        self._logx_button.configure(bg='SystemButtonFace')
         if not self.data_handler.logy_flag and self.data_handler.histogram_flag:
             self.show_normalize_button()
     def update_logy_relief(self):
@@ -2248,10 +2367,12 @@ class Frontend:
         if self.data_handler.logy_flag:
             # print("Making log_y sunken")
             self._logy_button.configure(relief=tk.SUNKEN)
+            self._logy_button.configure(bg='grey90')
             self.hide_normalize_button()
             return
         # print("Making log_y raised")
         self._logy_button.configure(relief=tk.RAISED)
+        self._logy_button.configure(bg='SystemButtonFace')
         if not self.data_handler.logx_flag and self.data_handler.histogram_flag:  # purpose?
             self.show_normalize_button()
 
@@ -2263,6 +2384,9 @@ class Frontend:
         self._normalize_button = tk.Button(
             master=self._gui.children['!frame2'].children['!frame4'],
             text="Normalize",
+            width=len("Normalize")-self._platform_offset,
+            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            bd=self._platform_border,
             command=self.normalize_command
         )
         self._normalize_button.grid(row=2, column=0, padx=5, pady=5, sticky='w')
@@ -2272,6 +2396,7 @@ class Frontend:
             return
         self.data_handler.normalize_histogram_data()
         self._normalize_button.configure(relief=tk.SUNKEN)
+        self._normalize_button.configure(bg='grey90')
         if self._showing_fit_image:
             self.show_current_data_with_fit()
         else:
@@ -2288,13 +2413,17 @@ class Frontend:
         self._normalize_button.grid(row=2, column=0, padx=5, pady=5, sticky='w')
         if self.data_handler.normalized:
             self._normalize_button.configure(relief=tk.SUNKEN)
+            self._normalize_button.configure(bg='grey90')
         else:
             self._normalize_button.configure(relief=tk.RAISED)
+            self._normalize_button.configure(bg='SystemButtonFace')
 
     def update_data_select(self):
         text_label: tk.Label = self._data_perusal_frame.children['!frame'].children['!label']  # left frame
         if self._showing_fit_all_image:
-            text_label.configure(text=f"-/{len(self._data_handlers)}")
+            text_label.configure(text=f"-/{len(self._data_handlers)}",
+                                 font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale))
+                                 )
         else:
             text_label.configure(
                 text=f"{(self._curr_image_num % len(self._data_handlers)) + 1}/{len(self._data_handlers)}"
@@ -2596,20 +2725,23 @@ class Frontend:
         # polynomial
         self._polynomial_degree_label = tk.Label(
             master=self._polynomial_frame,
-            text=f"Degree: {self._polynomial_degree_tkint.get()}"
+            text=f"Degree: {self._polynomial_degree_tkint.get()}",
+            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale))
         )
         down_button = tk.Button(self._gui.children['!frame2'].children['!frame6'],
                                 text=self.sym_down,
+                                bd=self._platform_border,
                                 command=self.degree_down_command
                                 )
         up_button = tk.Button(self._gui.children['!frame2'].children['!frame6'],
                               text=self.sym_up,
+                              bd=self._platform_border,
                               command=self.degree_up_command
                               )
 
         self._polynomial_degree_label.grid(row=0, column=0, sticky='w')
-        down_button.grid(row=0, column=1, padx=(5, 0), pady=5, sticky='w')
-        up_button.grid(row=0, column=2, sticky='w')
+        down_button.grid(row=0, column=1, padx=(5, 0), pady=5, sticky='nsw')
+        up_button.grid(row=0, column=2, pady=5, sticky='nsw')
     def hide_degree_buttons(self):
         if self._new_user_stage % 19 != 0:
             return
@@ -2644,20 +2776,23 @@ class Frontend:
         # gaussian
         self._gaussian_modal_label = tk.Label(
             master=self._gaussian_frame,
-            text=f"Modes: {self._gaussian_modal_tkint.get()}"
+            text=f"Modes: {self._gaussian_modal_tkint.get()}",
+            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale))
         )
         down_button = tk.Button(self._gaussian_frame,
                                 text=self.sym_down,
+                                bd=self._platform_border,
                                 command=self.modal_down_command
                                 )
         up_button = tk.Button(self._gaussian_frame,
                               text=self.sym_up,
+                              bd=self._platform_border,
                               command=self.modal_up_command
                               )
 
         self._gaussian_modal_label.grid(row=0, column=0, sticky='w')
         down_button.grid(row=0, column=1, padx=(5, 0), pady=5, sticky='w')
-        up_button.grid(row=0, column=2, sticky='w')
+        up_button.grid(row=0, column=2, pady=5, sticky='w')
     def hide_modal_buttons(self):
         if self._new_user_stage % 47 != 0:
             return
@@ -2709,8 +2844,9 @@ class Frontend:
         # still to add:
         # fit data / vs / search models on Procedural
         # sliders for initial parameter guesses
-
+        
         for idx, name in enumerate(self._checkbox_names_list):
+            my_font = 'TkDefaultFont', int(12*self._default_os_scaling)
             print(regex.split(f" ", self._custom_function_names))
             checkbox = tk.Checkbutton(
                 master=self._procedural_frame,
@@ -2718,6 +2854,7 @@ class Frontend:
                 variable=self._use_func_dict_name_tkbool[name],
                 onvalue=True,
                 offvalue=False,
+                font=my_font,
                 command=self.checkbox_on_off_command
             )
             checkbox.grid(row=idx % ( len(self._checkbox_names_list)-1),
@@ -2740,20 +2877,23 @@ class Frontend:
         # duplication taken care of with % 31 i.e. default_checkboxes
         self._depth_label = tk.Label(
             master=self._procedural_frame,
-            text=f"Depth: {self._max_functions_tkint.get()}"
+            text=f"Depth: {self._max_functions_tkint.get()}",
+            font = ('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale))
         )
         down_button = tk.Button(self._procedural_frame,
                                 text=self.sym_down,
+                                bd=self._platform_border,
                                 command=self.depth_down_command
                                 )
         up_button = tk.Button(self._procedural_frame,
                               text=self.sym_up,
+                              bd=self._platform_border,
                               command=self.depth_up_command
                               )
 
         self._depth_label.grid(row=100, column=0, sticky='w')
         down_button.grid(row=100, column=1, padx=(5, 0), pady=5, sticky='w')
-        up_button.grid(row=100, column=2, sticky='w')
+        up_button.grid(row=100, column=2, pady=5, sticky='w')
     def depth_down_command(self):
         if self._max_functions_tkint.get() > 1:
             self._max_functions_tkint.set(self._max_functions_tkint.get() - 1)
@@ -2859,10 +2999,13 @@ class Frontend:
 
         self._pause_button = tk.Button(self._fit_options_frame,
                                        text="Pause",
+                                       width= 8-self._platform_offset,
+                                       font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+                                       bd=self._platform_border,
                                        command=self.pause_command
                                        )
-        self._pause_button.grid(row=0, column=2, padx=(5, 0), sticky='w')
-        self._pause_button.configure(width=8)
+        self._pause_button.grid(row=0, column=2, padx=(5, 0), sticky='nw')
+
     def hide_pause_button(self):
         if self._new_user_stage % 37 != 0:
             return
@@ -2899,10 +3042,10 @@ class Frontend:
             return
         self._new_user_stage *= 53
 
-        name_label = tk.Label(master=self._manual_frame, text="Function's Name")
+        name_label = tk.Label(master=self._manual_frame, text="Function's Name",font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
         name_label.grid(row=0, column=0, sticky='w')
-        name_data = tk.Entry(master=self._manual_frame, width=30)
-        name_data.insert(0, "CustomStatsFunc" if self._default_manual_name == "N/A" else self._default_manual_name)
+        name_data = tk.Entry(master=self._manual_frame, width=30,font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
+        name_data.insert(0, "ManualEntryFunc" if self._default_manual_name == "N/A" else self._default_manual_name)
         name_data.grid(row=0, column=1, sticky='w')
 
         # form_label = tk.Label(master=self._manual_frame, text="Function's Form")
@@ -2911,9 +3054,9 @@ class Frontend:
         # form_data.insert(0, "sin(pow1)+sin(pow1)+sin(pow1)+sin(pow1)")
         # form_data.grid(row=1, column=1, sticky='w')
 
-        long_label = tk.Label(master=self._manual_frame, text="Function's Form")
+        long_label = tk.Label(master=self._manual_frame, text="Function's Form",font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
         long_label.grid(row=1, column=0, sticky='nw')
-        long_data = tk.Text(master=self._manual_frame, width=55, height=5)
+        long_data = tk.Text(master=self._manual_frame, width=55, height=5,font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
         long_data.insert('1.0', "logistic(pow1+pow0)" if self._default_manual_form == "N/A"
                                                       else self._default_manual_form)
         long_data.grid(row=1, column=1, sticky='w')
@@ -2921,11 +3064,11 @@ class Frontend:
         self._error_label = tk.Label(master=self._manual_frame, text=f"", fg="#EF0909")
         self._error_label.grid(row=2, column=1, sticky='w', pady=5)
 
-        current_name_title_label = tk.Label(master=self._manual_frame, text=f"Current Name:")
+        current_name_title_label = tk.Label(master=self._manual_frame, text=f"Current Name:",font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
         current_name_title_label.grid(row=3, column=0, sticky='w', pady=(5,0))
         self._current_name_label = tk.Label(master=self._manual_frame, text=f"N/A")
         self._current_name_label.grid(row=3, column=1, sticky='w', pady=(5,0))
-        current_form_title_label = tk.Label(master=self._manual_frame, text=f"Current Form:")
+        current_form_title_label = tk.Label(master=self._manual_frame, text=f"Current Form:",font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
         current_form_title_label.grid(row=4, column=0, sticky='w')
         self._current_form_label = tk.Label(master=self._manual_frame, text=f"N/A")
         self._current_form_label.grid(row=4, column=1, sticky='w')
@@ -2933,20 +3076,24 @@ class Frontend:
         submit_button = tk.Button(
             master=self._manual_frame,
             text="Validate",
+            width=len("Validate") - self._platform_offset,
+            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+            bd=self._platform_border,
             command=self.validate_manual_function_command
         )
         submit_button.grid(row=1, column=10, padx=5, pady=0, sticky='s')
         self.create_library_options()
 
         if self._default_manual_name != "N/A" :
+            print(self._default_manual_form)
             manual_model = CompositeFunction.construct_model_from_str(form=self._default_manual_form,
-                                                                      error_handler=self.error_handling,
+                                                                      error_handler=self.add_message,
                                                                       name=self._default_manual_name)
             if manual_model is None:
                 return
 
-            self._current_name_label.configure(text=self._default_manual_name)
-            self._current_form_label.configure(text=self._default_manual_form)
+            self._current_name_label.configure(text=self._default_manual_name,font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
+            self._current_form_label.configure(text=self._default_manual_form,font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
             manual_model.print_tree()
             self._manual_model = manual_model
     def hide_manual_fields(self):
@@ -3055,40 +3202,57 @@ class Frontend:
             return
         self._new_user_stage *= 59
 
+        common_width = 8 - self._platform_offset
+
         self._library_numpy = tk.Button(self._fit_options_frame,
                                         text="<numpy>",
+                                        font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+                                        width=common_width,
+                                        bd=self._platform_border,
                                         command=self.print_numpy_library
                                        )
         self._library_numpy.grid(row=0, column=1, padx=(5, 0), sticky='w')
-        self._library_numpy.configure(width=8)
 
         self._library_special = tk.Button(self._fit_options_frame,
                                           text="<special>",
+                                          font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+                                          width=common_width,
+                                          bd=self._platform_border,
                                           command=self.print_special_library
                                          )
         self._library_special.grid(row=0, column=2, sticky='w')
-        self._library_special.configure(width=8)
 
         self._library_stats = tk.Button(self._fit_options_frame,
                                         text="<stats>",
+                                        font=(
+                                        'TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+                                        width=common_width,
+                                        bd=self._platform_border,
                                         command=self.print_stats_library
                                        )
         self._library_stats.grid(row=0, column=3, sticky='w')
-        self._library_stats.configure(width=8)
 
         self._library_math = tk.Button(self._fit_options_frame,
                                        text="<math>",
+                                       font=(
+                                           'TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+                                       width=common_width,
+                                       bd=self._platform_border,
                                        command=self.print_math_library
                                       )
         self._library_math.grid(row=0, column=4, sticky='w')
-        self._library_math.configure(width=8)
 
         self._library_autofit = tk.Button(self._fit_options_frame,
                                           text="<autofit>",
+                                          font=(
+                                              'TkDefaultFont',
+                                              int(12 * self._default_os_scaling * self._platform_scale)),
+                                          width=common_width,
+                                          bd=self._platform_border,
                                           command=self.print_autofit_library
                                          )
         self._library_autofit.grid(row=0, column=5, sticky='w')
-        self._library_autofit.configure(width=8)
+
     def hide_library_options(self):
         if self._new_user_stage % 59 != 0:
             return
@@ -3370,7 +3534,7 @@ class Frontend:
         self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
     def console_color_pale(self):
         self._default_console_colour = "Pale"
-        self._console_color = (240, 240, 240)
+        self._console_color = 'SystemButtonFace'  # (240, 240, 240)
         self.save_defaults()
         self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
     def console_color_white(self):
@@ -3403,6 +3567,7 @@ class Frontend:
 
     def exist(self):
         self._gui.mainloop()
+
 
     def restart_command(self):
         self.save_defaults()
@@ -3457,6 +3622,8 @@ def sub(s: int):
         ret_str += subs_dict[char]
     return ret_str
 def hexx(vec) -> str:
+    if isinstance(vec,str) :
+        return vec
     hex_str = "#"
     for c255 in vec:
         to_add = f"{int(c255):x}"
