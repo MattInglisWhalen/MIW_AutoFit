@@ -1,6 +1,6 @@
 # default libraries
 import _tkinter
-import math
+# import math
 import sys
 import os as os
 import re as regex
@@ -112,7 +112,7 @@ class Frontend:
 
         self._pause_button: tk.Button = None
         self._refit_button: tk.Button = None
-        self._refit_on_click = True
+        self._refit_on_click = False
 
         # plot options frame
         self._logx_button: tk.Button = None
@@ -151,7 +151,7 @@ class Frontend:
         self._library_numpy : tk.Button = None
         self._library_special : tk.Button = None
         self._library_stats : tk.Button = None
-        self._library_math : tk.Button = None
+        # self._library_math : tk.Button = None
         self._library_autofit : tk.Button = None
         self._error_label : tk.Label = None
         self._current_name_label : tk.Label = None
@@ -168,12 +168,12 @@ class Frontend:
         self._default_excel_sigmax_range = None
         self._default_excel_sigmay_range = None
         self._default_load_file_loc = None
-        self._default_bg_colour = None
-        self._default_dataaxes_colour = None
-        self._default_fit_colour = None
-        self._default_console_colour = None
-        self._default_printout_colour = None
-        self._default_os_scaling = 1
+        self._default_bg_colour : str = None
+        self._default_dataaxes_colour : str = None
+        self._default_fit_colour : str = None
+        self._default_console_colour : str = None
+        self._default_printout_colour : str = None
+        self._default_os_scaling : float = 1
         if sys.platform == "darwin" :
             self._platform_offset = 4
         else :
@@ -186,18 +186,35 @@ class Frontend:
             self._platform_border = 0
         else :
             self._platform_border = 2
-        self._image_r = 1
-        self._custom_function_names = ""
-        self._custom_function_forms = ""
-        self._default_manual_name = "N/A"
-        self._default_manual_form = "N/A"
-        self._custom_function_button = None
+        self._image_r : float = 1
+        self._custom_function_names : str = ""
+        self._custom_function_forms : str = ""
+        self._default_manual_name : str = "N/A"
+        self._default_manual_form : str = "N/A"
+        self._custom_function_button : tk.Button = None
+
 
         self.sym_chi = "\U0001D6D8"
         self.sym_left = "\U0001F844"
         self.sym_up = "\U0001F845"
         self.sym_right = "\U0001F846"
         self.sym_down = "\U0001F847"
+        self.sym_check = " \U00002713"
+
+        self._criterion = "rchisqr"  # other opts AIC, AICc, BICc, HQIC
+
+        self._background_menu, self._dataaxis_menu, self._fit_colour_menu = None, None, None
+        self._background_labels = ["Default","White","Dark","Black"]
+        self._dataaxis_labels = ["Default","White"]
+        self._fit_colour_labels = ["Default","White","Black"]
+        self._printout_background_menu, self._printout_menu = None, None
+        self._printout_background_labels = ["Default","White","Pale"]
+        self._printout_labels = ["Default","White","Black"]
+        self._refit_menu, self._criterion_menu = None, None
+        self._refit_labels = ["Always","With Button"]
+        self._criterion_labels = [f"Reduced {self.sym_chi}{sup(2)}","AIC","AICc","BIC","HQIC"]
+
+
 
         # default configs
         self.touch_defaults()  # required for free version
@@ -210,7 +227,7 @@ class Frontend:
         # load in splash screen
         self.load_splash_screen()
 
-        self.add_message(f"Directory is{':' if Frontend._meipass_flag else ''} {Frontend.get_package_path()}")
+        self.add_message(f"  Directory is{':' if Frontend._meipass_flag else ''} {Frontend.get_package_path()}")
         print(f"{Frontend._meipass_flag=}")
 
     def touch_defaults(self):
@@ -284,7 +301,10 @@ class Frontend:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
                         arg = "Default"
-                    self._default_bg_colour = arg
+                    if arg in ["Default","Black","White","Dark"] :
+                        self._default_bg_colour = arg
+                    else :
+                        self._default_bg_colour = "Default"
                     if arg == "Black":
                         self._bg_color = (0., 0., 0.)
                     elif arg == "White":
@@ -297,7 +317,10 @@ class Frontend:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
                         arg = "Default"
-                    self._default_dataaxes_colour = arg
+                    if arg in ["Default","White"] :
+                        self._default_dataaxes_colour = arg
+                    else :
+                        self._default_dataaxes_colour = "Default"
                     if arg == "White":
                         self._dataaxes_color = (1., 1., 1.)
                     else:
@@ -306,7 +329,10 @@ class Frontend:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
                         arg = "Default"
-                    self._default_fit_colour = arg
+                    if arg in ["Default","Black","White"] :
+                        self._default_fit_colour = arg
+                    else :
+                        self._default_fit_colour = "Default"
                     if arg == "Black":
                         self._fit_color = (0., 0., 0.)
                     elif arg == "White":
@@ -317,7 +343,10 @@ class Frontend:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
                         arg = "Default"
-                    self._default_console_colour = arg
+                    if arg in ["Default","White","Pale"] :
+                        self._default_console_colour = arg
+                    else :
+                        self._default_console_colour = "Default"
                     if arg == "Pale":
                         self._console_color = (240, 240, 240)
                     elif arg == "White":
@@ -328,7 +357,10 @@ class Frontend:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
                         arg = "Default"
-                    self._default_printout_colour = arg
+                    if arg in ["Default","White","Black"] :
+                        self._default_printout_colour = arg
+                    else :
+                        self._default_printout_colour = "Default"
                     if arg == "White":
                         self._printout_color = (255, 255, 255)
                     elif arg == "Black":
@@ -360,36 +392,23 @@ class Frontend:
                     if arg == "" or arg[0] == "#":
                         arg = "0"
                     self._use_func_dict_name_tkbool["1/x"].set(bool(int(arg)))
-                # elif "#POW2_ON" in line:
-                #     arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
-                #     if arg == "" or arg[0] == "#":
-                #         arg = "0"
-                #     self._use_func_dict_name_tkVar["x\U000000B2"].set(bool(int(arg)))
-                # elif "#POW3_ON" in line:
-                #     arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
-                #     if arg == "" or arg[0] == "#":
-                #         arg = "0"
-                #     self._use_func_dict_name_tkVar["x\U000000B3"].set(bool(int(arg)))
-                # elif "#POW4_ON" in line:
-                #     arg =  regex.split(" ", line.rstrip("\n \t"))[-1]
-                #     if arg == "" or arg[0] == "#":
-                #         arg = "0"
-                #     self._use_func_dict_name_tkVar["x\U00002074"].set(bool(int(arg)))
                 elif "#CUSTOM_ON" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
                         arg = "0"
                     self._use_func_dict_name_tkbool["custom"].set(bool(int(arg)))
                 elif "#CUSTOM_NAMES" in line:
-                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
-                    if arg == "" or arg[0] == "#":
-                        arg = ""
-                    self._custom_function_names = arg
+                    args = regex.split(" ", line.rstrip("\n \t"))
+                    if args == "" or args[0] == "#":
+                        self._custom_function_names = ""
+                    else :
+                        self._custom_function_names = ' '.join( args[1:] )
                 elif "#CUSTOM_FORMS" in line:
-                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
-                    if arg == "" or arg[0] == "#":
-                        arg = ""
-                    self._custom_function_forms = arg
+                    args = regex.split(" ", line.rstrip("\n \t"))
+                    if args == "" or args[0] == "#":
+                        self._custom_function_forms = ""
+                    else :
+                        self._custom_function_forms = ' '.join( args[1:] )
                 elif "#MANUAL_NAME" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
@@ -410,8 +429,24 @@ class Frontend:
                     if arg == "" or arg[0] == "#":
                         arg = 1.
                     self._image_r = min(max(float(arg), 0.1), 10)
+                elif "#REFIT_ALWAYS" in line:
+                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "0"
+                    if arg in ["0","1"] :
+                        self._refit_on_click = bool( int(arg) )
+                    else :
+                        self._refit_on_click = False
+                elif "#CRITERION" in line:
+                    arg = regex.split(" ", line.rstrip("\n \t"))[-1]
+                    if arg == "" or arg[0] == "#":
+                        arg = "rchisqr"
+                    if arg in ["rchisqr","AIC","AICc","BIC","HQIC"] :
+                        self.criterion = arg
+                    else :
+                        self.criterion = "rchisqr"
     def save_defaults(self):
-        print("SAVED DEFAULTS")
+        # print("SAVED DEFAULTS")
         if self.brute_forcing or self._default_fit_type == "Brute-Force":
             return
         with open(f"{Frontend.get_package_path()}/frontend.cfg", 'w') as file:
@@ -436,9 +471,6 @@ class Frontend:
             exp_on = int(self._use_func_dict_name_tkbool["exp(x)"].get())
             log_on = int(self._use_func_dict_name_tkbool["log(x)"].get())
             pow_neg1_on = int(self._use_func_dict_name_tkbool["1/x"].get())
-            # pow2_on = int(self._use_func_dict_name_tkVar["x\U000000B2"].get())
-            # pow3_on = int(self._use_func_dict_name_tkVar["x\U000000B3"].get())
-            # pow4_on = int(self._use_func_dict_name_tkVar["x\U00002074"].get())
             custom_on = int(self._use_func_dict_name_tkbool["custom"].get())
             if (cos_on and sin_on and exp_on and log_on and pow_neg1_on
                     # and pow2_on and pow3_on and pow4_on
@@ -460,6 +492,8 @@ class Frontend:
             file.write(f"#MANUAL_FORM {self._default_manual_form}\n")
             file.write(f"#OS_SCALING {self._default_os_scaling}\n")
             file.write(f"#IMAGE_R {self._image_r}\n")
+            file.write(f"#REFIT_ALWAYS {1 if self._refit_on_click else 0}\n")
+            file.write(f"#CRITERION {self.criterion}\n")
     def print_defaults(self):
         print(f"GUI Width >{self._default_gui_width}<")
         print(f"GUI Height >{self._default_gui_height}<")
@@ -501,6 +535,8 @@ class Frontend:
         print(f"Manual function form >{self._default_manual_form}<")
         print(f"OS Scaling >{self._default_os_scaling:.2F}<")
         print(f"Image R >{self._image_r:.3F}<")
+        print(f"Refit on Click: >{1 if self._refit_on_click else 0}<")
+        print(f"Criterion: >{self.criterion}<")
 
     # create left, right, and middle panels
     def load_splash_screen(self):
@@ -543,65 +579,15 @@ class Frontend:
 
         menu_bar = tk.Menu(self._gui)
         file_menu = tk.Menu(master=menu_bar, tearoff=0)
-        # tutorial_menu = tk.Menu(master=menu_bar, tearoff=0)
+        settings_menu = tk.Menu(master=menu_bar, tearoff=0)
 
         self._gui.config(menu=menu_bar)
         menu_bar.add_cascade(label="File", menu=file_menu, underline=0)
-        # menu_bar.add_cascade(label="Tutorials", menu=tutorial_menu, underline=0)
+        menu_bar.add_cascade(label="Settings", menu=settings_menu, underline=0)
 
-        # File menu
-
+        # FILE menu
         file_menu.add_command(label="Open", command=self.load_data_command)
 
-        preferences_menu = tk.Menu(master=file_menu, tearoff=0)
-
-        background_menu = tk.Menu(master=preferences_menu, tearoff=0)
-        background_menu.add_command(label="Default", command=self.bg_color_default)
-        background_menu.add_command(label="White", command=self.bg_color_white)
-        background_menu.add_command(label="Dark", command=self.bg_color_dark)
-        background_menu.add_command(label="Black", command=self.bg_color_black)
-
-        dataaxis_menu = tk.Menu(master=preferences_menu, tearoff=0)
-        dataaxis_menu.add_command(label="Default", command=self.dataaxes_color_default)
-        dataaxis_menu.add_command(label="White", command=self.dataaxes_color_white)
-
-        fit_colour_menu = tk.Menu(master=preferences_menu, tearoff=0)
-        fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
-        fit_colour_menu.add_command(label="White", command=self.fit_color_white)
-        fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
-
-        image_size_menu = tk.Menu(master=preferences_menu, tearoff=0)
-        event_up = tk.Event()
-        event_up.delta = 120
-        event_down = tk.Event()
-        event_down.delta = -120
-        image_size_menu.add_command(label="Up", command=lambda: self.do_image_resize(event_up))
-        image_size_menu.add_command(label="Down", command=lambda: self.do_image_resize(event_down))
-
-        printout_background_menu = tk.Menu(master=preferences_menu, tearoff=0)
-        printout_background_menu.add_command(label="Default", command=self.console_color_default)
-        printout_background_menu.add_command(label="White", command=self.console_color_white)
-        printout_background_menu.add_command(label="Pale", command=self.console_color_pale)
-
-        printout_menu = tk.Menu(master=preferences_menu, tearoff=0)
-        printout_menu.add_command(label="Default", command=self.printout_color_default)
-        printout_menu.add_command(label="White", command=self.printout_color_white)
-        printout_menu.add_command(label="Black", command=self.printout_color_black)
-
-        gui_resolution_menu = tk.Menu(master=preferences_menu, tearoff=0)
-        gui_resolution_menu.add_command(label="Up", command=self.size_up)
-        gui_resolution_menu.add_command(label="Down", command=self.size_down)
-
-        file_menu.add_cascade(label="Settings", menu=preferences_menu)
-        preferences_menu.add_cascade(label="Image Background", menu=background_menu)
-        preferences_menu.add_cascade(label="Data/Axis Colour", menu=dataaxis_menu)
-        preferences_menu.add_cascade(label="Fit Colour", menu=fit_colour_menu)
-        preferences_menu.add_cascade(label="Image Size", menu=image_size_menu)
-        preferences_menu.add_cascade(label="Printout Background", menu=printout_background_menu)
-        preferences_menu.add_cascade(label="Printout Colour", menu=printout_menu)
-        preferences_menu.add_cascade(label="Text Size", menu=gui_resolution_menu)
-
-        # File
         restart_menu = tk.Menu(master=file_menu, tearoff=0)
         restart_are_you_sure_menu = tk.Menu(master=restart_menu, tearoff=0)
         restart_are_you_sure_menu.add_command(label="Yes", command=self.restart_command)
@@ -609,7 +595,6 @@ class Frontend:
         file_menu.add_cascade(label="Restart", menu=restart_menu)
         restart_menu.add_cascade(label="Are you sure?", menu=restart_are_you_sure_menu)
 
-        # File
         exit_menu = tk.Menu(master=file_menu, tearoff=0)
         exit_are_you_sure_menu = tk.Menu(master=exit_menu, tearoff=0)
         exit_are_you_sure_menu.add_command(label="Yes", command=self._gui.destroy)
@@ -617,7 +602,86 @@ class Frontend:
         file_menu.add_cascade(label="Exit", menu=exit_menu)
         exit_menu.add_cascade(label="Are you sure?", menu=exit_are_you_sure_menu)
 
-        pass
+        # SETTINGS menu
+
+        # appearance
+        appearance_menu = tk.Menu(master=settings_menu, tearoff=0)
+
+        self._background_menu = tk.Menu(master=appearance_menu, tearoff=0)
+        self._background_menu.add_command(label="Default", command=self.bg_color_default)
+        self._background_menu.add_command(label="White", command=self.bg_color_white)
+        self._background_menu.add_command(label="Dark", command=self.bg_color_dark)
+        self._background_menu.add_command(label="Black", command=self.bg_color_black)
+        self.checkmark_background_options( self._background_labels.index( self._default_bg_colour ) )
+
+        self._dataaxis_menu = tk.Menu(master=appearance_menu, tearoff=0)
+        self._dataaxis_menu.add_command(label="Default", command=self.dataaxes_color_default)
+        self._dataaxis_menu.add_command(label="White", command=self.dataaxes_color_white)
+        self.checkmark_dataaxis_options( self._dataaxis_labels.index( self._default_dataaxes_colour ) )
+
+        self._fit_colour_menu = tk.Menu(master=appearance_menu, tearoff=0)
+        self._fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
+        self._fit_colour_menu.add_command(label="White", command=self.fit_color_white)
+        self._fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
+        self.checkmark_fit_colour_options( self._fit_colour_labels.index( self._default_fit_colour ) )
+
+        event_up = tk.Event()
+        event_up.delta = 120
+        event_down = tk.Event()
+        event_down.delta = -120
+        image_size_menu = tk.Menu(master=appearance_menu, tearoff=0)
+        image_size_menu.add_command(label="Up", command=lambda: self.do_image_resize(event_up))
+        image_size_menu.add_command(label="Down", command=lambda: self.do_image_resize(event_down))
+
+        self._printout_background_menu = tk.Menu(master=appearance_menu, tearoff=0)
+        self._printout_background_menu.add_command(label="Default", command=self.console_color_default)
+        self._printout_background_menu.add_command(label="White", command=self.console_color_white)
+        self._printout_background_menu.add_command(label="Pale", command=self.console_color_pale)
+        self.checkmark_printout_background_options( self._printout_background_labels
+                                                      .index( self._default_console_colour ) )
+
+        self._printout_menu = tk.Menu(master=appearance_menu, tearoff=0)
+        self._printout_menu.add_command(label="Default", command=self.printout_color_default)
+        self._printout_menu.add_command(label="White", command=self.printout_color_white)
+        self._printout_menu.add_command(label="Black", command=self.printout_color_black)
+        self.checkmark_printout_options( self._printout_labels.index( self._default_printout_colour ) )
+
+        gui_resolution_menu = tk.Menu(master=appearance_menu, tearoff=0)
+        gui_resolution_menu.add_command(label="Up", command=self.size_up)
+        gui_resolution_menu.add_command(label="Down", command=self.size_down)
+
+
+
+        settings_menu.add_cascade(label="Appearance", menu=appearance_menu)
+        appearance_menu.add_cascade(label="Image Background", menu=self._background_menu)
+        appearance_menu.add_cascade(label="Data/Axis Colour", menu=self._dataaxis_menu)
+        appearance_menu.add_cascade(label="Fit Colour", menu=self._fit_colour_menu)
+        appearance_menu.add_cascade(label="Image Size", menu=image_size_menu)
+        appearance_menu.add_cascade(label="Printout Background", menu=self._printout_background_menu)
+        appearance_menu.add_cascade(label="Printout Colour", menu=self._printout_menu)
+        appearance_menu.add_cascade(label="Text Size", menu=gui_resolution_menu)
+
+        # behaviour
+        behaviour_menu = tk.Menu(master=settings_menu, tearoff=0)
+
+        self._refit_menu = tk.Menu(master=behaviour_menu, tearoff=0)
+        self._refit_menu.add_command(label="Always", command=self.refit_always)
+        self._refit_menu.add_command(label="With Button", command=self.refit_sometimes)
+        self.checkmark_refit_options( 0 if self._refit_menu else 1 )
+
+        self._criterion_menu = tk.Menu(master=behaviour_menu, tearoff=0)
+        self._criterion_menu.add_command(label=f"Reduced {self.sym_chi}{sup(2)}", command=self.criterion_rchisqr)
+        self._criterion_menu.add_command(label=f"AIC", command=self.criterion_AIC)
+        self._criterion_menu.add_command(label=f"AICc", command=self.criterion_AICc)
+        self._criterion_menu.add_command(label=f"BIC", command=self.criterion_BIC)
+        self._criterion_menu.add_command(label="HQIC",command=self.criterion_HQ)
+        self.checkmark_criterion_options( self._criterion_labels.index( self._criterion )
+                                          if self._criterion != "rchisqr" else 0 )
+
+        settings_menu.add_cascade(label="Behaviour", menu=behaviour_menu)
+        behaviour_menu.add_cascade(label="Refit?", menu=self._refit_menu)
+        behaviour_menu.add_cascade(label="Criterions", menu=self._criterion_menu)
+
     # def create_tutorial_menu(self):
     #     pass
 
@@ -674,8 +738,8 @@ class Frontend:
         print("1...", self._left_panel_frame.winfo_width(), self._left_panel_frame.winfo_height())
         print("2...", self._middle_panel_frame.winfo_width(), self._middle_panel_frame.winfo_height())
         print("3...", self._right_panel_frame.winfo_width(), self._right_panel_frame.winfo_height())
-
         print("4...", self._image_frame.winfo_width(), self._image_frame.winfo_height())
+
         new_filepaths = list(
             fd.askopenfilenames(initialdir=self._default_load_file_loc, title="Select a file to fit",
                                 filetypes=(("All Files", "*.*"),
@@ -724,12 +788,12 @@ class Frontend:
         # degree options for polynomial fits
         if self._model_name_tkstr.get() == "Polynomial":
             self.show_degree_buttons()
-        if self._model_name_tkstr.get() == "Gaussian":
+        elif self._model_name_tkstr.get() == "Gaussian":
             self.show_modal_buttons()
         # checkbox and depth options for procedural fits
-        if self._model_name_tkstr.get() == "Procedural":
+        elif self._model_name_tkstr.get() == "Procedural":
             self.show_procedural_options()
-        if self._model_name_tkstr.get() == "Manual" :
+        elif self._model_name_tkstr.get() == "Manual" :
             self.show_manual_fields()
 
         if len(new_filepaths) > 0:
@@ -737,8 +801,10 @@ class Frontend:
             self._curr_image_num = len(self._data_handlers)
             self.load_new_data(new_filepaths)
             if self._showing_fit_image:
-                # self.show_current_data_with_fit()  # this fits the new data -- make this an option?
-                self.save_show_fit_image()  # this shouldn't reprint the model, sicne we arent refitting
+                if self._refit_on_click :
+                    self.show_current_data_with_fit()  # this fits the new data -- make this an option?
+                else :
+                    self.save_show_fit_image()  # this shouldn't reprint the model, since we arent refitting
                 # # TODO: load new file after already obtained a fit -- the fit all button goes away when it shouldn't
                 # # FIXED?
             else:
@@ -751,6 +817,10 @@ class Frontend:
         # update dropdown with new chi_sqrs for the current top 5 models, but according to the original parameters
         if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"]:
             self.update_top5_chisqrs()
+            print("If refit on button, this should make refit_button appear")
+            if len(self._data_handlers) > 1 :
+                print("If refit on button, this should make refit_button appear")
+                self.show_refit_button()
 
         if self._model_name_tkstr.get() in ["Procedural","Brute-Force","Manual"] :
             self.show_custom_function_button()
@@ -1049,7 +1119,12 @@ class Frontend:
 
             if self._manual_model is not None :
                 print(f"Fitting data to {self._manual_model.name} model.")
-                self.optimizer.fit_this_and_get_model_and_covariance(model_=self._manual_model)
+                try :
+                    self.optimizer.fit_this_and_get_model_and_covariance(model_=self._manual_model)
+                except ValueError :
+                    self.add_message("\n \n> It is likely that the domain of your manual function\n"
+                                     "  is incompatible with the data.")
+                    return
             else :
                 self.add_message("\n \n> You must validate the model before fitting.")
                 return
@@ -1081,8 +1156,11 @@ class Frontend:
             self.make_top_shown()
             self.update_top5_dropdown()
             self.show_top5_dropdown()
+            if len(self._data_handlers) > 1 :
+                self.show_refit_button()
         else:
             self.hide_top5_dropdown()
+            self.hide_refit_button()
 
         # checkbox, depth options, and custom function for procedural fits
         if self._model_name_tkstr.get() == "Procedural":
@@ -1332,8 +1410,8 @@ class Frontend:
         self.save_defaults()
         self._popup_window.destroy()
 
-        print(f">{self._custom_function_names}<")
-        print(f">{self._custom_function_forms}<")
+        print(f"close_dialog: >{self._custom_function_names}<")
+        print(f"close_dialog: >{self._custom_function_forms}<")
 
 
     # RIGHT PANEL FUNCTIONS ------------------------------------------------------------------------------------------->
@@ -1400,10 +1478,14 @@ class Frontend:
             print_string += f"   m = {m:+.2E}  \u00B1  {sigmam:.2E}\n"
             print_string += f"   b = {b:+.2E}  \u00B1  {sigmab:.2E}\n"
             # TODO: this needs to do something more complicated when fitting all
-            print_string += f"Goodness of fit: R\U000000B2 = " \
+            print_string += f"  Goodness of fit: R\U000000B2 = " \
                             f"{self._optimizer.r_squared(self.current_model):.4F}"
-            print_string += f"  ,  {self.sym_chi}{sup(2)}/dof = " \
-                            f"{self._optimizer.reduced_chi_squared_of_fit(self.current_model):.2F}\n"
+            if self.criterion != "rchisqr" :
+                print_string += f"  ,  {self.criterion} = " \
+                                f"{self.optimizer.criterion(self.current_model):.2F}\n"
+            else :
+                print_string += f"  ,  {self.sym_chi}{sup(2)}/dof = " \
+                                f"{self.optimizer.criterion(self.current_model):.2F}\n"
             # expX = np.array([datum.pos for datum in self.data_handler.data]).mean()
             # expY = np.array([datum.val for datum in self.data_handler.data]).mean()
             # expXX = np.array([datum.pos * datum.pos for datum in self.data_handler.data]).mean()
@@ -1429,8 +1511,12 @@ class Frontend:
             for n in range(deg + 1):
                 val, sig = args[n], uncs[n]
                 print_string += f"\n   C{sub(deg - n)} = {val:+.2E}  \u00B1  {sig:+.2E}\n"
-            print_string += f"Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
-                            f"{self._optimizer.reduced_chi_squared_of_fit(self.current_model):.2F}\n"
+            if self.criterion != "rchisqr" :
+                print_string += f"  Goodness of fit: {self.criterion} = " \
+                                f"{self.current_rchisqr:.2F}\n"
+            else :
+                print_string += f"  Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
+                                f"{self.current_rchisqr:.2F}\n"
         elif self.current_model.name == "Normal":
             args, uncs = self.current_args, self.current_uncs
             if self.data_handler.logy_flag:
@@ -1447,8 +1533,12 @@ class Frontend:
             mu, sigmamu = args[1], uncs[1]
             print_string += f"   \u03BC = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
             print_string += f"   \u03C3 =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
-            print_string += f"Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
-                            f"{self._optimizer.reduced_chi_squared_of_fit(self.current_model):.2F}\n"
+            if self.criterion != "rchisqr" :
+                print_string += f"  Goodness of fit: {self.criterion} = " \
+                                f"{self.optimizer.criterion(self.current_model):.2F}\n"
+            else :
+                print_string += f"  Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
+                                f"{self.optimizer.criterion(self.current_model):.2F}\n"
             print([datum.val for datum in self.data_handler.data])
         elif self.current_model.name == "Gaussian":
             args, uncs = self.current_args, self.current_uncs
@@ -1467,8 +1557,12 @@ class Frontend:
             print_string += f"   A = {A:+.2E}  \u00B1  {sigmaA:.2E}\n"
             print_string += f"   \u03BC = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
             print_string += f"   \u03C3 =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
-            print_string += f"Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
-                            f"{self.current_rchisqr:.2F}\n"
+            if self.criterion != "rchisqr" :
+                print_string += f"  Goodness of fit: {self.criterion} = " \
+                                f"{self.optimizer.criterion(self.current_model):.2F}\n"
+            else :
+                print_string += f"  Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
+                                f"{self.optimizer.criterion(self.current_model):.2F}\n"
         elif self.current_model.name[-8:] == "Gaussian" and self._gaussian_modal_tkint.get() > 1:
             if self.data_handler.logy_flag:
                 print_string += f"\n>  {self.current_model.name} fit is LY ="
@@ -1491,8 +1585,12 @@ class Frontend:
                 print_string += f"   A{sub(idx + 1)} = {A:+.2E}  \u00B1  {sigmaA:.2E}\n"
                 print_string += f"   \u03BC{sub(idx + 1)} = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
                 print_string += f"   \u03C3{sub(idx + 1)} =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
-            print_string += f"Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
-                            f"{self.current_rchisqr:.2F}\n"
+            if self.criterion != "rchisqr" :
+                print_string += f"  Goodness of fit: {self.criterion} = " \
+                                f"{self.optimizer.criterion(self.current_model):.2F}\n"
+            else :
+                print_string += f"  Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
+                                f"{self.optimizer.criterion(self.current_model):.2F}\n"
         elif self.current_model.name == "Sigmoid":
             args, uncs = self.current_args, self.current_uncs
             # print_string += f"  Sigmoid fit is y = F + H/(1 + exp[-(x-x0)/w] )\n"
@@ -1513,8 +1611,12 @@ class Frontend:
             print_string += f"   H  = {H:+.2E}  \u00B1  {sigmaH:.2E}\n"
             print_string += f"   w  =  {w:.2E}  \u00B1  {sigmaW:.2E}\n"
             print_string += f"   x0 = {x0:+.2E}  \u00B1  {sigmax0:.2E}\n"
-            print_string += f"Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
-                            f"{self.current_rchisqr:.2F}\n"
+            if self.criterion != "rchisqr" :
+                print_string += f"  Goodness of fit: {self.criterion} = " \
+                                f"{self.optimizer.criterion(self.current_model):.2F}\n"
+            else :
+                print_string += f"  Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
+                                f"{self.optimizer.criterion(self.current_model):.2F}\n"
         elif self._model_name_tkstr.get() == "Procedural":
             if self.data_handler.logy_flag:
                 print_string += f"\n> Selected model is LY = {self.current_model.name}"
@@ -1526,9 +1628,12 @@ class Frontend:
                 print_string += f"(x) w/ {self.current_model.dof} dof and where\n"
             for idx, (par, unc) in enumerate(zip(self.current_args, self.current_uncs)):
                 print_string += f"  c{idx} =  {par:+.2E}  \u00B1  {unc:.2E}\n"
-            print_string += f"\n \n> This has {self.sym_chi}{sup(2)}/dof = "
-            print_string += f"{self.current_rchisqr:.2F}," if self.current_rchisqr > 0.01 \
-                else f"{self.current_rchisqr:.2E},"
+            if self.criterion != "rchisqr" :
+                print_string += f"\n \n  This has {self.criterion} = "
+            else :
+                print_string += f"\n \n  This has {self.sym_chi}{sup(2)}/dof = "
+            print_string += f"{self.optimizer.criterion(self.current_model):.2F}," if self.optimizer.criterion(self.current_model) > 0.01 \
+                                                           else f"{self.optimizer.criterion(self.current_model):.2E},"
             print_string += f" and as a tree, this is \n"
             print_string += self.current_model.tree_as_string_with_args() + "\n"
         elif self._model_name_tkstr.get() == "Brute-Force":
@@ -1555,9 +1660,12 @@ class Frontend:
                 print_string += f"(x) w/ {self.current_model.dof} dof and where\n"
             for idx, (par, unc) in enumerate(zip(self.current_args, self.current_uncs)):
                 print_string += f"  c{idx} =  {par:+.2E}  \u00B1  {unc:.2E}\n"
-            print_string += f"\n \n> This has {self.sym_chi}{sup(2)}/dof = "
-            print_string += f"{self.current_rchisqr:.2F}," if self.current_rchisqr > 0.01 \
-                else f"{self.current_rchisqr:.2E},"
+            if self.criterion != "rchisqr" :
+                print_string += f"\n \n> This has {self.criterion} = "
+            else :
+                print_string += f"\n \n> This has {self.sym_chi}{sup(2)}/dof = "
+            print_string += f"{self.optimizer.criterion(self.current_model):.2F}," if self.optimizer.criterion(self.current_model) > 0.01 \
+                                                           else f"{self.optimizer.criterion(self.current_model):.2E},"
             print_string += f" and as a tree, this is \n"
             print_string += self.current_model.tree_as_string_with_args() + "\n"
         else:
@@ -1575,19 +1683,22 @@ class Frontend:
     def create_colors_console_menu(self):
 
         head_menu = tk.Menu(master=self._gui, tearoff=0)
+        head_menu.add_cascade(label="Background Colour", menu=self._printout_background_menu)
+        head_menu.add_cascade(label="Message Colour", menu=self._printout_menu)
 
-        console_menu = tk.Menu(master=head_menu, tearoff=0)
-        console_menu.add_command(label="Default", command=self.console_color_default)
-        console_menu.add_command(label="Pale", command=self.console_color_pale)
-        console_menu.add_command(label="White", command=self.console_color_white)
-
-        printout_menu = tk.Menu(master=head_menu, tearoff=0)
-        printout_menu.add_command(label="Default", command=self.printout_color_default)
-        printout_menu.add_command(label="White", command=self.printout_color_white)
-        printout_menu.add_command(label="Black", command=self.printout_color_black)
-
-        head_menu.add_cascade(label="Background Colour", menu=console_menu)
-        head_menu.add_cascade(label="Message Colour", menu=printout_menu)
+        # console_menu = tk.Menu(master=head_menu, tearoff=0)
+        # console_menu.add_command(label="Default", command=self.console_color_default)
+        # console_menu.add_command(label="Pale", command=self.console_color_pale)
+        # console_menu.add_command(label="White", command=self.console_color_white)
+        #
+        # printout_menu = tk.Menu(master=head_menu, tearoff=0)
+        # printout_menu.add_command(label="Default" + (self.sym_check if self._default_printout_colour == "Default" else ""),
+        #                           command=self.printout_color_default)
+        # printout_menu.add_command(label="White" + (self.sym_check if self._default_printout_colour == "White" else ""), command=self.printout_color_white)
+        # printout_menu.add_command(label="Black" + (self.sym_check if self._default_printout_colour == "Black" else ""), command=self.printout_color_black)
+        #
+        # head_menu.add_cascade(label="Background Colour", menu=console_menu)
+        # head_menu.add_cascade(label="Message Colour", menu=printout_menu)
 
         self._colors_console_menu = head_menu
     def do_colors_console_popup(self, event: tk.Event):
@@ -1686,25 +1797,27 @@ class Frontend:
     def create_colors_image_menu(self):
 
         head_menu = tk.Menu(master=self._gui, tearoff=0)
-
-        background_menu = tk.Menu(master=head_menu, tearoff=0)
-        background_menu.add_command(label="Default", command=self.bg_color_default)
-        background_menu.add_command(label="White", command=self.bg_color_white)
-        background_menu.add_command(label="Dark", command=self.bg_color_dark)
-        background_menu.add_command(label="Black", command=self.bg_color_black)
-
-        dataaxis_menu = tk.Menu(master=head_menu, tearoff=0)
-        dataaxis_menu.add_command(label="Default", command=self.dataaxes_color_default)
-        dataaxis_menu.add_command(label="White", command=self.dataaxes_color_white)
-
-        fit_colour_menu = tk.Menu(master=head_menu, tearoff=0)
-        fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
-        fit_colour_menu.add_command(label="White", command=self.fit_color_white)
-        fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
-
-        head_menu.add_cascade(label="Background Colour", menu=background_menu)
-        head_menu.add_cascade(label="Data/Axis Colour", menu=dataaxis_menu)
-        head_menu.add_cascade(label="Fit Colour", menu=fit_colour_menu)
+        head_menu.add_cascade(label="Background Colour", menu=self._background_menu)
+        head_menu.add_cascade(label="Data/Axis Colour", menu=self._dataaxis_menu)
+        head_menu.add_cascade(label="Fit Colour", menu=self._fit_colour_menu)
+        # background_menu = tk.Menu(master=head_menu, tearoff=0)
+        # background_menu.add_command(label="Default", command=self.bg_color_default)
+        # background_menu.add_command(label="White", command=self.bg_color_white)
+        # background_menu.add_command(label="Dark", command=self.bg_color_dark)
+        # background_menu.add_command(label="Black", command=self.bg_color_black)
+        #
+        # dataaxis_menu = tk.Menu(master=head_menu, tearoff=0)
+        # dataaxis_menu.add_command(label="Default", command=self.dataaxes_color_default)
+        # dataaxis_menu.add_command(label="White", command=self.dataaxes_color_white)
+        #
+        # fit_colour_menu = tk.Menu(master=head_menu, tearoff=0)
+        # fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
+        # fit_colour_menu.add_command(label="White", command=self.fit_color_white)
+        # fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
+        #
+        # head_menu.add_cascade(label="Background Colour", menu=background_menu)
+        # head_menu.add_cascade(label="Data/Axis Colour", menu=dataaxis_menu)
+        # head_menu.add_cascade(label="Fit Colour", menu=fit_colour_menu)
 
         self._colors_image_menu = head_menu
     def do_colors_image_popup(self, event: tk.Event):
@@ -1778,8 +1891,10 @@ class Frontend:
         self._showing_fit_all_image = False
 
         if self._showing_fit_image:
-            # self.show_current_data_with_fit()  # for refitting
-            self.save_show_fit_image()
+            if self._refit_on_click :
+                self.show_current_data_with_fit()  # for refitting
+            else :
+                self.save_show_fit_image()
         else:
             self.show_current_data()
 
@@ -1807,6 +1922,11 @@ class Frontend:
         self._error_bands_button.grid(row=0, column=0, pady=5, sticky='e')
         self._show_error_bands = 0
     def show_error_bands_command(self):
+        if any( np.isinf(self.current_uncs) ) :
+            self.add_message("\n \n> Can't produce error bands with infinite uncertainty.")
+            self._error_bands_button.configure(text="Error Bands")
+            self._show_error_bands = 0
+            return
         if self._error_bands_button['text'] == "Error Bands":
             print("Switching to 1-\u03C3 confidence region")
             self._error_bands_button.configure(text="       1-\u03C3       ")
@@ -2150,6 +2270,7 @@ class Frontend:
             self.show_custom_function_button()
         else :
             self.hide_custom_function_button()
+
     def create_top5_dropdown(self):
 
         if self._new_user_stage % 29 == 0:
@@ -2171,14 +2292,13 @@ class Frontend:
         )
         top5_dropdown.configure(width=max_len-self._platform_offset)
 
-        top5_dropdown.configure(font=('TkDefaultFont', int(10 * self._default_os_scaling * self._platform_scale)) )
+        top5_dropdown.configure(font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)) )
         options = self._fit_options_frame.nametowidget(top5_dropdown.menuname)
-        options.configure(font=('TkDefaultFont', int(10 * self._default_os_scaling* self._platform_scale)) )
+        options.configure(font=('TkDefaultFont', int(12 * self._default_os_scaling* self._platform_scale)) )
         top5_dropdown.grid(row=0, column=1)
 
         self._which_tr_id = self._which5_name_tkstr.trace_add('write', self.which5_dropdown_trace)
         # ^ trace_add used to be trace which is deprecated
-        self.create_refit_button()
     def set_which5_no_trace(self, arg):
         self._which5_name_tkstr.trace_vdelete('w', self._which_tr_id)
         self._which5_name_tkstr.set(arg)
@@ -2201,7 +2321,8 @@ class Frontend:
 
         # also update the fit of the current model
         print(f"{self._refit_on_click=} {self._changed_data_flag=}")
-        if self._refit_on_click and self._changed_data_flag:
+        if self._refit_on_click :
+                # and self._changed_data_flag:
             print("||| REFIT ON CLICK |||")
             self.show_current_data_with_fit(do_halving=True)
             # self.optimizer.update_top5_rchisqrs_for_new_data_single_model(self.data_handler.data, self.current_model)
@@ -2221,7 +2342,7 @@ class Frontend:
 
         curr_max = top5_dropdown['width']
         top5_dropdown['menu'].delete(0, tk.END)
-        top5_list = [f"{rx_sqr:.2F}: {name}" for rx_sqr, name
+        top5_list = [f"{rx_sqr:.2F}: {name}" if rx_sqr < 1000 else f"----: {name}" for rx_sqr, name
                      in zip(self.optimizer.top5_rchisqrs, self.optimizer.top5_names)]
         for label in top5_list:
             # noinspection PyProtectedMember
@@ -2234,15 +2355,24 @@ class Frontend:
         # chisqr = self.optimizer.top5_rchisqrs[selected_model_idx]
         # name = self.optimizer.top5_names[selected_model_idx]
         # self.set_which5_no_trace(f"{chisqr:.2F}: {name}")
-        self.set_which5_no_trace(f"{self.current_rchisqr:.2F}: {self.current_model.name}")
+        self.set_which5_no_trace(f"{self.optimizer.criterion(self.current_model):.2F}: {self.current_model.name}")
     def update_top5_chisqrs(self):
         # uses the current top5 models to find rchisqrs when overlaid on new data
         # this is a very slow routine for a background process
         if self._new_user_stage % 29 != 0:
             return
-        self.optimizer.update_top5_rchisqrs_for_new_data(self.data_handler.data)
+        if self._refit_on_click :
+            for idx, model in enumerate(self.optimizer.top5_models[:]) :
+
+                better_fit, _ = self.optimizer.fit_this_and_get_model_and_covariance(model_=model,
+                                                                                     change_shown=False,
+                                                                                     do_halving=True)
+                self.optimizer.top5_rchisqrs[idx] = self.optimizer.criterion(better_fit)
+                print(f"Update top 5 {model} {self.optimizer.top5_rchisqrs[idx]}")
+        else :
+            self.optimizer.update_top5_rchisqrs_for_new_data(self.data_handler.data)
         self.update_top5_dropdown()
-        # self.set_which5_no_trace(f"{self.current_rchisqr:.2F}: {self.current_model.name}")
+        # self.set_which5_no_trace(f"{self.optimizer.criterion(self.current_model):.2F}: {self.current_model.name}")
     def hide_top5_dropdown(self):
         if self._new_user_stage % 29 != 0:
             return
@@ -2256,10 +2386,13 @@ class Frontend:
         print("Show top5", self._fit_options_frame.winfo_width(),self._left_panel_frame.winfo_width(),self._middle_panel_frame.winfo_width(),self._right_panel_frame.winfo_width(),self._gui.winfo_width())
         top5_dropdown = self._fit_options_frame.children['!optionmenu2']
         top5_dropdown.grid(row=0, column=1)
-        self.show_refit_button()
+        if len(self._data_handlers) > 1 :
+            print("MAKING REFIT BUTTON")
+            self.show_refit_button()
 
     def create_refit_button(self):
-        if self._new_user_stage % 43 == 0:
+
+        if self._new_user_stage % 43 == 0 or self._new_user_stage % 29 != 0 :
             return
         self._new_user_stage *= 43
 
@@ -2274,12 +2407,14 @@ class Frontend:
         self._refit_button.grid(row=0, column=3, padx=5, sticky='nw')
     def refit_command(self):
         self.show_current_data_with_fit(do_halving=True)
-        self.set_which5_no_trace(f"{self.current_rchisqr:.2F}: {self.current_model.name}")
+        self.set_which5_no_trace(f"{self.optimizer.criterion(self.current_model):.2F}: {self.current_model.name}")
     def hide_refit_button(self):
         if self._new_user_stage % 43 != 0:
             return
         self._refit_button.grid_forget()
     def show_refit_button(self):
+        if self._refit_on_click :
+            return
         if self._new_user_stage % 43 != 0:
             self.create_refit_button()
             return
@@ -2695,7 +2830,7 @@ class Frontend:
         self.switch_image()
         self._showing_fit_image = True
         self._showing_fit_all_image = True
-    def show_current_data_with_fit(self, quiet=False, do_halving=False):
+    def show_current_data_with_fit(self, quiet=False, do_halving=False, show_image=True):
         # this fits the data again, unlike save_show_fit
         self.update_optimizer()
 
@@ -2714,7 +2849,8 @@ class Frontend:
         if not quiet:
             self.add_message(f"\n \n> For {self.data_handler.shortpath} \n")
             self.print_results_to_console()
-        self.save_show_fit_image()
+        if show_image :
+            self.save_show_fit_image()
 
     # POLYNOMIAL frame ------------------------------------------------------------------------------------------------>
     def create_degree_up_down_buttons(self):
@@ -2823,7 +2959,6 @@ class Frontend:
     def create_procedural_options(self):
         if self._new_user_stage % 31 == 0:
             return
-        self.create_depth_up_down_buttons()
         self._new_user_stage *= 31
 
         self.create_default_checkboxes()
@@ -2846,7 +2981,7 @@ class Frontend:
         # sliders for initial parameter guesses
         
         for idx, name in enumerate(self._checkbox_names_list):
-            my_font = 'TkDefaultFont', int(12*self._default_os_scaling)
+            my_font = 'TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)
             print(regex.split(f" ", self._custom_function_names))
             checkbox = tk.Checkbutton(
                 master=self._procedural_frame,
@@ -2954,7 +3089,8 @@ class Frontend:
                     custom_names.remove(iname)
                     custom_forms.remove(iform)
 
-                    self.optimizer._primitive_function_list.remove(PrimitiveFunction.built_in_dict()[iname])
+                    print(self.optimizer.prim_list)
+                    self.optimizer.prim_list.remove(PrimitiveFunction.built_in_dict()[iname])
                     del PrimitiveFunction.built_in_dict()[iname]
                     break
 
@@ -2999,7 +3135,7 @@ class Frontend:
 
         self._pause_button = tk.Button(self._fit_options_frame,
                                        text="Pause",
-                                       width= 8-self._platform_offset,
+                                       width= 6-self._platform_offset,
                                        font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
                                        bd=self._platform_border,
                                        command=self.pause_command
@@ -3110,10 +3246,8 @@ class Frontend:
         self.show_library_options()
     def validate_manual_function_command(self) -> bool:
 
-        self.add_message(f"\n \nValidating {self._manual_frame.children['!entry'].get()} with form")
-        # self.add_message(f"  Form string is {self._manual_frame.children['!entry2'].get()}")
-        self.add_message(f"{self._manual_frame.children['!text'].get('1.0',tk.END)}")
-        valid = False
+        self.add_message(f"\n \n> Validating {self._manual_frame.children['!entry'].get()} with form\n"
+                         f"  {self._manual_frame.children['!text'].get('1.0',tk.END)}")
 
         namestr = ''.join( self._manual_frame.children['!entry'].get().split() )
         formstr = ''.join( self._manual_frame.children['!text'].get('1.0','end-1c').split() )
@@ -3170,7 +3304,7 @@ class Frontend:
             elif c == ')' :
                 open_paren -= 1
             if open_paren < 0 :
-                self.add_message("\n \n> Mismatched parentheses.")
+                self.add_message("\n \n> Mismatched parentheses ().")
                 return False
         if open_paren != 0 :
             self.add_message("\n \n> Mismatched parentheses.")
@@ -3232,15 +3366,15 @@ class Frontend:
                                        )
         self._library_stats.grid(row=0, column=3, sticky='w')
 
-        self._library_math = tk.Button(self._fit_options_frame,
-                                       text="<math>",
-                                       font=(
-                                           'TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
-                                       width=common_width,
-                                       bd=self._platform_border,
-                                       command=self.print_math_library
-                                      )
-        self._library_math.grid(row=0, column=4, sticky='w')
+        # self._library_math = tk.Button(self._fit_options_frame,
+        #                                text="<math>",
+        #                                font=(
+        #                                    'TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+        #                                width=common_width,
+        #                                bd=self._platform_border,
+        #                                command=self.print_math_library
+        #                               )
+        # self._library_math.grid(row=0, column=4, sticky='w')
 
         self._library_autofit = tk.Button(self._fit_options_frame,
                                           text="<autofit>",
@@ -3251,7 +3385,7 @@ class Frontend:
                                           bd=self._platform_border,
                                           command=self.print_autofit_library
                                          )
-        self._library_autofit.grid(row=0, column=5, sticky='w')
+        self._library_autofit.grid(row=0, column=4, sticky='w')
 
     def hide_library_options(self):
         if self._new_user_stage % 59 != 0:
@@ -3259,7 +3393,7 @@ class Frontend:
         self._library_numpy.grid_forget()
         self._library_special.grid_forget()
         self._library_stats.grid_forget()
-        self._library_math.grid_forget()
+        # self._library_math.grid_forget()
         self._library_autofit.grid_forget()
     def show_library_options(self):
         if self._new_user_stage % 59 != 0:
@@ -3268,8 +3402,8 @@ class Frontend:
         self._library_numpy.grid(row=0, column=1, padx=(5, 0), sticky='w')
         self._library_special.grid(row=0, column=2, sticky='w')
         self._library_stats.grid(row=0, column=3, sticky='w')
-        self._library_math.grid(row=0, column=4, sticky='w')
-        self._library_autofit.grid(row=0, column=5, sticky='w')
+        # self._library_math.grid(row=0, column=4, sticky='w')
+        self._library_autofit.grid(row=0, column=4, sticky='w')
 
     def print_numpy_library(self):
         buffer = "\n \n  <numpy> options: \n  "
@@ -3414,7 +3548,9 @@ class Frontend:
         if self.optimizer is None:
             self.optimizer = Optimizer(data=self.data_handler.data,
                                        use_functions_dict=self.use_functions_dict,
-                                       max_functions=self.max_functions)
+                                       max_functions=self.max_functions,
+                                       criterion=self.criterion)
+
             self._changed_optimizer_opts_flag = True
         if self._changed_optimizer_opts_flag:  # max depth, changed dict
             self.optimizer.update_opts(use_functions_dict=self.use_functions_dict, max_functions=self.max_functions)
@@ -3479,82 +3615,110 @@ class Frontend:
     def max_functions(self) -> int:
         return self._max_functions_tkint.get()
 
+    @property
+    def criterion(self):
+        return self._criterion
+    @criterion.setter
+    def criterion(self, other: str):
+        self._criterion = other
+
+
     def bg_color_default(self):
         self._default_bg_colour = "Default"
         self._bg_color = (112 / 255, 146 / 255, 190 / 255)
         self.update_image()
+        self.checkmark_background_options(0)
         self.save_defaults()
     def bg_color_white(self):
         self._default_bg_colour = "White"
         self._bg_color = (1., 1., 1.)
         self.update_image()
+        self.checkmark_background_options(1)
         self.save_defaults()
     def bg_color_dark(self):
         self._default_bg_colour = "Dark"
         self._bg_color = (0.2, 0.2, 0.2)
         self.update_image()
+        self.checkmark_background_options(2)
         self.save_defaults()
     def bg_color_black(self):
         self._default_bg_colour = "Black"
         self._bg_color = (0., 0., 0.)
         self.update_image()
+        self.checkmark_background_options(3)
         self.save_defaults()
 
     def dataaxes_color_default(self):
         self._default_dataaxes_colour = "Default"
         self._dataaxes_color = (0., 0., 0.)
         self.update_image()
+        self.checkmark_dataaxis_options(0)
         self.save_defaults()
     def dataaxes_color_white(self):
         self._default_dataaxes_colour = "White"
         self._dataaxes_color = (1., 1., 1.)
         self.update_image()
+        self.checkmark_dataaxis_options(1)
         self.save_defaults()
 
     def fit_color_default(self):
         self._default_fit_colour = "Default"
         self._fit_color = (1., 0., 0.)
         self.update_image()
+        self.checkmark_fit_colour_options(0)
         self.save_defaults()
     def fit_color_white(self):
         self._default_fit_colour = "White"
         self._fit_color = (1., 1., 1.)
         self.update_image()
+        self.checkmark_fit_colour_options(1)
         self.save_defaults()
     def fit_color_black(self):
         self._default_fit_colour = "Black"
         self._fit_color = (0., 0., 0.)
         self.update_image()
+        self.checkmark_fit_colour_options(2)
         self.save_defaults()
 
     def console_color_default(self):
         self._default_console_colour = "Default"
         self._console_color = (0, 0, 0)
-        self.save_defaults()
-        self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
-    def console_color_pale(self):
-        self._default_console_colour = "Pale"
-        self._console_color = 'SystemButtonFace'  # (240, 240, 240)
+        self.checkmark_printout_background_options(0)
         self.save_defaults()
         self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
     def console_color_white(self):
         self._default_console_colour = "White"
         self._console_color = (255, 255, 255)
+        self.checkmark_printout_background_options(1)
         self.save_defaults()
         self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
+    def console_color_pale(self):
+        self._default_console_colour = "Pale"
+        self._console_color = 'SystemButtonFace'  # (240, 240, 240)
+        self.checkmark_printout_background_options(2)
+        self.save_defaults()
+        self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
+
 
     def printout_color_default(self):
         self._default_printout_colour = "Default"
         self._printout_color = (0, 200, 0)
+        self.checkmark_printout_options(0)
         self.save_defaults()
-    def printout_color_black(self):
-        self._default_printout_colour = "Black"
-        self._printout_color = (0, 0, 0)
-        self.save_defaults()
+        self.add_message("Changed printout colour to default, green.")
     def printout_color_white(self):
         self._default_printout_colour = "White"
         self._printout_color = (255, 255, 255)
+        self.checkmark_printout_options(1)
         self.save_defaults()
+        self.add_message("Changed printout colour to white.")
+    def printout_color_black(self):
+        self._default_printout_colour = "Black"
+        self._printout_color = (0, 0, 0)
+        self.checkmark_printout_options(2)
+        self.save_defaults()
+        self.add_message("Changed printout colour to black.")
+
 
     def size_down(self):
         print("Increasing resolution / decreasing text size")
@@ -3565,10 +3729,144 @@ class Frontend:
         self._default_os_scaling += 0.1
         self.restart_command()
 
+    def refit_always(self):
+        self._refit_on_click = True
+        self.hide_refit_button()
+        self.add_message("\n \n> All images now show a true fit of the selected model")
+        self.checkmark_refit_options(0)
+        self.save_defaults()
+    def refit_sometimes(self):
+        self._refit_on_click = False
+        self.show_refit_button()
+        self.add_message("\n \n> Images now show the current model with the previous data's fit."
+                         "\nClick refit to see the fit to the new data.")
+        self.checkmark_refit_options(1)
+        self.save_defaults()
+    def criterion_rchisqr(self):
+        self.checkmark_criterion_options(0)
+        self.criterion = "rchisqr"
+        self.add_message(f"\n \n> Default criterion {self.sym_chi}{sup(2)}/dof selected. Here")
+        self.add_message(f"  {self.sym_chi}{sup(2)} is defined as \U000003A3\U00001D62 "
+                         f"[f(x\U00001D62)-y\U00001D62]{sup(2)}/\U000003C3\U00001D62{sup(2)}")
+        self.add_message(f"  and dof = N - k = (num data points) - (number of parameters in model)")
+        self.add_message(f"  When \U000003C3\U00001D62 is not provided (no data uncertainty),\n"
+                         f"  \U000003C3\U00001D62 is defined to be one tenth of ymax-ymin.")
+        if self.optimizer is None :
+            return
+        if not self._showing_fit_image :
+            return
+        self.optimizer.criterion = self.optimizer.reduced_chi_squared_of_fit
+        # TODO: what's the difference between update top5 chisqrs and update top5 dropwdown?
+        if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"] :
+            self.update_top5_chisqrs()
+            self.set_which5_no_trace(f"{self.optimizer.criterion(self.current_model):.2F}: {self.current_model.name}")
+
+        self.save_defaults()
+    def criterion_AIC(self):
+        self.checkmark_criterion_options(1)
+        self.criterion = "AIC"
+        self.add_message(f"\n \n> Akaike Information Criterion (AIC) selected.")
+        self.add_message(f"  We define AIC as {self.sym_chi}{sup(2)} + 2k\n"
+                         f"  where k = (number of parameters in model) ")
+        if self.optimizer is None :
+            return
+        if not self._showing_fit_image :
+            return
+        self.optimizer.criterion = self.optimizer.Akaike_criterion
+        if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"] :
+            self.update_top5_chisqrs()
+            self.set_which5_no_trace(f"{self.optimizer.criterion(self.current_model):.2F}: {self.current_model.name}")
+
+        self.save_defaults()
+    def criterion_AICc(self):
+        self.checkmark_criterion_options(2)
+        self.criterion = "AICc"
+        self.add_message(f"\n \n> Corrected Akaike Information Criterion (AICc) selected.")
+        self.add_message(f"  AICc is defined as AIC + 2k(k+1)/(N-k-1),\n"
+                         f"  where N is (num data points) and k = (number of parameters in model)")
+        if self.optimizer is None :
+            return
+        if not self._showing_fit_image :
+            return
+        self.optimizer.criterion = self.optimizer.Akaike_criterion_corrected
+        if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"] :
+            self.update_top5_chisqrs()
+            self.set_which5_no_trace(f"{self.optimizer.criterion(self.current_model):.2F}: {self.current_model.name}")
+
+        self.save_defaults()
+    def criterion_BIC(self):
+        self.checkmark_criterion_options(3)
+        self.criterion = "BIC"
+        self.add_message(f"\n \n> Bayes Information Criterion BIC selected.")
+        self.add_message(f"  We define BIC as {self.sym_chi}{sup(2)} + k·log(N),\n"
+                         f"  where N is (num data points) and k = (number of parameters in model)")
+        if self.optimizer is None :
+            return
+        if not self._showing_fit_image :
+            return
+        self.optimizer.criterion = self.optimizer.Bayes_criterion
+        if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"] :
+            self.update_top5_chisqrs()
+            self.set_which5_no_trace(f"{self.optimizer.criterion(self.current_model):.2F}: {self.current_model.name}")
+
+        self.save_defaults()
+    def criterion_HQ(self):
+        self.checkmark_criterion_options(4)
+        print(f"Changed to HQIC from {self.criterion}")
+        self.criterion = "HQIC"
+        self.add_message(f"\n \n> Hannan-Quinn Information Criterion HQIC selected.")
+        self.add_message(f"  We define HQIC as {self.sym_chi}{sup(2)} + 2k·log(log(N)),\n"
+                         f"  where N is (num data points) and k = (number of parameters in model)")
+        if self.optimizer is None :
+            return
+        if not self._showing_fit_image :
+            return
+        self.optimizer.criterion = self.optimizer.HannanQuinn_criterion
+        if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"] :
+            self.update_top5_chisqrs()
+            self.set_which5_no_trace(f"{self.optimizer.criterion(self.current_model):.2F}: {self.current_model.name}")
+
+        self.save_defaults()
+
+    def checkmark_background_options(self, idx: int):
+        if idx < 0 or idx > len(self._background_labels) :
+            return
+        for i, label in enumerate(self._background_labels) :
+            self._background_menu.entryconfigure(i, label=label + (self.sym_check if i == idx else ""))
+    def checkmark_dataaxis_options(self, idx: int):
+        if idx < 0 or idx > len(self._dataaxis_labels) :
+            return
+        for i, label in enumerate(self._dataaxis_labels) :
+            self._dataaxis_menu.entryconfigure(i, label=label + (self.sym_check if i == idx else ""))
+    def checkmark_fit_colour_options(self, idx: int):
+        if idx < 0 or idx > len(self._fit_colour_labels) :
+            return
+        for i, label in enumerate(self._fit_colour_labels) :
+            self._fit_colour_menu.entryconfigure(i, label=label + (self.sym_check if i == idx else ""))
+    def checkmark_printout_background_options(self, idx: int):
+        if idx < 0 or idx > len(self._printout_background_labels) :
+            return
+        for i, label in enumerate(self._printout_background_labels) :
+            self._printout_background_menu.entryconfigure(i, label=label + (self.sym_check if i == idx else ""))
+    def checkmark_printout_options(self, idx: int):
+        if idx < 0 or idx > len(self._printout_labels) :
+            return
+        for i, label in enumerate(self._printout_labels) :
+            self._printout_menu.entryconfigure(i, label=label + (self.sym_check if i == idx else ""))
+
+    def checkmark_refit_options(self, idx: int):
+        if idx < 0 or idx > len(self._refit_labels) :
+            return
+        for i, label in enumerate(self._refit_labels) :
+            self._refit_menu.entryconfigure(i, label=label + (self.sym_check if i == idx else ""))
+    def checkmark_criterion_options(self, idx: int):
+        if idx < 0 or idx > len(self._criterion_labels) :
+            return
+        for i, label in enumerate(self._criterion_labels) :
+            self._criterion_menu.entryconfigure(i, label=label + (self.sym_check if i == idx else ""))
+
     def exist(self):
         self._gui.mainloop()
-
-
     def restart_command(self):
         self.save_defaults()
         self._gui.destroy()
@@ -3614,8 +3912,7 @@ def sub(s: int):
                  '6': '\U00002086',
                  '7': '\U00002087',
                  '8': '\U00002088',
-                 '9': '\U00002089',
-                 'r': '\U00001D63'}
+                 '9': '\U00002089'}
     s_str = str(s)
     ret_str = ""
     for char in s_str:

@@ -10,8 +10,7 @@ import numpy as np
 
 if __name__ == "__main__" :
 
-    for _ in range(500) :
-        print( rng.normalvariate(mu=10,sigma=3) )
+    for x in range(50) :
+        print( f"{x - 25},{rng.normalvariate(mu=(10 if x-25 > -7 else -17), sigma=2)}" )
 
-    for _ in range(500) :
-        print( rng.normalvariate(mu=20,sigma=3) )
+

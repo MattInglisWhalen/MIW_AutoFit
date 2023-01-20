@@ -28,7 +28,7 @@ class Validator:
                     cipher = line
                     break
                 message : str = Validator.de_crypt(cipher)
-                print(message)
+                # print(message)
         except FileNotFoundError :
             print("1> No secret file detected, exiting...")
             return f"Error code 1, exiting..."
@@ -59,27 +59,27 @@ class Validator:
 
         # epochs as times
         import time
-        creation_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(creation_epoch))
-        modify_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(modify_epoch))
-        secret_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(secret_epoch))
+        # creation_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(creation_epoch))
+        # modify_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(modify_epoch))
+        # secret_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(secret_epoch))
         self._data = (creation_epoch, modify_epoch, secret_epoch)
-        print(self._data)
+        # print(self._data)
 
         # assume that the download (modify_epoch) to install (unzipping, creation_time) will take less than an hour
         if abs(modify_epoch - creation_epoch) > 60*60 :
-            print(modify_epoch, creation_epoch)
+            # print(modify_epoch, creation_epoch)
             print("3> You need to have less time between downloading and unzipping the file.")
             # return f"Error code {modify_time} / {creation_time}, exiting..."
             return f"Error code {int(modify_epoch) + 918273645} / {int(creation_epoch) + 192837465}, exiting..."
         # assume that the hidden secret_epoch and the modify_epoch (download) are aligned
         if abs(secret_epoch-modify_epoch) > 5 :
-            print(secret_epoch, modify_epoch)
+            # print(secret_epoch, modify_epoch)
             print("4> The secret file has been modified.")
             # return f"Error code {secret_time} = {modify_time}, exiting..."
             return f"Error code {int(secret_epoch) + 132457689} = {int(modify_epoch) + 978653421}, exiting..."
         # assume that the hidden secret_epoch and the creation_time (unzipping) are less than an hour apart
         if abs(secret_epoch - creation_epoch) > 60*60 :
-            print(secret_epoch, creation_epoch)
+            # print(secret_epoch, creation_epoch)
             print("5> You need to have less time between downloading and unzipping the file.")
             # return f"Error code {secret_time} | {creation_time}, exiting..."
             return f"Error code {int(secret_epoch) + 123456789} | {int(creation_epoch) + 546372819}, exiting..."
@@ -124,7 +124,7 @@ class Validator:
                 char_scram += 256
             copy[ jump*(idx+1) % cipher_len ] = chr(char_scram)
 
-        print("".join(copy), cipher)
+        # print("".join(copy), cipher)
         return "".join(copy)
 
 

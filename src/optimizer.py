@@ -1,7 +1,8 @@
 
 # default libraries
-import math
+# import math
 import re as regex
+from typing import Callable
 
 # external libraries
 from scipy.optimize import curve_fit
@@ -29,7 +30,7 @@ as a discriminator. The model which achieves a reduced chi-squared closest to 1 
 class Optimizer:
 
     # noinspection PyTypeChecker
-    def __init__(self, data=None, use_functions_dict = None, max_functions=3, regen=True):
+    def __init__(self, data=None, use_functions_dict = None, max_functions=3, regen=True, criterion="rchisqr"):
 
         print("New optimizer created")
 
@@ -71,6 +72,18 @@ class Optimizer:
         self._composite_function_list = []
         self._composite_generator = None
         self._gen_idx = -1
+
+        self._criterion : Callable[[CompositeFunction],float] = None
+        if criterion == "AIC" :
+            self._criterion = self.Akaike_criterion
+        elif criterion == "AICc" :
+            self._criterion = self.Akaike_criterion_corrected
+        elif criterion == "BIC" :
+            self._criterion = self.Bayes_criterion
+        elif criterion == "HQIC" :
+            self._criterion = self.HannanQuinn_criterion
+        else :
+            self._criterion = self.reduced_chi_squared_of_fit
 
         self._regen_composite_flag = regen
 
@@ -162,6 +175,19 @@ class Optimizer:
         return self.top5_rchisqrs[0]
 
     @property
+    def prim_list(self):
+        return self._primitive_function_list
+
+    @property
+    def criterion(self) -> Callable[[CompositeFunction],float]:
+        return self._criterion
+    @criterion.setter
+    def criterion(self,other: Callable[[CompositeFunction],float]):
+        # print(f"Changed {self._criterion} to {other}")
+        self._criterion = other
+        self.update_top5_rchisqrs_for_new_data(self._data)
+
+    @property
     def composite_function_list(self):
         return self._composite_function_list
     @composite_function_list.setter
@@ -188,20 +214,21 @@ class Optimizer:
     #         if model.name == chosen_model.name :
     #             self.top5_rchisqrs[idx] = self.reduced_chi_squared_of_fit(model)
     def update_top5_rchisqrs_for_new_data(self, new_data):
+        print(f"Updating top5 criterions. Before: {self.top5_rchisqrs}")
         self.set_data_to(new_data)
         for idx, model in enumerate(self.top5_models) :
-            self.top5_rchisqrs[idx] = self.reduced_chi_squared_of_fit(model)
+            self.top5_rchisqrs[idx] = self.criterion(model)
+        print(f"After: {self.top5_rchisqrs}")
 
     # changes top5 lists, does not change _shown variables
-    # EXCEPT: via fit_this_and_get_model_and_covariance
     def query_add_to_top5(self, model: CompositeFunction, covariance):
 
-        rchisqr = self.reduced_chi_squared_of_fit(model)
+        rchisqr = self.criterion(model)
         print(f"Querying {rchisqr:.2F} for {model.name}")
         if np.isnan(rchisqr) or rchisqr > self.top5_rchisqrs[-1] or any( V < 0 for V in np.diagonal(covariance)) :
             return
 
-        rchisqr_adjusted = self.rchisqr_w_errors(model, covariance)
+        rchisqr_adjusted = self.criterion_w_cov_punish(model, covariance)
         if rchisqr_adjusted > rchisqr :
             print(f"Adjustment: {rchisqr} -> {rchisqr_adjusted}")
             rchisqr = rchisqr_adjusted
@@ -609,7 +636,7 @@ class Optimizer:
 
         return remove_flag
 
-    def add_primitive_to_list(self, name, functional_form) -> str:
+    def add_primitive_to_list(self, name: str, functional_form: str) -> str:
         # For adding one's own Primitive Functions to the built-in list
 
         print("Optimizer.add_primitive_to_list before", self._use_functions_dict["custom"] , self._primitive_function_list)
@@ -625,7 +652,7 @@ class Optimizer:
 
 
         code_str  = f"def {name}(x,arg):\n"
-        code_str += f"    return arg*{functional_form}\n"
+        code_str += f"    return arg*({functional_form})\n"
         code_str += f"new_prim = PrimitiveFunction(func={name})\n"
         code_str += f"dict = PrimitiveFunction.built_in_dict()\n"
         code_str += f"dict[\"{name}\"] = new_prim\n"
@@ -644,7 +671,7 @@ class Optimizer:
             PrimitiveFunction.built_in(name).eval_at(np.pi/4)
         except NameError :
             return f"One of the functions used in your custom function {name} \n" \
-                   f"with form {functional_form } does not exist."
+                   f"with form {functional_form} does not exist."
 
         self._primitive_function_list.append( PrimitiveFunction.built_in(name) )
 
@@ -796,11 +823,11 @@ class Optimizer:
                                                  use_errors=use_errors)
         fitted_rchisqr = self.reduced_chi_squared_of_fit(fitted_model)
 
-        if fitted_rchisqr > 10 and len(self._data) > 20 and do_halving:  # previously self._shown_rchisqr throughout this
+        if fitted_rchisqr > 10 and len(self._data) > 20 and do_halving:
             print(" "*halved*4 + f"It is unlikely that we have found the correct model... "
-                                 f"halving the dataset to {math.floor(len(self._data)/2)}")
+                                 f"halving the dataset to {len(self._data)//2}")
 
-            lower_data = self._data[:math.floor(len(self._data)/2)]
+            lower_data = self._data[:len(self._data)//2]
             lower_optimizer = Optimizer(data=lower_data)
             lower_optimizer.fit_this_and_get_model_and_covariance(model_=model,change_shown=True,
                                                                   do_halving=True, halved=halved + 1)
@@ -810,7 +837,7 @@ class Optimizer:
                 fitted_cov = lower_optimizer.shown_covariance
                 fitted_rchisqr = lower_rchisqr
 
-            upper_data = self._data[math.floor(len(self._data)/2):]
+            upper_data = self._data[len(self._data)//2:]
             upper_optimizer = Optimizer(data=upper_data)
             upper_optimizer.fit_this_and_get_model_and_covariance(model_=model,change_shown=True,
                                                                   do_halving=True, halved=halved + 1)
@@ -869,7 +896,7 @@ class Optimizer:
             # if a better model is found here it will probably underestimate the actual rchisqr since
             # it will only calculate based on half the data
             print("It is unlikely that we have found the correct model... halving the dataset")
-            lower_data = self._data[:math.floor(len(self._data)/2)]
+            lower_data = self._data[:len(self._data)//2]
             lower_optimizer = Optimizer(data=lower_data,
                                         use_functions_dict=self._use_functions_dict,
                                         max_functions=self._max_functions, regen=False)
@@ -878,7 +905,7 @@ class Optimizer:
             for l_model, l_cov in zip(lower_optimizer.top5_models,lower_optimizer.top5_covariances) :
                 self.query_add_to_top5(model=l_model,covariance=l_cov)
 
-            upper_data = self._data[math.floor(len(self._data)/2):]
+            upper_data = self._data[len(self._data)//2:]
             upper_optimizer = Optimizer(data=upper_data,
                                         use_functions_dict=self._use_functions_dict,
                                         max_functions=self._max_functions, regen=False)
@@ -1011,8 +1038,8 @@ class Optimizer:
         fft_Ynu = fftshift(fft(zeroed_y_points)) / len(zeroed_y_points)
         fft_nu = fftshift(fftfreq(len(zeroed_y_points), x_points[1] - x_points[0]))
 
-        pos_Ynu = fft_Ynu[ math.floor(len(fft_Ynu)/2) : ]  # the positive frequency values
-        pos_nu = fft_nu[ math.floor(len(fft_Ynu)/2) : ]    # the positive frequencies
+        pos_Ynu = fft_Ynu[ len(fft_Ynu)//2 : ]  # the positive frequency values
+        pos_nu = fft_nu[ len(fft_Ynu)//2 : ]    # the positive frequencies
 
         delta_nu = pos_nu[1] - pos_nu[0]
 
@@ -1033,7 +1060,7 @@ class Optimizer:
                                           children_list=[PrimitiveFunction.built_in("pow1")])
             sin_rchisqr_list = []
             for i in range(7) :
-                test_func.set_args(2*np.abs(pos_Ynu[argmax]), 2*math.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) )
+                test_func.set_args(2*np.abs(pos_Ynu[argmax]), 2*np.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) )
                 sin_rchisqr_list.append( self.reduced_chi_squared_of_fit(model=test_func) )
 
             # should only do this if we find a minimum
@@ -1053,7 +1080,7 @@ class Optimizer:
                                           children_list=[PrimitiveFunction.built_in("pow1")])
             cos_rchisqr_list = []
             for i in range(7):
-                test_func.set_args( 2*np.abs(pos_Ynu[argmax]), 2*math.pi*(pos_nu[argmax] + delta_nu*(i-3) / 3) )
+                test_func.set_args( 2*np.abs(pos_Ynu[argmax]), 2*np.pi*(pos_nu[argmax] + delta_nu*(i-3) / 3) )
                 cos_rchisqr_list.append(self.reduced_chi_squared_of_fit(model=test_func))
 
             # should only do this if we find a minimum
@@ -1078,8 +1105,7 @@ class Optimizer:
                 self._cos_freq_list.append(best_freq)
             pos_Ynu = np.delete(pos_Ynu, argmax)
             pos_nu = np.delete(pos_nu, argmax)
-        print("Cos list = ",[freq*2*np.pi for freq in self._cos_freq_list])
-        print("Sin list = ",[freq*2*np.pi for freq in self._sin_freq_list])
+
     def find_initial_guess_scaling(self, model):
 
         scaling_args_no_sign = self.find_set_initial_guess_scaling(model)
@@ -1164,11 +1190,11 @@ class Optimizer:
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / (1e-5 * composite.prim.arg)
             if abs(slope_at_zero) > 1e-5 :
                 if len(self._cos_freq_list_dup) > 0 :
-                    print(f"Using cosine frequency {2*math.pi*self._cos_freq_list_dup[0]}")
-                    xmul = ( 2*math.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
+                    print(f"Using cosine frequency {2*np.pi*self._cos_freq_list_dup[0]}")
+                    xmul = ( 2*np.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
                 else:  # misassigned cosine frequency
                     try:
-                        xmul = ( 2*math.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
+                        xmul = ( 2*np.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
                     except TypeError :
                         print("find_set_initial_guess_scaling TypeError",self._sin_freq_list_dup)
                         print("find_set_initial_guess_scaling TypeError",self._sin_freq_list)
@@ -1179,10 +1205,10 @@ class Optimizer:
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / (1e-5 * composite.prim.arg)
             if abs(slope_at_zero) > 1e-5 :
                 if len(self._sin_freq_list_dup) > 0 :
-                    print(f"Using sine frequency {2*math.pi*self._sin_freq_list_dup[0]}")
-                    xmul = ( 2*math.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
+                    print(f"Using sine frequency {2*np.pi*self._sin_freq_list_dup[0]}")
+                    xmul = ( 2*np.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
                 else:  # misassigned cosine frequency
-                    xmul = ( 2*math.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
+                    xmul = ( 2*np.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
 
         composite.prim.arg = xmul * ymul
 
@@ -1240,21 +1266,21 @@ class Optimizer:
         k = model.dof
         N = len(self._data)
         return self.chi_squared_of_fit(model) / (N-k) if N > k else 1e5
-    def modified_chi_sqr_for_believability(self, model):
+    def modified_criterion_for_believability(self, model):
         avg_grid_spacing = (self._data[-1].pos - self._data[0].pos) / len(self._data)
         for idx in range(model.num_nodes()):
             node = model.get_node_with_index(idx)
             if node.parent is not None and node.parent.prim.name in ["my_sin", "my_cos"] :
                 if node.prim.arg > 10*avg_grid_spacing :
                     print("LIAR! FREQUENCY EXTRAVAGENT")
-                    return self.reduced_chi_squared_of_fit(model) * (node.prim.arg/avg_grid_spacing)**2
-        return self.reduced_chi_squared_of_fit(model)
-    def rchisqr_w_errors(self, model, cov):
+                    return self.criterion(model) * (node.prim.arg/avg_grid_spacing)**2
+        return self.criterion(model)
+    def criterion_w_cov_punish(self, model, cov):
         N = len(model.args)
         cc = coefficient_of_covariance(cov,model.args)
         avg_off = sum_sqr_off_diag(cc) / (N*(N-1)) if N > 1 else 0
         adjustment = avg_off if avg_off > 0.01 else 0
-        return self.modified_chi_sqr_for_believability(model) + np.sqrt(adjustment)
+        return self.modified_criterion_for_believability(model) + np.sqrt(adjustment)
     def r_squared(self, model):
         mean = sum( [datum.val for datum in self._data] )/len(self._data)
         variance_data = sum( [ (datum.val-mean)**2 for datum in self._data ] )/len(self._data)
@@ -1264,28 +1290,29 @@ class Optimizer:
 
     def Akaike_criterion(self, model):
         # the AIC is equivalent, for normally distributed residuals, to the least chi squared
-        AIC = self.chi_squared_of_fit(model)
+        k = model.dof
+        N = len(self._data)
+        AIC = self.chi_squared_of_fit(model) + 2*k  # we take chi^2 = -2logL + C, discard the C
         return AIC
     def Akaike_criterion_corrected(self, model):
         # correction for small datasets, fixes overfitting
         k = model.dof
         N = len(self._data)
-        AICc = self.chi_squared_of_fit(model) + 2 * k * (k + 1) / (N - k - 1) if N > k + 1 else 1e5
+        AICc = self.Akaike_criterion(model) + 2*k*(k + 1) / (N-k-1) if N > k + 1 else 1e5
         return AICc
     def Bayes_criterion(self, model):
         # the same as AIC but penalizes additional parameters more heavily for larger datasets
         k = model.dof
         N = len(self._data)
-        AIC = self.Akaike_criterion(model)
-        BIC = AIC + k * math.log(N) - 2 * k
+        BIC = self.chi_squared_of_fit(model) + k*np.log(N)
         return BIC
     def HannanQuinn_criterion(self, model):
         # agrees with AIC at small datasets, but punishes less strongly than Bayes at large N
         k = model.dof
         N = len(self._data)
-        AIC = self.Akaike_criterion(model)
-        HQIC = AIC + 2 * k * math.log(math.log(N)) - 2 * k
+        HQIC = self.chi_squared_of_fit(model) + 2*k*np.log(np.log(N)) if N > 1 else 1e5
         return HQIC
+
 
     def smoothed_data(self, data = None, n=1) -> list[Datum1D]:
 
@@ -1304,8 +1331,8 @@ class Optimizer:
             new_pos = (data_to_smooth[idx + 1].pos + data_to_smooth[idx].pos) / 2
             new_val = (data_to_smooth[idx + 1].val + data_to_smooth[idx].val) / 2
             # propagation of uncertainty
-            new_sigma_pos = math.sqrt((data_to_smooth[idx+1].sigma_pos/2)**2 + (data_to_smooth[idx].sigma_pos/2)**2)
-            new_sigma_val = math.sqrt((data_to_smooth[idx+1].sigma_val/2)**2 + (data_to_smooth[idx].sigma_val/2)**2)
+            new_sigma_pos = np.sqrt((data_to_smooth[idx+1].sigma_pos/2)**2 + (data_to_smooth[idx].sigma_pos/2)**2)
+            new_sigma_val = np.sqrt((data_to_smooth[idx+1].sigma_val/2)**2 + (data_to_smooth[idx].sigma_val/2)**2)
             return_data.append(Datum1D(pos=new_pos, val=new_val, sigma_pos=new_sigma_pos, sigma_val=new_sigma_val))
 
         return return_data
@@ -1324,10 +1351,10 @@ class Optimizer:
             new_pos   =   (data_to_diff[idx+2].pos + data_to_diff[idx].pos) / 2
 
             # propagation of uncertainty
-            new_sigma_pos = math.sqrt((data_to_diff[idx+2].sigma_pos/2)**2
+            new_sigma_pos = np.sqrt((data_to_diff[idx+2].sigma_pos/2)**2
                                       + (data_to_diff[idx].sigma_pos/2)**2)
             new_sigma_deriv = ((1/(data_to_diff[idx+2].pos - data_to_diff[idx].pos)) *
-                               math.sqrt(data_to_diff[idx+2].sigma_val**2 + data_to_diff[idx].sigma_val**2)
+                               np.sqrt(data_to_diff[idx+2].sigma_val**2 + data_to_diff[idx].sigma_val**2)
                                + new_deriv**2 * (data_to_diff[idx+2].sigma_pos**2 + data_to_diff[idx].sigma_pos**2))
             return_deriv.append(Datum1D(pos=new_pos, val=new_deriv,
                                         sigma_pos=new_sigma_pos, sigma_val=new_sigma_deriv))
@@ -1376,8 +1403,8 @@ class Optimizer:
                         1 - ratio) * propagation_uncertainty_squared
 
             averaged_data.append(Datum1D(pos=key, val=val,
-                                         sigma_pos=math.sqrt(propagation_variance_x_dict[key]),
-                                         sigma_val=math.sqrt(effective_uncertainty_squared)
+                                         sigma_pos=np.sqrt(propagation_variance_x_dict[key]),
+                                         sigma_val=np.sqrt(effective_uncertainty_squared)
                                          )
                                  )
         return sorted(averaged_data)

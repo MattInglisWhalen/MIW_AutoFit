@@ -762,7 +762,7 @@ class CompositeFunction:
         for prim in prim_names:
             valid = False
             library_list = [np,scipy.special,scipy.stats._continuous_distns,math]
-            library_names = ["numpy","scipy.special","scipy.stats","math"]
+            library_names = ["numpy","scipy.special","scipy.stats"]  # math doesn't accept arrays of xvals as inputs
 
             if not valid and prim in PrimitiveFunction.built_in_dict():
                 # print(f"{prim} exists in PrimitiveFunction")
@@ -798,7 +798,7 @@ class CompositeFunction:
 
             if not valid :
                 print(PrimitiveFunction.built_in_dict())
-                error_handler(f"Could not find a valid version of \"{prim}\" in the list of known functions.")
+                error_handler(f"Couldn't find a valid version of \"{prim}\" in the list of known functions.")
                 # error_handler(f"  You can try creating it yourself using the Custom Function button.")
                 # noinspection PyTypeChecker
                 return None
@@ -853,16 +853,14 @@ class CompositeFunction:
                         break
 
                 if form_it+1 == len(form) or form[form_it+1] in ['+','·','*'] :
-                    prim_to_add : PrimitiveFunction = None
                     for prim in prim_list[:] :
                         if prim_to_add_name in prim.name :
-
                             prim_to_add = prim
                             prim_list.remove(prim)
                             break
-                        else :
-                            error_handler(f"Couldn't find primitive for {prim_to_add_name}")
-                            return None
+                    else :
+                        error_handler(f"Couldn't find primitive for {prim_to_add_name} in {prim_list}")
+                        return None
                     if last_char == '+':
                         man_model.add_child(prim_to_add)
                     elif last_char in ['·', '*']:
@@ -1031,7 +1029,7 @@ class CompositeFunction:
                 prestr = f"{modal}-M"
             return CompositeFunction(prim_=PrimitiveFunction.built_in("sum"),
                                      children_list=summed_gaussians,
-                                     name=f"{prestr}odal Gaussian")
+                                     name=f"{prestr}odal-Gaussian")
 
         if key[:10] == "Polynomial" :
             degree = int(key[10:])
