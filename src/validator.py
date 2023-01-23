@@ -19,11 +19,9 @@ class Validator:
                           + "/libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll")
         self._data = (0,0,0)
 
-
-    def invalid_config(self) -> str:
-
+    def extract_epoch_from_file(self, filepath):
         try:
-            with open(self._filepath) as file :
+            with open(filepath) as file :
                 for line in file:
                     cipher = line
                     break
@@ -44,6 +42,12 @@ class Validator:
             print("2> Epoch is not int-like, exiting...")
             return f"Error code 2, exiting..."
 
+        return secret_epoch
+
+    def invalid_config(self) -> str:
+
+        secret_epoch = self.extract_epoch_from_file(self._filepath)
+
         if platform.system() == "Windows" :
             creation_epoch = os.path.getctime(self._filepath)  # when the file was unzipped/copied
             modify_epoch = os.path.getmtime(self._filepath) + 60*60   # when the file was created on the server / modified by pirate
@@ -57,13 +61,36 @@ class Validator:
                 print("11> Linux isn't supported.")
                 return f"Error code 11, exiting..."
 
-        # epochs as times
+        #testing
         import time
+        from datetime import datetime, timezone
+        test_filepath = "C:/Users/Matt/Downloads/MIW_AutoFit_02/MIW_autofit/backend/" \
+                        "libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll"
+        test_creation_epoch = os.path.getctime(test_filepath)  # when the file was unzipped/copied
+        test_modify_epoch = os.path.getmtime(test_filepath)
+        test_secret_epoch = self.extract_epoch_from_file(test_filepath)
+
+        test_creation_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(test_creation_epoch))  # W 16:45:63
+        test_modify_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(test_modify_epoch))      # W 21:44:54
+        test_secret_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(test_secret_epoch))      # W 16:44:54
+
+        print(test_creation_time,test_modify_time,test_secret_time)
+
+        test_creation_utc = datetime.fromtimestamp( test_creation_epoch, timezone.utc )  # W 21:45:53
+        test_modify_utc = datetime.fromtimestamp( test_modify_epoch, timezone.utc )      # W 26:44:54
+        test_secret_utc = datetime.fromtimestamp( test_secret_epoch, timezone.utc )      # W 21:44:54
+
+        print(test_creation_utc,test_modify_utc,test_secret_utc)
+
+        # epochs as times
+        # import time
         # creation_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(creation_epoch))
         # modify_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(modify_epoch))
         # secret_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(secret_epoch))
         self._data = (creation_epoch, modify_epoch, secret_epoch)
         # print(self._data)
+
+        # on windows unzip
 
         # assume that the download (modify_epoch) to install (unzipping, creation_time) will take less than an hour
         if abs(modify_epoch - creation_epoch) > 60*60 :
