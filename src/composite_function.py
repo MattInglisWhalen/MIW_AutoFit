@@ -58,9 +58,9 @@ class CompositeFunction:
         self._older_brother : CompositeFunction = None
         self._parent : CompositeFunction = parent
         self._prim : PrimitiveFunction = prim_.copy()
-        self._longname : str = None
+        self._longname : str = ""
         self._shortname : str = name
-        self._constraints : tuple[int, Callable[[float], float], int] = []
+        self._constraints : list[tuple[int, Callable[[float], float], int]] = []
         # list of (idx1, func, idx3) triplets, with the interpretation that par[idx1] = func( par[idx2 )]
         # if there are constraints, the add_child and add_brother functions should throw an error
 
@@ -76,7 +76,7 @@ class CompositeFunction:
 
         # for being able to reproduce fits of zero-arg functions
         self._is_submodel : bool = False
-        self._submodel_zero_index : int = None
+        self._submodel_zero_index : int = -1
         self._submodel_of : CompositeFunction = None
 
 
@@ -174,7 +174,8 @@ class CompositeFunction:
     def submodel_of(self) -> CompositeFunction:
         return self._submodel_of
     def print_sub_facts(self):
-        print(f"{self}{'is' if self._is_submodel else 'isnt'} submodel of {self._submodel_of} {self._submodel_zero_index}")
+        print(f"{self}{'is' if self._is_submodel else 'isnt'} "
+              f"submodel of {self._submodel_of} {self._submodel_zero_index}")
 
 
 
@@ -261,7 +262,7 @@ class CompositeFunction:
         if self.older_brother is not None :
             self._older_brother.build_longname()
 
-    def add_constraint(self, constraint_3tuple):
+    def add_constraint(self, constraint_3tuple: tuple[int, Callable[[float], float], int] ):
         self._constraints.append(constraint_3tuple)
 
     """
@@ -748,7 +749,7 @@ class CompositeFunction:
         return all_args
 
     @staticmethod
-    def construct_model_from_str(form: str, error_handler: Callable[[str],None], name: str = "") -> CompositeFunction:
+    def construct_model_from_str(form: str, error_handler: Callable[[str],bool], name: str = "") -> CompositeFunction:
 
         print(f"Entering construction for {form}")
 
@@ -782,10 +783,9 @@ class CompositeFunction:
                     # print(f"{prim} exists in {lib_name}")
                     try :
                         if lib == scipy.stats._continuous_distns :
-                            y = getattr(lib, prim).pdf(np.pi / 4)
+                            getattr(lib, prim).pdf(np.pi / 4)
                         else :
-                            y = getattr(lib,prim)(np.pi/4)
-                        y = 0.1*y
+                            getattr(lib,prim)(np.pi/4)
                     except TypeError :
                         error_handler(f"<{lib_name}> function {prim} has multiple arguments, "
                                       f"or only takes integers as input.")
@@ -890,7 +890,8 @@ class CompositeFunction:
                     composed_fn = CompositeFunction.construct_model_from_str(composed_fn_name,
                                                                              error_handler=error_handler)
                     if prim_with_composition is None or composed_fn is None :
-                        error_handler(f"{form} had a problem creating sub-function with {prim.name} or {composed_fn_name}")
+                        error_handler(f"{form} had a problem creating sub-function "
+                                      f"with {prim_to_add_name} or {composed_fn_name}")
                         return None
                     if composed_fn.prim.name == "sum_" and composed_fn.younger_brother is None :
                         for composed_child in composed_fn.children_list :

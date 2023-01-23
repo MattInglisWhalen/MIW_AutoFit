@@ -2,11 +2,10 @@ from __future__ import annotations
 
 # built-in libraries
 import inspect
-from typing import Callable, Union
+from typing import Callable
 
 # external libraries
 import numpy as np
-from cmath import sin, cos, exp, log
 
 
 class PrimitiveFunction:
@@ -45,7 +44,7 @@ class PrimitiveFunction:
         if name == "" :
             self._name = self._func.__name__
 
-        self._arg : float= arg
+        self._arg : float = arg
 
     def __repr__(self):
         if self._callable_1param is not None :
@@ -170,7 +169,7 @@ class PrimitiveFunction:
 
     @staticmethod
     def sum_(x, arg) -> float:  # shouldn't be added to built_in_dict
-        return x
+        return x + 0*arg
 
 
     @staticmethod

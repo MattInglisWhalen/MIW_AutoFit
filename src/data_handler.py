@@ -123,7 +123,7 @@ class DataHandler:
                 for datum in self._data :
                     datum.pos = self._X0 * math.exp(datum.pos)
                     if self._histogram_flag :
-                        sigma_lower, sigma_upper = datum.pos*datum.assym_sigma_pos[0], datum.pos*datum.assym_sigma_pos[1]
+                        sigma_lower, sigma_upper = datum.pos*datum.assym_sigma_pos[0],datum.pos*datum.assym_sigma_pos[1]
                         datum.assym_sigma_pos = (sigma_lower, sigma_upper)
                     else:
                         datum.sigma_pos = datum.sigma_pos * datum.pos
@@ -390,15 +390,12 @@ class DataHandler:
             self._logy_flag = False
             self.logy_flag = True
 
-    # TODO: make use of all_sheets_flag to go through all sheets in the excel file
-    def set_excel_args(self, x_range_str, y_range_str=None, x_error_str = None, y_error_str = None,
-                       all_sheets_flag=True):
+    def set_excel_args(self, x_range_str, y_range_str=None, x_error_str = None, y_error_str = None):
         print(f"Thank you for providing data ranges {x_range_str} {y_range_str} {x_error_str} {y_error_str}")
         self._x_column_endpoints = x_range_str
         self._y_column_endpoints = y_range_str
         self._sigmax_column_endpoints = x_error_str
         self._sigmay_column_endpoints = y_error_str
-        # print(self._x_column_endpoints, self._y_column_endpoints)
         self.read_excel()
     def set_excel_sheet_name(self, name):
         print("Thank you for providing data ranges")
@@ -427,11 +424,6 @@ class DataHandler:
         right_chars = regex.split( f"[0-9]", right)[0]
         right_ints = regex.split( f"[A-Z]", right)[-1]
 
-        # print(f"{left_chars=} {left_ints=} {right_chars=} {right_ints=}")
-
-        # print([idx for idx in
-        #        range(DataHandler.excel_chars_as_idx(left_chars), DataHandler.excel_chars_as_idx(right_chars) + 1)])
-        # print( [ idx for idx in range(DataHandler.excel_ints_as_idx(left_ints),DataHandler.excel_ints_as_idx(right_ints)+1) ] )
         if left_chars == right_chars :
             # A1 denotes ColRow so transpose the two
             return [ (idx,DataHandler.excel_chars_as_idx(left_chars))
@@ -557,7 +549,7 @@ class DataHandler:
         print(f"Excel histogram raw data is {vals}")
         self.make_histogram_data_from_vals(vals)
 
-    def normalize_histogram_data(self):
+    def normalize_histogram_data(self, error_handler = print) -> bool:
 
         area = 0
         count = 0
@@ -575,7 +567,6 @@ class DataHandler:
 
         for datum in self._data :
 
-
             count += datum.val
             bin_height = datum.val
 
@@ -588,8 +579,8 @@ class DataHandler:
 
             area += bin_height*bin_width
         if abs(area - 1) < 1e-5 :
-            print("Histogram already normalized")
-            return
+            error_handler("Histogram already normalized")
+            return True
 
         for datum in self._data :
 
@@ -611,13 +602,14 @@ class DataHandler:
         self._y_label = "probability density"
         if self._logy_flag :
             min_Y, max_Y = min([datum.val for datum in self._data]), max([datum.val for datum in self._data])
-            if min_Y < 0:
-                print("You can't log the y-data if there are negative numbers!")
-                return
+            if min_Y <= 0:
+                error_handler("\n \n> Normalize: You can't log the y-data if there are non-positive numbers!")
+                self._normalized_histogram_flag = False
+                return False
             self._Y0 = math.sqrt(min_Y * max_Y)
             for datum in self._data:
                 datum.sigma_val = datum.sigma_val / datum.val
                 datum.val = math.log(datum.val / self._Y0)
 
         self._normalized_histogram_flag = True
-
+        return True

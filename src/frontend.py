@@ -45,7 +45,7 @@ class Frontend:
         self._changed_data_flag: bool = True
 
         # backend connections
-        self._optimizer: Optimizer = None  # Optimizer
+        self._optimizer: Optimizer = None
         self._changed_optimizer_opts_flag: bool = True
 
         # panels
@@ -976,10 +976,10 @@ class Frontend:
         # print(f"Log flags : {self.data_handler.logx_flag} {self.data_handler.logy_flag}")
         if self.data_handler.logx_flag:
             print("Setting log x-scale in show_data")
-            log_min, log_max = math.log(min(x_points)), math.log(max(x_points))
-            print(log_min, log_max, math.exp(log_min), math.exp(log_max))
+            log_min, log_max = np.log(min(x_points)), np.log(max(x_points))
+            print(log_min, log_max, np.exp(log_min), np.exp(log_max))
             axes.set_xlim(
-                [math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
+                [np.exp(log_min - (log_max - log_min) / 10), np.exp(log_max + (log_max - log_min) / 10)])
             axes.set(xscale="log")
             axes.spines['right'].set_visible(False)
         else:
@@ -990,9 +990,9 @@ class Frontend:
         if self.data_handler.logy_flag:
             print("Setting log y-scale in show_data")
             axes.set(yscale="log")
-            log_min, log_max = math.log(min(y_points)), math.log(max(y_points))
+            log_min, log_max = np.log(min(y_points)), np.log(max(y_points))
             axes.set_ylim(
-                [math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
+                [np.exp(log_min - (log_max - log_min) / 10), np.exp(log_max + (log_max - log_min) / 10)])
             axes.spines['top'].set_visible(False)
         else:
             axes.set(yscale="linear")
@@ -1214,7 +1214,7 @@ class Frontend:
 
         # need to log all datasets if the current one is logged, and unlog if they ARE logged
         for handler in self._data_handlers:
-            if handler == self.data_handler:
+            if handler is self.data_handler:
                 continue
 
             if self.data_handler.logx_flag:
@@ -1223,6 +1223,9 @@ class Frontend:
                     handler.logx_flag = False
                 handler.X0 = -self.data_handler.X0  # links the two X0 values
                 handler.logx_flag = True
+                if not handler.logx_flag :
+                    self.add_message(f"\n \n> Can't log the x-data for {handler.shortpath}. Fit All failed.")
+                    return
             elif not self.data_handler.logx_flag and handler.logx_flag:
                 handler.logx_flag = False
 
@@ -1232,15 +1235,22 @@ class Frontend:
                     handler.logy_flag = False
                 handler.Y0 = -self.data_handler.Y0  # links the two Y0 values
                 handler.logy_flag = True
+                if not handler.logy_flag :
+                    self.add_message(f"\n \n> Can't log the y-data for {handler.shortpath}. Fit All failed.")
+                    return
             elif not self.data_handler.logy_flag and handler.logy_flag:
                 handler.logy_flag = False
 
         # need to normalize all datasets if the current one is normalized
         if any([handler.normalized for handler in self._data_handlers]) and not self.data_handler.normalized:
-            self.data_handler.normalize_histogram_data()
+            status_good = self.data_handler.normalize_histogram_data(error_handler=self.add_message)
+            if not status_good :
+                return
         for handler in self._data_handlers:
             if self.data_handler.normalized and not handler.normalized:
-                handler.normalize_histogram_data()
+                status_good = handler.normalize_histogram_data()
+                if not status_good:
+                    return
 
         # fit every loaded dataset with the current model and return the average parameters
         list_of_args = []
@@ -1275,7 +1285,7 @@ class Frontend:
             effective_variance = ratio * sum_variance + (1 - ratio) * sum_uncertainty_sqr
 
             means.append(mean)
-            uncs.append(math.sqrt(effective_variance))
+            uncs.append(np.sqrt(effective_variance))
 
         print(f"{means} +- {uncs}")
         fit_all_model = self.current_model.copy()
@@ -1416,7 +1426,7 @@ class Frontend:
 
     # RIGHT PANEL FUNCTIONS ------------------------------------------------------------------------------------------->
 
-    def add_message(self, message_string):
+    def add_message(self, message_string) -> bool :
 
         # TODO: consider also printing to a log file
 
@@ -1445,6 +1455,7 @@ class Frontend:
 
         if self._num_messages > self._MAX_MESSAGE_LENGTH:
             self.remove_n_messages(self._num_messages - self._MAX_MESSAGE_LENGTH)
+        return True
     def remove_n_messages(self, n):
 
         text_frame = self._gui.children['!frame3']
@@ -1632,8 +1643,9 @@ class Frontend:
                 print_string += f"\n \n  This has {self.criterion} = "
             else :
                 print_string += f"\n \n  This has {self.sym_chi}{sup(2)}/dof = "
-            print_string += f"{self.optimizer.criterion(self.current_model):.2F}," if self.optimizer.criterion(self.current_model) > 0.01 \
-                                                           else f"{self.optimizer.criterion(self.current_model):.2E},"
+            print_string += f"{self.optimizer.criterion(self.current_model):.2F},"     \
+                                if self.optimizer.criterion(self.current_model) > 0.01 \
+                                else f"{self.optimizer.criterion(self.current_model):.2E},"
             print_string += f" and as a tree, this is \n"
             print_string += self.current_model.tree_as_string_with_args() + "\n"
         elif self._model_name_tkstr.get() == "Brute-Force":
@@ -1664,8 +1676,9 @@ class Frontend:
                 print_string += f"\n \n> This has {self.criterion} = "
             else :
                 print_string += f"\n \n> This has {self.sym_chi}{sup(2)}/dof = "
-            print_string += f"{self.optimizer.criterion(self.current_model):.2F}," if self.optimizer.criterion(self.current_model) > 0.01 \
-                                                           else f"{self.optimizer.criterion(self.current_model):.2E},"
+            print_string += f"{self.optimizer.criterion(self.current_model):.2F},"     \
+                                if self.optimizer.criterion(self.current_model) > 0.01 \
+                                else f"{self.optimizer.criterion(self.current_model):.2E},"
             print_string += f" and as a tree, this is \n"
             print_string += self.current_model.tree_as_string_with_args() + "\n"
         else:
@@ -1685,20 +1698,6 @@ class Frontend:
         head_menu = tk.Menu(master=self._gui, tearoff=0)
         head_menu.add_cascade(label="Background Colour", menu=self._printout_background_menu)
         head_menu.add_cascade(label="Message Colour", menu=self._printout_menu)
-
-        # console_menu = tk.Menu(master=head_menu, tearoff=0)
-        # console_menu.add_command(label="Default", command=self.console_color_default)
-        # console_menu.add_command(label="Pale", command=self.console_color_pale)
-        # console_menu.add_command(label="White", command=self.console_color_white)
-        #
-        # printout_menu = tk.Menu(master=head_menu, tearoff=0)
-        # printout_menu.add_command(label="Default" + (self.sym_check if self._default_printout_colour == "Default" else ""),
-        #                           command=self.printout_color_default)
-        # printout_menu.add_command(label="White" + (self.sym_check if self._default_printout_colour == "White" else ""), command=self.printout_color_white)
-        # printout_menu.add_command(label="Black" + (self.sym_check if self._default_printout_colour == "Black" else ""), command=self.printout_color_black)
-        #
-        # head_menu.add_cascade(label="Background Colour", menu=console_menu)
-        # head_menu.add_cascade(label="Message Colour", menu=printout_menu)
 
         self._colors_console_menu = head_menu
     def do_colors_console_popup(self, event: tk.Event):
@@ -1998,11 +1997,11 @@ class Frontend:
 
         sample_mean = sum(residuals) / len(residuals)
         sample_variance = sum([(res - sample_mean) ** 2 for res in residuals]) / (len(residuals) - 1)
-        sample_std_dev = math.sqrt(sample_variance)
+        sample_std_dev = np.sqrt(sample_variance)
 
         # should be counting with std from 0, not from residual_mean
         variance_rel_zero = sum([res ** 2 for res in residuals]) / (len(residuals) - 1)
-        std_dev_rel_zero = math.sqrt(variance_rel_zero)
+        std_dev_rel_zero = np.sqrt(variance_rel_zero)
 
         std_dev = std_dev_rel_zero
         sample_mean = 0.
@@ -2217,9 +2216,9 @@ class Frontend:
             *func_list
         )
         function_dropdown.configure(width=9)
-        function_dropdown.configure(font=('TkDefaultFont', int(12 * self._default_os_scaling* self._platform_scale)) )
+        function_dropdown.configure(font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)) )
         options = self._fit_options_frame.nametowidget(function_dropdown.menuname)
-        options.configure(font=('TkDefaultFont', int(12 * self._default_os_scaling* self._platform_scale)) )
+        options.configure(font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)) )
         function_dropdown.grid(row=0, column=0)
 
         self._model_name_tkstr.trace('w', self.function_dropdown_trace)
@@ -2292,9 +2291,9 @@ class Frontend:
         )
         top5_dropdown.configure(width=max_len-self._platform_offset)
 
-        top5_dropdown.configure(font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)) )
+        top5_dropdown.configure(font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)) )
         options = self._fit_options_frame.nametowidget(top5_dropdown.menuname)
-        options.configure(font=('TkDefaultFont', int(12 * self._default_os_scaling* self._platform_scale)) )
+        options.configure(font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)) )
         top5_dropdown.grid(row=0, column=1)
 
         self._which_tr_id = self._which5_name_tkstr.trace_add('write', self.which5_dropdown_trace)
@@ -2345,7 +2344,6 @@ class Frontend:
         top5_list = [f"{rx_sqr:.2F}: {name}" if rx_sqr < 1000 else f"----: {name}" for rx_sqr, name
                      in zip(self.optimizer.top5_rchisqrs, self.optimizer.top5_names)]
         for label in top5_list:
-            # noinspection PyProtectedMember
             top5_dropdown['menu'].add_command(label=label, command=tk._setit(self._which5_name_tkstr, label))
         new_max = max( [len(x) for x in top5_list] )
         if new_max > int(curr_max) :
@@ -2383,7 +2381,6 @@ class Frontend:
         if self._new_user_stage % 29 != 0:
             self.create_top5_dropdown()
             return
-        print("Show top5", self._fit_options_frame.winfo_width(),self._left_panel_frame.winfo_width(),self._middle_panel_frame.winfo_width(),self._right_panel_frame.winfo_width(),self._gui.winfo_width())
         top5_dropdown = self._fit_options_frame.children['!optionmenu2']
         top5_dropdown.grid(row=0, column=1)
         if len(self._data_handlers) > 1 :
@@ -2451,6 +2448,8 @@ class Frontend:
             self.data_handler.logx_flag = False
         else:
             self.data_handler.logx_flag = True
+            if not self.data_handler.logx_flag :
+                self.add_message("\n \n> You can't log the x-data if there are non-positive numbers!")
 
         self.update_logx_relief()
 
@@ -2467,6 +2466,8 @@ class Frontend:
             self.data_handler.logy_flag = False
         else:
             self.data_handler.logy_flag = True
+            if not self.data_handler.logy_flag :
+                self.add_message("\n \n> You can't log the y-data if there are non-positive numbers!")
 
         self.update_logy_relief()
 
@@ -2529,7 +2530,9 @@ class Frontend:
         if self.data_handler.normalized:
             self.add_message("\n \nCan't de-normalize a histogram. You'll have to restart AutoFit.\n")
             return
-        self.data_handler.normalize_histogram_data()
+        status_good = self.data_handler.normalize_histogram_data()
+        if not status_good:
+            return
         self._normalize_button.configure(relief=tk.SUNKEN)
         self._normalize_button.configure(bg='grey90')
         if self._showing_fit_image:
@@ -2648,8 +2651,8 @@ class Frontend:
             axes.set_ylim([axes.get_ylim()[0], 0])
 
         if handler.logx_flag:
-            log_min, log_max = math.log(min(x_points)), math.log(max(x_points))
-            axes.set_xlim([math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
+            log_min, log_max = np.log(min(x_points)), np.log(max(x_points))
+            axes.set_xlim([np.exp(log_min - (log_max - log_min) / 10), np.exp(log_max + (log_max - log_min) / 10)])
             axes.set(xscale="log")
             axes.spines['right'].set_visible(False)
         else:
@@ -2659,8 +2662,8 @@ class Frontend:
             axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
         if handler.logy_flag:
             axes.set(yscale="log")
-            log_min, log_max = math.log(min(y_points)), math.log(max(y_points))
-            axes.set_ylim([math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
+            log_min, log_max = np.log(min(y_points)), np.log(max(y_points))
+            axes.set_ylim([np.exp(log_min - (log_max - log_min) / 10), np.exp(log_max + (log_max - log_min) / 10)])
             axes.spines['top'].set_visible(False)
         else:
             axes.set(yscale="linear")
@@ -2673,8 +2676,8 @@ class Frontend:
         min_Y, max_Y = min(y_points), max(y_points)
         #  tx is the proportion between xmin and xmax where the zero lies
         # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
-        tx = max(0, -min_X / (max_X - min_X))
-        ty = max(0, -min_Y / (max_Y - min_Y))
+        tx = max(0., -min_X / (max_X - min_X))
+        ty = max(0., -min_Y / (max_Y - min_Y))
         offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
 
         axes.xaxis.set_label_coords(1.050, offset_Y + ty)
@@ -2723,7 +2726,7 @@ class Frontend:
                 fit_vals = [plot_model.eval_at(xi) for xi in smooth_x_for_fit]
 
             # col = 255 ** (idx/num_sets) / 255
-            # col = math.sqrt(idx / num_sets)
+            # col = np.sqrt(idx / num_sets)
             col_tuple = [(icol / max(self._dataaxes_color) if max(self._dataaxes_color) > 0 else 1)
                          * (idx / num_sets) for icol in self._dataaxes_color]
             # col = idx / num_sets
@@ -2793,8 +2796,8 @@ class Frontend:
             axes.set_ylim([axes.get_ylim()[0], 0])
 
         if self.data_handler.logx_flag:
-            log_min, log_max = math.log(abs_minX), math.log(abs_maxX)
-            axes.set_xlim([math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
+            log_min, log_max = np.log(abs_minX), np.log(abs_maxX)
+            axes.set_xlim([np.exp(log_min - (log_max - log_min) / 10), np.exp(log_max + (log_max - log_min) / 10)])
             axes.set(xscale="log")
             axes.spines['right'].set_visible(False)
         else:
@@ -2804,8 +2807,8 @@ class Frontend:
             axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
         if self.data_handler.logy_flag:
             axes.set(yscale="log")
-            log_min, log_max = math.log(abs_minY), math.log(abs_maxY)
-            axes.set_ylim([math.exp(log_min - (log_max - log_min) / 10), math.exp(log_max + (log_max - log_min) / 10)])
+            log_min, log_max = np.log(abs_minY), np.log(abs_maxY)
+            axes.set_ylim([np.exp(log_min - (log_max - log_min) / 10), np.exp(log_max + (log_max - log_min) / 10)])
             axes.spines['top'].set_visible(False)
         else:
             axes.set(yscale="linear")
@@ -2992,8 +2995,8 @@ class Frontend:
                 font=my_font,
                 command=self.checkbox_on_off_command
             )
-            checkbox.grid(row=idx % ( len(self._checkbox_names_list)-1),
-                          column=2* ((idx+1)//len(self._checkbox_names_list)), sticky='w')
+            checkbox.grid(row    = idx % ( len(self._checkbox_names_list)-1),
+                          column = 2 * ((idx+1)//len(self._checkbox_names_list)), sticky='w')
             if idx == len(self._checkbox_names_list) - 1:
                 self._custom_checkbox = checkbox
 
@@ -3003,7 +3006,8 @@ class Frontend:
         if self._new_user_stage % 31 != 0:
             return
         self._custom_binding = self._custom_checkbox.bind("<Button-3>", self.do_custom_remove_popup)
-        self._custom_checkbox.configure(text="custom: " + ', '.join([x for x in regex.split(' ', self._custom_function_names) if x]))
+        self._custom_checkbox.configure(text="custom: " +
+                                             ', '.join([x for x in regex.split(' ', self._custom_function_names) if x]))
         self.create_custom_remove_menu()
     def checkbox_on_off_command(self):
         print("Activated re-build of composite list")
@@ -3136,7 +3140,7 @@ class Frontend:
         self._pause_button = tk.Button(self._fit_options_frame,
                                        text="Pause",
                                        width= 6-self._platform_offset,
-                                       font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+                                       font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
                                        bd=self._platform_border,
                                        command=self.pause_command
                                        )
@@ -3178,9 +3182,11 @@ class Frontend:
             return
         self._new_user_stage *= 53
 
-        name_label = tk.Label(master=self._manual_frame, text="Function's Name",font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
+        name_label = tk.Label(master=self._manual_frame, text="Function's Name",
+                              font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
         name_label.grid(row=0, column=0, sticky='w')
-        name_data = tk.Entry(master=self._manual_frame, width=30,font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
+        name_data = tk.Entry(master=self._manual_frame, width=30,
+                             font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
         name_data.insert(0, "ManualEntryFunc" if self._default_manual_name == "N/A" else self._default_manual_name)
         name_data.grid(row=0, column=1, sticky='w')
 
@@ -3190,9 +3196,11 @@ class Frontend:
         # form_data.insert(0, "sin(pow1)+sin(pow1)+sin(pow1)+sin(pow1)")
         # form_data.grid(row=1, column=1, sticky='w')
 
-        long_label = tk.Label(master=self._manual_frame, text="Function's Form",font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
+        long_label = tk.Label(master=self._manual_frame, text="Function's Form",
+                              font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)))
         long_label.grid(row=1, column=0, sticky='nw')
-        long_data = tk.Text(master=self._manual_frame, width=55, height=5,font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
+        long_data = tk.Text(master=self._manual_frame, width=55, height=5,
+                            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)))
         long_data.insert('1.0', "logistic(pow1+pow0)" if self._default_manual_form == "N/A"
                                                       else self._default_manual_form)
         long_data.grid(row=1, column=1, sticky='w')
@@ -3200,11 +3208,17 @@ class Frontend:
         self._error_label = tk.Label(master=self._manual_frame, text=f"", fg="#EF0909")
         self._error_label.grid(row=2, column=1, sticky='w', pady=5)
 
-        current_name_title_label = tk.Label(master=self._manual_frame, text=f"Current Name:",font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
+        current_name_title_label = tk.Label(master=self._manual_frame, text=f"Current Name:",
+                                            font=('TkDefaultFont',
+                                                  int(12*self._default_os_scaling*self._platform_scale))
+                                            )
         current_name_title_label.grid(row=3, column=0, sticky='w', pady=(5,0))
         self._current_name_label = tk.Label(master=self._manual_frame, text=f"N/A")
         self._current_name_label.grid(row=3, column=1, sticky='w', pady=(5,0))
-        current_form_title_label = tk.Label(master=self._manual_frame, text=f"Current Form:",font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
+        current_form_title_label = tk.Label(master=self._manual_frame, text=f"Current Form:",
+                                            font=('TkDefaultFont',
+                                                  int(12*self._default_os_scaling*self._platform_scale))
+                                            )
         current_form_title_label.grid(row=4, column=0, sticky='w')
         self._current_form_label = tk.Label(master=self._manual_frame, text=f"N/A")
         self._current_form_label.grid(row=4, column=1, sticky='w')
@@ -3228,8 +3242,16 @@ class Frontend:
             if manual_model is None:
                 return
 
-            self._current_name_label.configure(text=self._default_manual_name,font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
-            self._current_form_label.configure(text=self._default_manual_form,font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
+            self._current_name_label.configure(text=self._default_manual_name,
+                                               font=('TkDefaultFont',
+                                                     int(12 * self._default_os_scaling * self._platform_scale)
+                                                     )
+                                               )
+            self._current_form_label.configure(text=self._default_manual_form,
+                                               font=('TkDefaultFont',
+                                                     int(12 * self._default_os_scaling * self._platform_scale)
+                                                     )
+                                               )
             manual_model.print_tree()
             self._manual_model = manual_model
     def hide_manual_fields(self):
@@ -3327,7 +3349,7 @@ class Frontend:
         self._manual_model = manual_model
         self.save_defaults()
         return True
-    def error_handling(self, error_msg) -> bool:
+    def error_handling(self, error_msg: str) -> bool:
         self._error_label.configure(text=error_msg)
         return False
 
@@ -3340,7 +3362,7 @@ class Frontend:
 
         self._library_numpy = tk.Button(self._fit_options_frame,
                                         text="<numpy>",
-                                        font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+                                        font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
                                         width=common_width,
                                         bd=self._platform_border,
                                         command=self.print_numpy_library
@@ -3349,7 +3371,7 @@ class Frontend:
 
         self._library_special = tk.Button(self._fit_options_frame,
                                           text="<special>",
-                                          font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+                                          font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
                                           width=common_width,
                                           bd=self._platform_border,
                                           command=self.print_special_library
@@ -3358,8 +3380,7 @@ class Frontend:
 
         self._library_stats = tk.Button(self._fit_options_frame,
                                         text="<stats>",
-                                        font=(
-                                        'TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+                                        font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
                                         width=common_width,
                                         bd=self._platform_border,
                                         command=self.print_stats_library
@@ -3368,8 +3389,7 @@ class Frontend:
 
         # self._library_math = tk.Button(self._fit_options_frame,
         #                                text="<math>",
-        #                                font=(
-        #                                    'TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+        #                                font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
         #                                width=common_width,
         #                                bd=self._platform_border,
         #                                command=self.print_math_library
@@ -3455,29 +3475,40 @@ class Frontend:
                 else:
                     print(memb, y)
                     buffer += f"{memb}, "
+
+                # Maybe add this is the next version
+                # try:
+                #     y = fn.cdf(np.pi / 4)
+                # except TypeError:
+                #     print(f"{memb}_cdf not 1D")
+                # except ValueError:
+                #     print(f"{fn} should be ok?")
+                # else:
+                #     print(memb, y)
+                #     buffer += f"{memb}_cdf, "
             if len(buffer) > 50 :
                 self.add_message(buffer[:-2])
                 buffer = "  "
         self.add_message(buffer[:-2])
-    def print_math_library(self):
-        buffer = "\n \n <math> options: \n  "
-        for memb in dir(math):
-            fn = getattr(math, memb)
-            if str(type(fn)) == "<class 'builtin_function_or_method'>":
-                try:
-                    y = fn(np.pi / 4)
-                except TypeError:
-                    print(f"{memb} not 1D")
-                except ValueError:
-                    print(f"{memb} doesn't accept float values")
-                else:
-                    if type(y) == float:
-                        print(memb, y)
-                        buffer += f"{memb}, "
-            if len(buffer) > 50:
-                self.add_message(buffer[:-2])
-                buffer = "  "
-        self.add_message(buffer[:-2])
+    # def print_math_library(self):
+    #     buffer = "\n \n <math> options: \n  "
+    #     for memb in dir(math):
+    #         fn = getattr(math, memb)
+    #         if str(type(fn)) == "<class 'builtin_function_or_method'>":
+    #             try:
+    #                 y = fn(np.pi / 4)
+    #             except TypeError:
+    #                 print(f"{memb} not 1D")
+    #             except ValueError:
+    #                 print(f"{memb} doesn't accept float values")
+    #             else:
+    #                 if type(y) == float:
+    #                     print(memb, y)
+    #                     buffer += f"{memb}, "
+    #         if len(buffer) > 50:
+    #             self.add_message(buffer[:-2])
+    #             buffer = "  "
+    #     self.add_message(buffer[:-2])
     def print_autofit_library(self):
         buffer = "\n \n  <autofit> options: \n  "
         for key, prim in PrimitiveFunction.build_built_in_dict().items():

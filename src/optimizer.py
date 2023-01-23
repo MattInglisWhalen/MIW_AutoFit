@@ -9,8 +9,7 @@ from scipy.optimize import curve_fit
 from scipy.fft import fft, fftshift, fftfreq
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.special
-import scipy.stats
+
 from tkinter import Label as tk_label
 
 # internal classes
@@ -232,7 +231,7 @@ class Optimizer:
         if rchisqr_adjusted > rchisqr :
             print(f"Adjustment: {rchisqr} -> {rchisqr_adjusted}")
             rchisqr = rchisqr_adjusted
-        #check for duplication
+        # check for duplication
         for idx, (topper, chisqr) in enumerate(zip( self.top5_models[:],self.top5_rchisqrs[:] )):
             # comparing with names
             if model.longname == topper.longname:
@@ -639,7 +638,6 @@ class Optimizer:
     def add_primitive_to_list(self, name: str, functional_form: str) -> str:
         # For adding one's own Primitive Functions to the built-in list
 
-        print("Optimizer.add_primitive_to_list before", self._use_functions_dict["custom"] , self._primitive_function_list)
         if self._use_functions_dict["custom"] != 1 :
             return ""
         if name in [prim.name for prim in self._primitive_function_list ] :
@@ -674,8 +672,6 @@ class Optimizer:
                    f"with form {functional_form} does not exist."
 
         self._primitive_function_list.append( PrimitiveFunction.built_in(name) )
-
-        print("Optimizer.add_primitive_to_list after", self._use_functions_dict["custom"] , self._primitive_function_list)
 
         return ""
     def set_data_to(self, other_data):
@@ -797,11 +793,13 @@ class Optimizer:
         if init_guess is None:
             while model.is_submodel :
                 supermodel = model_.submodel_of.copy()
-                print(f"\n>>> {model_}: Have to go back to the supermodel {supermodel} for refitting. {model_.submodel_zero_index}")
+                print(f"\n>>> {model_}: Have to go back to the supermodel {supermodel} "
+                      f"for refitting. {model_.submodel_zero_index}")
                 supermodel, _ = self.fit_this_and_get_model_and_covariance(model_=supermodel, change_shown=False,
                                                                            do_halving=do_halving, halved=halved)
                 print(f"rchisqr for supermodel = {self.reduced_chi_squared_of_fit(supermodel)} {do_halving=} {halved=}")
-                model = supermodel.submodel_without_node_idx(model_.submodel_zero_index)  # creates a submodel that doesnt think it's a submodel
+                model = supermodel.submodel_without_node_idx(model_.submodel_zero_index)
+                # ^ creates a submodel that doesnt think it's a submodel
                 init_guess = model.args
         if model.name[-8:] == "Gaussian" :
             modal = model.num_children()
@@ -1160,7 +1158,7 @@ class Optimizer:
             self.find_set_initial_guess_scaling(child)
 
         # use knowledge of scaling to guess parameter sizes from the characteristic sizes in the data
-        charAvY = (max([datum.val for datum in self._data]) + min([datum.val for datum in self._data])) / 2
+        # charAvY = (max([datum.val for datum in self._data]) + min([datum.val for datum in self._data])) / 2
         charDiffY = (max([datum.val for datum in self._data]) - min([datum.val for datum in self._data])) / 2
         charAvX = ( max( [datum.pos for datum in self._data] ) + min( [datum.pos for datum in self._data] ) ) / 2
         charDiffX =  (max([datum.pos for datum in self._data]) - min([datum.pos for datum in self._data])) / 2
@@ -1291,7 +1289,7 @@ class Optimizer:
     def Akaike_criterion(self, model):
         # the AIC is equivalent, for normally distributed residuals, to the least chi squared
         k = model.dof
-        N = len(self._data)
+        # N = len(self._data)
         AIC = self.chi_squared_of_fit(model) + 2*k  # we take chi^2 = -2logL + C, discard the C
         return AIC
     def Akaike_criterion_corrected(self, model):
