@@ -46,16 +46,17 @@ class Validator:
 
     def invalid_config(self) -> str:
 
-        secret_epoch = self.extract_epoch_from_file(self._filepath)
+        secret_epoch = self.extract_epoch_from_file(self._filepath)  # when the secret was made in UTC (not signed)
 
+        # this timing is based off the assumption that the ingliswhalen.com server signs the certificate using UTC time
         if platform.system() == "Windows" :
-            creation_epoch = os.path.getctime(self._filepath)  # when the file was unzipped/copied
-            modify_epoch = os.path.getmtime(self._filepath) + 60*60   # when the file was created on the server / modified by pirate
+            creation_epoch = os.path.getctime(self._filepath)  # when the file was unzipped/copied (locally signed)
+            modify_epoch = os.path.getmtime(self._filepath)    # when the file was created on the server (server signed)
             # ZipArchive introduces an off-by-1 hour error so we ^ adjust for that
         else :
             stat = os.stat(self._filepath)
             try :
-                modify_epoch = stat.st_mtime  # + 60*60  # no off-by-one error on MacOSX
+                modify_epoch = stat.st_mtime
                 creation_epoch = stat.st_birthtime
             except AttributeError :
                 print("11> Linux isn't supported.")
@@ -64,23 +65,38 @@ class Validator:
         #testing
         import time
         from datetime import datetime, timezone
-        test_filepath = "C:/Users/Matt/Downloads/MIW_AutoFit_02/MIW_autofit/backend/" \
-                        "libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll"
+        if sys.platform == "darwin" :
+            test_filepath = "/Users/flexo/Downloads/MIW_autofit/backend"
+        else:
+            test_filepath = "C:/Users/Matt/Downloads/MIW_AutoFit_02/MIW_autofit/backend/"
+        test_filepath += "libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll"
         test_creation_epoch = os.path.getctime(test_filepath)  # when the file was unzipped/copied
         test_modify_epoch = os.path.getmtime(test_filepath)
         test_secret_epoch = self.extract_epoch_from_file(test_filepath)
 
-        test_creation_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(test_creation_epoch))  # W 16:45:63
-        test_modify_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(test_modify_epoch))      # W 21:44:54
-        test_secret_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(test_secret_epoch))      # W 16:44:54
+        test_creation_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(test_creation_epoch))  # W 16:45:63 23:06:13
+        test_modify_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(test_modify_epoch))      # W 21:44:54 22:05:06 ✓
+        test_secret_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(test_secret_epoch))      # W 16:44:54 23:05:07
 
         print(test_creation_time,test_modify_time,test_secret_time)
 
-        test_creation_utc = datetime.fromtimestamp( test_creation_epoch, timezone.utc )  # W 21:45:53
-        test_modify_utc = datetime.fromtimestamp( test_modify_epoch, timezone.utc )      # W 26:44:54
-        test_secret_utc = datetime.fromtimestamp( test_secret_epoch, timezone.utc )      # W 21:44:54
+        test_creation_utc = datetime.fromtimestamp( test_creation_epoch, timezone.utc )  # W 21:45:53 M 22:06:13 ✓
+        test_modify_utc = datetime.fromtimestamp( test_modify_epoch, timezone.utc )      # W 26:44:54 M 21:05:06
+        test_secret_utc = datetime.fromtimestamp( test_secret_epoch, timezone.utc )      # W 21:44:54 M 22:05:07 ✓
 
         print(test_creation_utc,test_modify_utc,test_secret_utc)
+
+        test2_creation_utc = datetime.fromtimestamp( test_creation_epoch, timezone.utc ).replace(tzinfo=None)  # W 21:45:53
+        test2_modify_utc = datetime.fromtimestamp( test_modify_epoch )                                         # W 21:44:54
+        test2_secret_utc = datetime.fromtimestamp( test_secret_epoch, timezone.utc ).replace(tzinfo=None)      # W 21:44:54
+
+        print(test2_creation_utc,test2_modify_utc,test2_secret_utc)
+
+        seconds_cm = (test2_creation_utc-test2_modify_utc).total_seconds()
+        seconds_cs = (test2_creation_utc-test2_secret_utc).total_seconds()
+        seconds_ms = (test2_modify_utc-test2_secret_utc).total_seconds()
+        seconds_mc = (test2_modify_utc-test2_creation_utc).total_seconds()
+        print(seconds_cm,seconds_cs,seconds_ms,seconds_mc)
 
         # epochs as times
         # import time
@@ -93,19 +109,19 @@ class Validator:
         # on windows unzip
 
         # assume that the download (modify_epoch) to install (unzipping, creation_time) will take less than an hour
-        if abs(modify_epoch - creation_epoch) > 60*60 :
+        if abs(seconds_cm) > 60*60 :
             # print(modify_epoch, creation_epoch)
             print("3> You need to have less time between downloading and unzipping the file.")
             # return f"Error code {modify_time} / {creation_time}, exiting..."
             return f"Error code {int(modify_epoch) + 918273645} / {int(creation_epoch) + 192837465}, exiting..."
         # assume that the hidden secret_epoch and the modify_epoch (download) are aligned
-        if abs(secret_epoch-modify_epoch) > 5 :
+        if abs(seconds_ms) > 5 :
             # print(secret_epoch, modify_epoch)
             print("4> The secret file has been modified.")
             # return f"Error code {secret_time} = {modify_time}, exiting..."
             return f"Error code {int(secret_epoch) + 132457689} = {int(modify_epoch) + 978653421}, exiting..."
         # assume that the hidden secret_epoch and the creation_time (unzipping) are less than an hour apart
-        if abs(secret_epoch - creation_epoch) > 60*60 :
+        if abs(seconds_cs) > 60*60 :
             # print(secret_epoch, creation_epoch)
             print("5> You need to have less time between downloading and unzipping the file.")
             # return f"Error code {secret_time} | {creation_time}, exiting..."
