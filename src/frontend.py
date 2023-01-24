@@ -176,16 +176,23 @@ class Frontend:
         self._default_os_scaling : float = 1
         if sys.platform == "darwin" :
             self._platform_offset = 4
+            self._platform_scale = 0.85
+            self._platform_border = 0
+            self.sym_chi = "\U000003C7"
+            self.sym_left = "\U00002190"
+            self.sym_up = "\U00002191"
+            self.sym_right = "\U00002192"
+            self.sym_down = "\U00002193"
         else :
             self._platform_offset = 0
-        if sys.platform == "darwin" :
             self._platform_scale = 0.85
-        else :
-            self._platform_scale = 0.85
-        if sys.platform == "darwin" :
-            self._platform_border = 0
-        else :
             self._platform_border = 2
+            self.sym_chi = "\U0001D6D8"
+            self.sym_left = "\U0001F844"
+            self.sym_up = "\U0001F845"
+            self.sym_right = "\U0001F846"
+            self.sym_down = "\U0001F847"
+        self.sym_check = " \U00002713"
         self._image_r : float = 1
         self._custom_function_names : str = ""
         self._custom_function_forms : str = ""
@@ -194,12 +201,8 @@ class Frontend:
         self._custom_function_button : tk.Button = None
 
 
-        self.sym_chi = "\U0001D6D8"
-        self.sym_left = "\U0001F844"
-        self.sym_up = "\U0001F845"
-        self.sym_right = "\U0001F846"
-        self.sym_down = "\U0001F847"
-        self.sym_check = " \U00002713"
+
+
 
         self._criterion = "rchisqr"  # other opts AIC, AICc, BICc, HQIC
 
@@ -553,7 +556,7 @@ class Frontend:
         else :
             height = min( self._default_gui_height , int(self._os_width * 7 / 6) )
         gui.geometry(f"{width}x{height}+{self._default_gui_x}+{self._default_gui_y}")
-        gui.rowconfigure(0, minsize=800, weight=1)
+        gui.rowconfigure(0, minsize=400, weight=1)
 
         # icon image and window title
         loc = Frontend.get_package_path()
@@ -707,15 +710,7 @@ class Frontend:
         self._gui.columnconfigure(2, minsize=128, weight=1)  # image panel
         self._right_panel_frame = tk.Frame(master=self._gui, bg=hexx(self._console_color))
         self._right_panel_frame.grid(row=0, column=2, sticky='news')
-        try :
-            self.add_message("> Welcome to MIW's AutoFit! \U0001D179")
-        except _tkinter.TclError :
-            self.add_message("> Welcome to MIW's AutoFit!")
-            self.sym_chi = "\U000003C7"
-            self.sym_left = "\U00002190"
-            self.sym_up = "\U00002191"
-            self.sym_right = "\U00002192"
-            self.sym_down = "\U00002193"
+        self.add_message("> Welcome to MIW's AutoFit!")
         self.create_colors_console_menu()
         self._right_panel_frame.bind('<Button-3>', self.do_colors_console_popup)
 
@@ -2985,7 +2980,7 @@ class Frontend:
         
         for idx, name in enumerate(self._checkbox_names_list):
             my_font = 'TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)
-            print(regex.split(f" ", self._custom_function_names))
+            # print(regex.split(f" ", self._custom_function_names))
             checkbox = tk.Checkbutton(
                 master=self._procedural_frame,
                 text=name,
@@ -3182,11 +3177,11 @@ class Frontend:
             return
         self._new_user_stage *= 53
 
-        name_label = tk.Label(master=self._manual_frame, text="Function's Name",
-                              font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
+        def_font = ('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale))
+
+        name_label = tk.Label(master=self._manual_frame, text="Function's Name", font=def_font)
         name_label.grid(row=0, column=0, sticky='w')
-        name_data = tk.Entry(master=self._manual_frame, width=30,
-                             font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)))
+        name_data = tk.Entry(master=self._manual_frame, width=30, font=def_font)
         name_data.insert(0, "ManualEntryFunc" if self._default_manual_name == "N/A" else self._default_manual_name)
         name_data.grid(row=0, column=1, sticky='w')
 
@@ -3196,11 +3191,9 @@ class Frontend:
         # form_data.insert(0, "sin(pow1)+sin(pow1)+sin(pow1)+sin(pow1)")
         # form_data.grid(row=1, column=1, sticky='w')
 
-        long_label = tk.Label(master=self._manual_frame, text="Function's Form",
-                              font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)))
+        long_label = tk.Label(master=self._manual_frame, text="Function's Form",font=def_font)
         long_label.grid(row=1, column=0, sticky='nw')
-        long_data = tk.Text(master=self._manual_frame, width=55, height=5,
-                            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)))
+        long_data = tk.Text(master=self._manual_frame, width=55, height=5,font=def_font)
         long_data.insert('1.0', "logistic(pow1+pow0)" if self._default_manual_form == "N/A"
                                                       else self._default_manual_form)
         long_data.grid(row=1, column=1, sticky='w')
@@ -3208,17 +3201,11 @@ class Frontend:
         self._error_label = tk.Label(master=self._manual_frame, text=f"", fg="#EF0909")
         self._error_label.grid(row=2, column=1, sticky='w', pady=5)
 
-        current_name_title_label = tk.Label(master=self._manual_frame, text=f"Current Name:",
-                                            font=('TkDefaultFont',
-                                                  int(12*self._default_os_scaling*self._platform_scale))
-                                            )
+        current_name_title_label = tk.Label(master=self._manual_frame, text=f"Current Name:",font=def_font)
         current_name_title_label.grid(row=3, column=0, sticky='w', pady=(5,0))
         self._current_name_label = tk.Label(master=self._manual_frame, text=f"N/A")
         self._current_name_label.grid(row=3, column=1, sticky='w', pady=(5,0))
-        current_form_title_label = tk.Label(master=self._manual_frame, text=f"Current Form:",
-                                            font=('TkDefaultFont',
-                                                  int(12*self._default_os_scaling*self._platform_scale))
-                                            )
+        current_form_title_label = tk.Label(master=self._manual_frame, text=f"Current Form:",font=def_font)
         current_form_title_label.grid(row=4, column=0, sticky='w')
         self._current_form_label = tk.Label(master=self._manual_frame, text=f"N/A")
         self._current_form_label.grid(row=4, column=1, sticky='w')
@@ -3227,7 +3214,7 @@ class Frontend:
             master=self._manual_frame,
             text="Validate",
             width=len("Validate") - self._platform_offset,
-            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+            font=def_font,
             bd=self._platform_border,
             command=self.validate_manual_function_command
         )
@@ -3242,16 +3229,8 @@ class Frontend:
             if manual_model is None:
                 return
 
-            self._current_name_label.configure(text=self._default_manual_name,
-                                               font=('TkDefaultFont',
-                                                     int(12 * self._default_os_scaling * self._platform_scale)
-                                                     )
-                                               )
-            self._current_form_label.configure(text=self._default_manual_form,
-                                               font=('TkDefaultFont',
-                                                     int(12 * self._default_os_scaling * self._platform_scale)
-                                                     )
-                                               )
+            self._current_name_label.configure(text=self._default_manual_name,font=def_font)
+            self._current_form_label.configure(text=self._default_manual_form,font=def_font)
             manual_model.print_tree()
             self._manual_model = manual_model
     def hide_manual_fields(self):

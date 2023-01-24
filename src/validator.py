@@ -66,7 +66,7 @@ class Validator:
         import time
         from datetime import datetime, timezone
         if sys.platform == "darwin" :
-            test_filepath = "/Users/flexo/Downloads/MIW_autofit/backend"
+            test_filepath = "/Users/flexo/Downloads/MIW_autofit/backend/"
         else:
             test_filepath = "C:/Users/Matt/Downloads/MIW_AutoFit_02/MIW_autofit/backend/"
         test_filepath += "libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll"
