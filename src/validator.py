@@ -17,9 +17,9 @@ class Validator:
     def __init__(self):
         self._filepath = (Validator.get_package_path()
                           + "/libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll")
-        self._data = (0,0,0)
 
-    def extract_epoch_from_file(self, filepath):
+    @staticmethod
+    def extract_epoch_from_file(filepath):
         try:
             with open(filepath) as file :
                 for line in file:
@@ -46,13 +46,14 @@ class Validator:
 
     def invalid_config(self) -> str:
 
-        secret_epoch = self.extract_epoch_from_file(self._filepath)  # when the secret was made in UTC (not signed)
+        from datetime import datetime, timezone
+
+        secret_epoch = Validator.extract_epoch_from_file(self._filepath)  # when the secret was made in UTC (not signed)
 
         # this timing is based off the assumption that the ingliswhalen.com server signs the certificate using UTC time
         if platform.system() == "Windows" :
             creation_epoch = os.path.getctime(self._filepath)  # when the file was unzipped/copied (locally signed)
             modify_epoch = os.path.getmtime(self._filepath)    # when the file was created on the server (server signed)
-            # ZipArchive introduces an off-by-1 hour error so we ^ adjust for that
         else :
             stat = os.stat(self._filepath)
             try :
@@ -62,51 +63,26 @@ class Validator:
                 print("11> Linux isn't supported.")
                 return f"Error code 11, exiting..."
 
-        #testing
-        import time
-        from datetime import datetime, timezone
-        if sys.platform == "darwin" :
-            test_filepath = "/Users/flexo/Downloads/MIW_autofit/backend/"
-        else:
-            test_filepath = "C:/Users/Matt/Downloads/MIW_AutoFit_02/MIW_autofit/backend/"
-        test_filepath += "libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll"
-        test_creation_epoch = os.path.getctime(test_filepath)  # when the file was unzipped/copied
-        test_modify_epoch = os.path.getmtime(test_filepath)
-        test_secret_epoch = self.extract_epoch_from_file(test_filepath)
+        zero_utc = datetime.fromtimestamp( 0, timezone.utc ).replace(tzinfo=None)
+        creation_utc = datetime.fromtimestamp( creation_epoch, timezone.utc ).replace(tzinfo=None)
+        modify_utc = datetime.fromtimestamp( modify_epoch )
+        secret_utc = datetime.fromtimestamp( secret_epoch, timezone.utc ).replace(tzinfo=None)
 
-        test_creation_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(test_creation_epoch))  # W 16:45:63 23:06:13
-        test_modify_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(test_modify_epoch))      # W 21:44:54 22:05:06 ✓
-        test_secret_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(test_secret_epoch))      # W 16:44:54 23:05:07
+        # print(creation_epoch, (creation_utc-zero_utc).total_seconds() )
+        # print(modify_epoch, (modify_utc-zero_utc).total_seconds() )
+        # print(secret_epoch, (secret_utc-zero_utc).total_seconds() )
 
-        print(test_creation_time,test_modify_time,test_secret_time)
+        creation_epoch =  (creation_utc-zero_utc).total_seconds()
+        modify_epoch = (modify_utc-zero_utc).total_seconds()
+        secret_epoch = (secret_utc-zero_utc).total_seconds()
 
-        test_creation_utc = datetime.fromtimestamp( test_creation_epoch, timezone.utc )  # W 21:45:53 M 22:06:13 ✓
-        test_modify_utc = datetime.fromtimestamp( test_modify_epoch, timezone.utc )      # W 26:44:54 M 21:05:06
-        test_secret_utc = datetime.fromtimestamp( test_secret_epoch, timezone.utc )      # W 21:44:54 M 22:05:07 ✓
+        # print(creation_utc,modify_utc,secret_utc)
 
-        print(test_creation_utc,test_modify_utc,test_secret_utc)
+        seconds_cm = (creation_utc-modify_utc).total_seconds()
+        seconds_cs = (creation_utc-secret_utc).total_seconds()
+        seconds_ms = (modify_utc-secret_utc).total_seconds()
 
-        test2_creation_utc = datetime.fromtimestamp( test_creation_epoch, timezone.utc ).replace(tzinfo=None)  # W 21:45:53
-        test2_modify_utc = datetime.fromtimestamp( test_modify_epoch )                                         # W 21:44:54
-        test2_secret_utc = datetime.fromtimestamp( test_secret_epoch, timezone.utc ).replace(tzinfo=None)      # W 21:44:54
-
-        print(test2_creation_utc,test2_modify_utc,test2_secret_utc)
-
-        seconds_cm = (test2_creation_utc-test2_modify_utc).total_seconds()
-        seconds_cs = (test2_creation_utc-test2_secret_utc).total_seconds()
-        seconds_ms = (test2_modify_utc-test2_secret_utc).total_seconds()
-        seconds_mc = (test2_modify_utc-test2_creation_utc).total_seconds()
-        print(seconds_cm,seconds_cs,seconds_ms,seconds_mc)
-
-        # epochs as times
-        # import time
-        # creation_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(creation_epoch))
-        # modify_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(modify_epoch))
-        # secret_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(secret_epoch))
-        self._data = (creation_epoch, modify_epoch, secret_epoch)
-        # print(self._data)
-
-        # on windows unzip
+        # print(seconds_cm,seconds_cs,seconds_ms,seconds_mc)
 
         # assume that the download (modify_epoch) to install (unzipping, creation_time) will take less than an hour
         if abs(seconds_cm) > 60*60 :
@@ -146,8 +122,8 @@ class Validator:
             gui.iconphoto(False,photo)
         gui.title("MIW's AutoFit")
 
-        print(Validator.get_package_path())
-        error_box = messagebox.showerror("Configuration Error",
+        # print(Validator.get_package_path())
+        messagebox.showerror("Configuration Error",
                                          f"{error_msg}\n\nPlease try re-downloading this package from "
                                          f"ingliswhalen.com/MIWs-AutoFit/AutoFit-Pro-Downloads")
         raise SystemExit
@@ -192,3 +168,4 @@ class Validator:
                 print(f"""Validator init: python script {__file__} is not in the AutoFit package's directory.""")
 
         return loc
+
