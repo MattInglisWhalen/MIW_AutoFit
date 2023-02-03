@@ -1703,8 +1703,25 @@ class Frontend:
     def create_colors_console_menu(self):
 
         head_menu = tk.Menu(master=self._gui, tearoff=0)
-        head_menu.add_cascade(label="Background Colour", menu=self._printout_background_menu)
-        head_menu.add_cascade(label="Message Colour", menu=self._printout_menu)
+
+        # This works on PC but not OSX
+        # head_menu.add_cascade(label="Background Colour", menu=self._printout_background_menu)
+        # head_menu.add_cascade(label="Message Colour", menu=self._printout_menu)
+
+        background_menu = tk.Menu(master=head_menu, tearoff=0)
+        background_menu.add_command(label="Default", command=self.console_color_default)
+        background_menu.add_command(label="White", command=self.console_color_white)
+        background_menu.add_command(label="Pale", command=self.console_color_pale)
+
+
+        printout_menu = tk.Menu(master=head_menu, tearoff=0)
+        printout_menu.add_command(label="Default", command=self.printout_color_default)
+        printout_menu.add_command(label="White", command=self.printout_color_white)
+        printout_menu.add_command(label="Black", command=self.printout_color_black)
+
+
+        head_menu.add_cascade(label="Background Colour", menu=background_menu)
+        head_menu.add_cascade(label="Fit Colour", menu=printout_menu)
 
         self._colors_console_menu = head_menu
     def do_colors_console_popup(self, event: tk.Event):
@@ -1803,27 +1820,30 @@ class Frontend:
     def create_colors_image_menu(self):
 
         head_menu = tk.Menu(master=self._gui, tearoff=0)
-        head_menu.add_cascade(label="Background Colour", menu=self._background_menu)
-        head_menu.add_cascade(label="Data/Axis Colour", menu=self._dataaxis_menu)
-        head_menu.add_cascade(label="Fit Colour", menu=self._fit_colour_menu)
-        # background_menu = tk.Menu(master=head_menu, tearoff=0)
-        # background_menu.add_command(label="Default", command=self.bg_color_default)
-        # background_menu.add_command(label="White", command=self.bg_color_white)
-        # background_menu.add_command(label="Dark", command=self.bg_color_dark)
-        # background_menu.add_command(label="Black", command=self.bg_color_black)
-        #
-        # dataaxis_menu = tk.Menu(master=head_menu, tearoff=0)
-        # dataaxis_menu.add_command(label="Default", command=self.dataaxes_color_default)
-        # dataaxis_menu.add_command(label="White", command=self.dataaxes_color_white)
-        #
-        # fit_colour_menu = tk.Menu(master=head_menu, tearoff=0)
-        # fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
-        # fit_colour_menu.add_command(label="White", command=self.fit_color_white)
-        # fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
-        #
-        # head_menu.add_cascade(label="Background Colour", menu=background_menu)
-        # head_menu.add_cascade(label="Data/Axis Colour", menu=dataaxis_menu)
-        # head_menu.add_cascade(label="Fit Colour", menu=fit_colour_menu)
+
+        # This commented part works on PC but nto OSX
+        # head_menu.add_cascade(label="Background Colour", menu=self._background_menu)
+        # head_menu.add_cascade(label="Data/Axis Colour", menu=self._dataaxis_menu)
+        # head_menu.add_cascade(label="Fit Colour", menu=self._fit_colour_menu)
+
+        background_menu = tk.Menu(master=head_menu, tearoff=0)
+        background_menu.add_command(label="Default", command=self.bg_color_default)
+        background_menu.add_command(label="White", command=self.bg_color_white)
+        background_menu.add_command(label="Dark", command=self.bg_color_dark)
+        background_menu.add_command(label="Black", command=self.bg_color_black)
+
+        dataaxis_menu = tk.Menu(master=head_menu, tearoff=0)
+        dataaxis_menu.add_command(label="Default", command=self.dataaxes_color_default)
+        dataaxis_menu.add_command(label="White", command=self.dataaxes_color_white)
+
+        fit_colour_menu = tk.Menu(master=head_menu, tearoff=0)
+        fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
+        fit_colour_menu.add_command(label="White", command=self.fit_color_white)
+        fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
+
+        head_menu.add_cascade(label="Background Colour", menu=background_menu)
+        head_menu.add_cascade(label="Data/Axis Colour", menu=dataaxis_menu)
+        head_menu.add_cascade(label="Fit Colour", menu=fit_colour_menu)
 
         self._colors_image_menu = head_menu
     def do_colors_image_popup(self, event: tk.Event):
