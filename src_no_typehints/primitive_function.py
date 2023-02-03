@@ -1,11 +1,11 @@
 
 
 # built-in libraries
-from typing import Callable, Union
+import inspect
+from typing import Callable
 
 # external libraries
 import numpy as np
-from cmath import sin, cos, exp, log
 
 
 class PrimitiveFunction:
@@ -47,6 +47,8 @@ class PrimitiveFunction:
         self._arg = arg
 
     def __repr__(self):
+        if self._callable_1param is not None :
+            return f"Function {self._name} uses {self._callable_1param.__name__}(x,arg) with coefficient {self._arg}"
         return f"Function {self._name} uses {self._func.__name__}(x,arg) with coefficient {self._arg}"
 
 
@@ -63,7 +65,14 @@ class PrimitiveFunction:
         self._func = other
 
     def callable_2param(self,x,arg)  :
-        return arg*self._callable_1param(x)
+        try :
+            return arg*self._callable_1param(x)
+        except ValueError :
+            print(self, x, arg)
+            raise ValueError
+        except TypeError :
+            print(inspect.getmodule(self._callable_1param),self, x, arg)
+            raise TypeError
 
     @property
     def arg(self)  :
@@ -160,7 +169,7 @@ class PrimitiveFunction:
 
     @staticmethod
     def sum_(x, arg)  :  # shouldn't be added to built_in_dict
-        return x
+        return x + 0*arg
 
 
     @staticmethod
@@ -204,6 +213,9 @@ class PrimitiveFunction:
 
         PrimitiveFunction._built_in_prims_dict["exp"] = prim_exp
         PrimitiveFunction._built_in_prims_dict["log"] = prim_log
+
+        prim_shift = PrimitiveFunction(func=PrimitiveFunction.pow1_shift)
+        PrimitiveFunction._built_in_prims_dict["pow1_shift"] = prim_shift
 
         return PrimitiveFunction._built_in_prims_dict
 

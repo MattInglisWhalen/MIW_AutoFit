@@ -8,6 +8,7 @@ import re as regex
 # external libraries
 from tkinter import messagebox
 import tkinter as tk
+from PIL import Image, ImageTk
 # user-defined classes
 
 
@@ -16,18 +17,16 @@ class Validator:
     def __init__(self):
         self._filepath = (Validator.get_package_path()
                           + "/libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll")
-        self._data = (0,0,0)
 
-
-    def invalid_config(self)  :
-
+    @staticmethod
+    def extract_epoch_from_file(filepath):
         try:
-            with open(self._filepath) as file :
+            with open(filepath) as file :
                 for line in file:
                     cipher = line
                     break
                 message = Validator.de_crypt(cipher)
-                print(message)
+                # print(message)
         except FileNotFoundError :
             print("1> No secret file detected, exiting...")
             return f"Error code 1, exiting..."
@@ -43,42 +42,63 @@ class Validator:
             print("2> Epoch is not int-like, exiting...")
             return f"Error code 2, exiting..."
 
+        return secret_epoch
+
+    def invalid_config(self)  :
+
+        from datetime import datetime, timezone
+
+        secret_epoch = Validator.extract_epoch_from_file(self._filepath)  # when the secret was made in UTC (not signed)
+
+        # this timing is based off the assumption that the ingliswhalen.com server signs the certificate using UTC time
         if platform.system() == "Windows" :
-            creation_epoch = os.path.getctime(self._filepath)  # when the file was unzipped/copied
-            modify_epoch = os.path.getmtime(self._filepath) + 60*60   # when the file was created on the server / modified by pirate
-            # ZipArchive introduces an off-by-1 hour error so we ^ adjust for that
+            creation_epoch = os.path.getctime(self._filepath)  # when the file was unzipped/copied (locally signed)
+            modify_epoch = os.path.getmtime(self._filepath)    # when the file was created on the server (server signed)
         else :
             stat = os.stat(self._filepath)
             try :
-                modify_epoch = stat.st_mtime + 60*60
+                modify_epoch = stat.st_mtime
                 creation_epoch = stat.st_birthtime
             except AttributeError :
                 print("11> Linux isn't supported.")
                 return f"Error code 11, exiting..."
 
-        # epochs as times
-        import time
-        creation_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(creation_epoch))
-        modify_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(modify_epoch))
-        secret_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(secret_epoch))
-        self._data = (creation_epoch, modify_epoch, secret_epoch)
-        print(self._data)
+        zero_utc = datetime.fromtimestamp( 0, timezone.utc ).replace(tzinfo=None)
+        creation_utc = datetime.fromtimestamp( creation_epoch, timezone.utc ).replace(tzinfo=None)
+        modify_utc = datetime.fromtimestamp( modify_epoch )
+        secret_utc = datetime.fromtimestamp( secret_epoch, timezone.utc ).replace(tzinfo=None)
+
+        # print(creation_epoch, (creation_utc-zero_utc).total_seconds() )
+        # print(modify_epoch, (modify_utc-zero_utc).total_seconds() )
+        # print(secret_epoch, (secret_utc-zero_utc).total_seconds() )
+
+        creation_epoch =  (creation_utc-zero_utc).total_seconds()
+        modify_epoch = (modify_utc-zero_utc).total_seconds()
+        secret_epoch = (secret_utc-zero_utc).total_seconds()
+
+        # print(creation_utc,modify_utc,secret_utc)
+
+        seconds_cm = (creation_utc-modify_utc).total_seconds()
+        seconds_cs = (creation_utc-secret_utc).total_seconds()
+        seconds_ms = (modify_utc-secret_utc).total_seconds()
+
+        # print(seconds_cm,seconds_cs,seconds_ms,seconds_mc)
 
         # assume that the download (modify_epoch) to install (unzipping, creation_time) will take less than an hour
-        if abs(modify_epoch - creation_epoch) > 60*60 :
-            print(modify_epoch, creation_epoch)
+        if abs(seconds_cm) > 60*60 :
+            # print(modify_epoch, creation_epoch)
             print("3> You need to have less time between downloading and unzipping the file.")
             # return f"Error code {modify_time} / {creation_time}, exiting..."
             return f"Error code {int(modify_epoch) + 918273645} / {int(creation_epoch) + 192837465}, exiting..."
         # assume that the hidden secret_epoch and the modify_epoch (download) are aligned
-        if abs(secret_epoch-modify_epoch) > 5 :
-            print(secret_epoch, modify_epoch)
+        if abs(seconds_ms) > 5 :
+            # print(secret_epoch, modify_epoch)
             print("4> The secret file has been modified.")
             # return f"Error code {secret_time} = {modify_time}, exiting..."
             return f"Error code {int(secret_epoch) + 132457689} = {int(modify_epoch) + 978653421}, exiting..."
         # assume that the hidden secret_epoch and the creation_time (unzipping) are less than an hour apart
-        if abs(secret_epoch - creation_epoch) > 60*60 :
-            print(secret_epoch, creation_epoch)
+        if abs(seconds_cs) > 60*60 :
+            # print(secret_epoch, creation_epoch)
             print("5> You need to have less time between downloading and unzipping the file.")
             # return f"Error code {secret_time} | {creation_time}, exiting..."
             return f"Error code {int(secret_epoch) + 123456789} | {int(creation_epoch) + 546372819}, exiting..."
@@ -96,10 +116,14 @@ class Validator:
 
         # icon image and window title
         gui.iconbitmap(f"{Validator.get_package_path()}/icon.ico")
-        gui.title("AutoFit")
+        if sys.platform == "darwin" :
+            iconify = Image.open(f"{Validator.get_package_path()}/splash.png")
+            photo = ImageTk.PhotoImage(iconify)
+            gui.iconphoto(False,photo)
+        gui.title("MIW's AutoFit")
 
-        print(Validator.get_package_path())
-        error_box = messagebox.showerror("Configuration Error",
+        # print(Validator.get_package_path())
+        messagebox.showerror("Configuration Error",
                                          f"{error_msg}\n\nPlease try re-downloading this package from "
                                          f"ingliswhalen.com/MIWs-AutoFit/AutoFit-Pro-Downloads")
         raise SystemExit
@@ -119,7 +143,7 @@ class Validator:
                 char_scram += 256
             copy[ jump*(idx+1) % cipher_len ] = chr(char_scram)
 
-        print("".join(copy), cipher)
+        # print("".join(copy), cipher)
         return "".join(copy)
 
 
@@ -144,3 +168,4 @@ class Validator:
                 print(f"""Validator init: python script {__file__} is not in the AutoFit package's directory.""")
 
         return loc
+

@@ -40,7 +40,8 @@ then change datas in the .spec file to include the data you want
 datas=[('C:/Users/Matt/Documents/GitHub/MIW_AutoFit/autofit/icon.ico','.'),
            ('C:/Users/Matt/Documents/GitHub/MIW_AutoFit/autofit/splash.png','.'),
            ('C:/Users/Matt/Documents/GitHub/MIW_AutoFit/autofit/plots','plots'),
-           ('C:/Users/Matt/Documents/GitHub/MIW_AutoFit/autofit/data','data')],
+           ('C:/Users/Matt/Documents/GitHub/MIW_AutoFit/autofit/data','data'),
+           ('libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll','.')],
 
 > pyinstaller frontend_startup.spec
 

@@ -15,8 +15,11 @@ from PIL import Image, ImageTk
 class Validator:
 
     def __init__(self):
-        self._filepath = (Validator.get_package_path()
-                          + "/libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll")
+        self._filepath = Validator.get_package_path()
+        if sys.platform == "darwin" :
+            self._filepath += "/libdscheme.5.dylib"
+        else :
+            self._filepath += "/libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll"
 
     @staticmethod
     def extract_epoch_from_file(filepath):
@@ -85,7 +88,7 @@ class Validator:
         # print(seconds_cm,seconds_cs,seconds_ms,seconds_mc)
 
         # assume that the download (modify_epoch) to install (unzipping, creation_time) will take less than an hour
-        if abs(seconds_cm) > 60*60 :
+        if abs(seconds_cm) > 60*60 + 1 :
             # print(modify_epoch, creation_epoch)
             print("3> You need to have less time between downloading and unzipping the file.")
             # return f"Error code {modify_time} / {creation_time}, exiting..."
@@ -97,7 +100,7 @@ class Validator:
             # return f"Error code {secret_time} = {modify_time}, exiting..."
             return f"Error code {int(secret_epoch) + 132457689} = {int(modify_epoch) + 978653421}, exiting..."
         # assume that the hidden secret_epoch and the creation_time (unzipping) are less than an hour apart
-        if abs(seconds_cs) > 60*60 :
+        if abs(seconds_cs) > 60*60 + 1 :
             # print(secret_epoch, creation_epoch)
             print("5> You need to have less time between downloading and unzipping the file.")
             # return f"Error code {secret_time} | {creation_time}, exiting..."

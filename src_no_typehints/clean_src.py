@@ -9,9 +9,9 @@ def clean_src():
     os.chdir(src_files)
     print(src_files)
     for filename in os.listdir(src_files) :
-        if filename[-3:] != ".py" or "datum1D.py" in filename :
+        if filename[-3:] != ".py" or "datum1D" in filename :
             continue
-        print(filename, cleaned_files+"/cleaned_"+filename)
+        print(filename, cleaned_files+"/"+filename)
         with open(filename,'r') as infile, open(cleaned_files+"/"+filename,'w') as outfile :
             for line in infile :
 

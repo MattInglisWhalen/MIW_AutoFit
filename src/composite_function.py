@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 # built-in libraries
-import math
 from typing import Callable, Union
 import re as regex
-
 
 # external libraries
 import numpy as np
@@ -655,7 +653,7 @@ class CompositeFunction:
         if X0 :
             # print(f"{X0=}")
             # the model is working with LX as the independent variable, but we're being passed x
-            LX = math.log(x/X0)
+            LX = np.log(x/X0)
             x = LX
         children_eval_to = 0
         if len(self._children_list) == 0 :
@@ -664,7 +662,7 @@ class CompositeFunction:
                 LY = self._prim.eval_at(x)
                 if self._younger_brother is not None :
                     LY *= self._younger_brother.eval_at(x)
-                y = Y0*math.exp(LY)
+                y = Y0*np.exp(LY)
             else:
                 y = self._prim.eval_at(x)
                 if self._younger_brother is not None :
@@ -678,7 +676,7 @@ class CompositeFunction:
             LY = self._prim.eval_at(children_eval_to)
             if self._younger_brother is not None:
                 LY *= self._younger_brother.eval_at(x)
-            y = Y0*math.exp(LY)
+            y = Y0*np.exp(LY)
         else:
             y = self._prim.eval_at(children_eval_to)
             if self._younger_brother is not None:
@@ -762,7 +760,7 @@ class CompositeFunction:
         error_handler(" ")
         for prim in prim_names:
             valid = False
-            library_list = [np,scipy.special,scipy.stats._continuous_distns,math]
+            library_list = [np,scipy.special,scipy.stats._continuous_distns]
             library_names = ["numpy","scipy.special","scipy.stats"]  # math doesn't accept arrays of xvals as inputs
 
             if not valid and prim in PrimitiveFunction.built_in_dict():
