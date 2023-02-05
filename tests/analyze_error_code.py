@@ -13,8 +13,8 @@ def show_times_for_error_code(code: str) :
         modify_epoch = int(utc1) - 918273645
         creation_epoch = int(utc2) - 192837465
 
-        modify_utc = datetime.fromtimestamp(modify_epoch, timezone.utc).replace(tzinfo=None)
-        creation_utc = datetime.fromtimestamp(creation_epoch, timezone.utc).replace(tzinfo=None)
+        modify_utc = datetime.fromtimestamp(modify_epoch, timezone.utc)
+        creation_utc = datetime.fromtimestamp(creation_epoch, timezone.utc)
 
         print(modify_utc, "/", creation_utc)
     elif "=" in code :
@@ -22,8 +22,8 @@ def show_times_for_error_code(code: str) :
         secret_epoch = int(utc1) - 132457689
         modify_epoch = int(utc2) - 978653421
 
-        secret_utc = datetime.fromtimestamp(secret_epoch, timezone.utc).replace(tzinfo=None)
-        modify_utc = datetime.fromtimestamp(modify_epoch, timezone.utc).replace(tzinfo=None)
+        secret_utc = datetime.fromtimestamp(secret_epoch, timezone.utc)
+        modify_utc = datetime.fromtimestamp(modify_epoch, timezone.utc)
 
         print(secret_utc, "=", modify_utc)
     elif "|" in code :
@@ -31,9 +31,8 @@ def show_times_for_error_code(code: str) :
         secret_epoch = int(utc1) - 123456789
         creation_epoch = int(utc2) - 546372819
 
-
-        secret_utc = datetime.fromtimestamp(secret_epoch, timezone.utc).replace(tzinfo=None)
-        creation_utc = datetime.fromtimestamp(creation_epoch, timezone.utc).replace(tzinfo=None)
+        secret_utc = datetime.fromtimestamp(secret_epoch, timezone.utc)
+        creation_utc = datetime.fromtimestamp(creation_epoch, timezone.utc)
 
         print(secret_utc, "|", creation_utc)
 
@@ -42,5 +41,6 @@ def show_times_for_error_code(code: str) :
 
 if __name__ == "__main__" :
 
-    error_str = "1807894292 = 2654096973"
+    error_str = "2593821723 / 1868393395"
     show_times_for_error_code(error_str)
+

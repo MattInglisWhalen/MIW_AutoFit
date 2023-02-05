@@ -300,7 +300,7 @@ class Frontend:
                 elif "#LOAD_FILE_LOC" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
-                        arg = f"{Frontend.get_package_path()}/data"
+                        arg = f"{Frontend.get_data_path()}"
                     self._default_load_file_loc = arg
                 elif "#BG_COLOUR" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
@@ -549,15 +549,22 @@ class Frontend:
         gui = self._gui
 
         # window size and title
-        if self._default_gui_width <= self._os_width / 4 :
-            width = int(self._os_width * 3 / 4)
+        if self._default_gui_width <= self._os_width / 4 + 1 :
+            print(f"Undersized width {self._default_gui_width} {self._os_width}")
+            self._default_gui_width = int(self._os_width * 3 / 4)
         else :
-            width = min( self._default_gui_width , int(self._os_width * 7 / 6) )
-        if self._default_gui_height <= self._os_height / 4 :
-            height = int(self._os_height * 3 / 4)
+            print(f"Fine width {self._default_gui_width} {self._os_width * 7 / 6}")
+            self._default_gui_width = min( self._default_gui_width , int(self._os_width * 7 / 6) )
+
+        if self._default_gui_height <= self._os_height / 4 + 1 :
+            print(f"Undersized height {self._default_gui_height} {self._os_height}")
+            self._default_gui_height = int(self._os_height * 3 / 4)
         else :
-            height = min( self._default_gui_height , int(self._os_width * 7 / 6) )
-        gui.geometry(f"{width}x{height}+{self._default_gui_x}+{self._default_gui_y}")
+            print(f"Fine height {self._default_gui_height} {self._os_height * 7 / 6}")
+            self._default_gui_height = min( self._default_gui_height , int(self._os_height * 7 / 6) )
+
+        gui.geometry(f"{self._default_gui_width}x{self._default_gui_height}"
+                     f"+{self._default_gui_x}+{self._default_gui_y}")
         gui.rowconfigure(0, minsize=400, weight=1)
 
         # icon image and window title
@@ -714,7 +721,6 @@ class Frontend:
         self._right_panel_frame = tk.Frame(master=self._gui, bg=hexx(self._console_color))
         self._right_panel_frame.grid(row=0, column=2, sticky='news')
         self.add_message("> Welcome to MIW's AutoFit!")
-        self.create_colors_console_menu()
         self._right_panel_frame.bind(self._right_click, self.do_colors_console_popup)
 
     # LEFT PANEL FUNCTIONS -------------------------------------------------------------------------------------------->
@@ -1702,6 +1708,10 @@ class Frontend:
 
     def create_colors_console_menu(self):
 
+        if self._new_user_stage % 67 == 0 :
+            return
+        self._new_user_stage *= 67
+
         head_menu = tk.Menu(master=self._gui, tearoff=0)
 
         # This works on PC but not OSX
@@ -1713,18 +1723,17 @@ class Frontend:
         background_menu.add_command(label="White", command=self.console_color_white)
         background_menu.add_command(label="Pale", command=self.console_color_pale)
 
-
         printout_menu = tk.Menu(master=head_menu, tearoff=0)
         printout_menu.add_command(label="Default", command=self.printout_color_default)
         printout_menu.add_command(label="White", command=self.printout_color_white)
         printout_menu.add_command(label="Black", command=self.printout_color_black)
 
-
         head_menu.add_cascade(label="Background Colour", menu=background_menu)
-        head_menu.add_cascade(label="Fit Colour", menu=printout_menu)
+        head_menu.add_cascade(label="Message Colour", menu=printout_menu)
 
         self._colors_console_menu = head_menu
     def do_colors_console_popup(self, event: tk.Event):
+        self.create_colors_console_menu()
         image_colors_menu: tk.Menu = self._colors_console_menu
         try:
             image_colors_menu.tk_popup(event.x_root, event.y_root)
@@ -1801,7 +1810,6 @@ class Frontend:
         print(f"Created frame {self._image_frame}")
         self._image_frame.grid(row=0, column=0)
         self._image_frame.grid_propagate(True)
-        self.create_colors_image_menu()
         self._image_frame.bind(self._right_click, self.do_colors_image_popup)
         self._image_frame.bind('<MouseWheel>', self.do_image_resize)
     def switch_image(self):
@@ -1818,6 +1826,10 @@ class Frontend:
 
         self.switch_image()
     def create_colors_image_menu(self):
+
+        if self._new_user_stage % 61 == 0 :
+            return
+        self._new_user_stage *= 61
 
         head_menu = tk.Menu(master=self._gui, tearoff=0)
 
@@ -1847,6 +1859,7 @@ class Frontend:
 
         self._colors_image_menu = head_menu
     def do_colors_image_popup(self, event: tk.Event):
+        self.create_colors_image_menu()
         image_colors_menu: tk.Menu = self._colors_image_menu
         try:
             image_colors_menu.tk_popup(event.x_root, event.y_root)
@@ -3402,15 +3415,6 @@ class Frontend:
                                        )
         self._library_stats.grid(row=0, column=3, sticky='w')
 
-        # self._library_math = tk.Button(self._fit_options_frame,
-        #                                text="<math>",
-        #                                font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
-        #                                width=common_width,
-        #                                bd=self._platform_border,
-        #                                command=self.print_math_library
-        #                               )
-        # self._library_math.grid(row=0, column=4, sticky='w')
-
         self._library_autofit = tk.Button(self._fit_options_frame,
                                           text="<autofit>",
                                           font=(
@@ -3505,25 +3509,7 @@ class Frontend:
                 self.add_message(buffer[:-2])
                 buffer = "  "
         self.add_message(buffer[:-2])
-    # def print_math_library(self):
-    #     buffer = "\n \n <math> options: \n  "
-    #     for memb in dir(math):
-    #         fn = getattr(math, memb)
-    #         if str(type(fn)) == "<class 'builtin_function_or_method'>":
-    #             try:
-    #                 y = fn(np.pi / 4)
-    #             except TypeError:
-    #                 print(f"{memb} not 1D")
-    #             except ValueError:
-    #                 print(f"{memb} doesn't accept float values")
-    #             else:
-    #                 if type(y) == float:
-    #                     print(memb, y)
-    #                     buffer += f"{memb}, "
-    #         if len(buffer) > 50:
-    #             self.add_message(buffer[:-2])
-    #             buffer = "  "
-    #     self.add_message(buffer[:-2])
+
     def print_autofit_library(self):
         buffer = "\n \n  <autofit> options: \n  "
         for key, prim in PrimitiveFunction.build_built_in_dict().items():
@@ -3550,7 +3536,7 @@ class Frontend:
     def get_package_path():
 
         try:
-            loc = sys._MEIPASS  # for pyinstaller
+            loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
         except AttributeError:
             Frontend._meipass_flag = False
             filepath = os.path.abspath(__file__)
@@ -3563,9 +3549,35 @@ class Frontend:
             loc = os.path.dirname(loc)
             if loc == os.path.dirname(loc):
                 # print(f"""Frontend init: python script {__file__} is not in the AutoFit package's directory.""")
-                return fallback
+                loc = fallback
+                break
+
+        if sys.platform == "darwin" :
+            if os.path.exists(f"{loc}/MIW's AutoFit.app") :
+                loc = loc + "/MIW's AutoFit.app/Contents/MacOS"
+        else :
+            if os.path.exists(f"{loc}/backend") :
+                loc = loc + "/backend"
 
         return loc
+
+    @staticmethod
+    def get_data_path():
+
+        try:
+            loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
+        except AttributeError:
+            Frontend._meipass_flag = False
+            filepath = os.path.abspath(__file__)
+            loc = os.path.dirname(filepath)
+
+        fallback = loc
+        while loc[-7:] != "autofit":
+            loc = os.path.dirname(loc)
+            if loc == os.path.dirname(loc):
+                return fallback
+        return loc+"/data"
+
     def show_current_data(self):
         self.show_data()
         self._showing_fit_image = False

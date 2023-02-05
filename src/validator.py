@@ -1,5 +1,6 @@
 
 # built-in libraries
+import _tkinter
 import platform
 import sys
 import os as os
@@ -22,36 +23,54 @@ class Validator:
             self._filepath += "/libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll"
 
     @staticmethod
-    def extract_epoch_from_file(filepath):
+    def extract_epoch_from_file(filepath) -> tuple[int, str]:
+        if not os.path.exists(filepath) :
+            print("1> No secret file detected, exiting...")
+            return 0, f"Error code 1, exiting..."
         try:
             with open(filepath) as file :
+                cipher = ""
                 for line in file:
+                    if len(line) < 5 :
+                        print("2> No content, exiting...")
+                        return 0, f"Error code 2, exiting..."
                     cipher = line
                     break
+                if cipher == "" :
+                    print("3> No content, exiting...")
+                    return 0, f"Error code 3, exiting..."
                 message : str = Validator.de_crypt(cipher)
                 # print(message)
         except FileNotFoundError :
-            print("1> No secret file detected, exiting...")
-            return f"Error code 1, exiting..."
+            print("4> No secret file detected, exiting...")
+            return 0, f"Error code 4, exiting..."
 
+        print(message)
         part : list[str] = regex.split(f"<<<",message)
-        _ , str_epoch = regex.split(f">>>",part[0])
-        _, str_transaction_ID = regex.split(f">>>", part[1])
+        try :
+            _ , str_epoch = regex.split(f">>>",part[0])
+            _, str_transaction_ID = regex.split(f">>>", part[1])
+        except ValueError:
+            print("5> Invalid hash, exiting...")
+            return 0, f"Error code 5, exiting..."
 
         # if the file doesn't decrypt, it's been modified
         try :
             secret_epoch = int(str_epoch)
         except ValueError:
-            print("2> Epoch is not int-like, exiting...")
-            return f"Error code 2, exiting..."
+            print("6> Invalid int, exiting...")
+            return 0, f"Error code 6, exiting..."
 
-        return secret_epoch
+        return secret_epoch, ""
 
     def invalid_config(self) -> str:
 
         from datetime import datetime, timezone
 
-        secret_epoch = Validator.extract_epoch_from_file(self._filepath)  # when the secret was made in UTC (not signed)
+        # when the secret was made in UTC (not signed)
+        secret_epoch, err_str = Validator.extract_epoch_from_file(self._filepath)
+        if secret_epoch < 1 or err_str != "" :
+            return err_str
 
         # this timing is based off the assumption that the ingliswhalen.com server signs the certificate using UTC time
         if platform.system() == "Windows" :
@@ -70,6 +89,10 @@ class Validator:
         creation_utc = datetime.fromtimestamp( creation_epoch, timezone.utc ).replace(tzinfo=None)
         modify_utc = datetime.fromtimestamp( modify_epoch )
         secret_utc = datetime.fromtimestamp( secret_epoch, timezone.utc ).replace(tzinfo=None)
+
+        print("Validator: create -- ",creation_utc)
+        print("Validator: modify -- ",modify_utc)
+        print("Validator: secret -- ",secret_utc)
 
         # print(creation_epoch, (creation_utc-zero_utc).total_seconds() )
         # print(modify_epoch, (modify_utc-zero_utc).total_seconds() )
@@ -118,15 +141,21 @@ class Validator:
         gui.rowconfigure(0, minsize=800, weight=1)
 
         # icon image and window title
-        gui.iconbitmap(f"{Validator.get_package_path()}/icon.ico")
+        try :
+            gui.iconbitmap(f"{Validator.get_package_path()}/icon.ico")
+        except _tkinter.TclError :
+            messagebox.showerror(f"Packaging error: no icon.ico located in {Validator.get_package_path()}")
         if sys.platform == "darwin" :
-            iconify = Image.open(f"{Validator.get_package_path()}/splash.png")
-            photo = ImageTk.PhotoImage(iconify)
-            gui.iconphoto(False,photo)
+            try :
+                iconify = Image.open(f"{Validator.get_package_path()}/splash.png")
+                photo = ImageTk.PhotoImage(iconify)
+                gui.iconphoto(False,photo)
+            except _tkinter.TclError:
+                messagebox.showerror(f"Packaging error: no splash.png located in {Validator.get_package_path()}")
         gui.title("MIW's AutoFit")
 
         # print(Validator.get_package_path())
-        messagebox.showerror("Configuration Error",
+        messagebox.showerror(f"Configuration Error in {Validator.get_package_path()}\n\n",
                                          f"{error_msg}\n\nPlease try re-downloading this package from "
                                          f"ingliswhalen.com/MIWs-AutoFit/AutoFit-Pro-Downloads")
         raise SystemExit
@@ -155,20 +184,24 @@ class Validator:
     def get_package_path():
 
         try:
-            # noinspection PyUnresolvedReferences
-            return sys._MEIPASS  # for pyinstaller
+            loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
         except AttributeError:
-            pass
+            filepath = os.path.abspath(__file__)
+            loc = os.path.dirname(filepath)
             # print("It doesn't know about _MEIPASS")
 
         # keep stepping back from the current directory until we are in the directory /autofit
-        filepath = os.path.abspath(__file__)
-        loc = os.path.dirname(filepath)
-
         while loc[-7:] != "autofit":
             loc = os.path.dirname(loc)
             if loc == os.path.dirname(loc):
                 print(f"""Validator init: python script {__file__} is not in the AutoFit package's directory.""")
+
+        if sys.platform == "darwin" :
+            if os.path.exists(f"{loc}/MIW's AutoFit.app") :
+                loc = loc + "/MIW's AutoFit.app/Contents/MacOS"
+        else :
+            if os.path.exists(f"{loc}/backend") :
+                loc = loc + "/backend"
 
         return loc
 
