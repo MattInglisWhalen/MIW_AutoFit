@@ -42,7 +42,7 @@ class Validator:
                 message : str = Validator.de_crypt(cipher)
                 # print(message)
         except FileNotFoundError :
-            print("4> No secret file detected, exiting...")
+            print("4> No file detected, exiting...")
             return 0, f"Error code 4, exiting..."
 
         print(message)
@@ -90,9 +90,9 @@ class Validator:
         modify_utc = datetime.fromtimestamp( modify_epoch )
         secret_utc = datetime.fromtimestamp( secret_epoch, timezone.utc ).replace(tzinfo=None)
 
-        print("Validator: create -- ",creation_utc)
-        print("Validator: modify -- ",modify_utc)
-        print("Validator: secret -- ",secret_utc)
+        # print("Validator: create -- ",creation_utc)
+        # print("Validator: modify -- ",modify_utc)
+        # print("Validator: secret -- ",secret_utc)
 
         # print(creation_epoch, (creation_utc-zero_utc).total_seconds() )
         # print(modify_epoch, (modify_utc-zero_utc).total_seconds() )
@@ -113,19 +113,19 @@ class Validator:
         # assume that the download (modify_epoch) to install (unzipping, creation_time) will take less than an hour
         if abs(seconds_cm) > 60*60 + 1 :
             # print(modify_epoch, creation_epoch)
-            print("3> You need to have less time between downloading and unzipping the file.")
+            print("7> ")  # You need to have less time between downloading and unzipping the file.
             # return f"Error code {modify_time} / {creation_time}, exiting..."
             return f"Error code {int(modify_epoch) + 918273645} / {int(creation_epoch) + 192837465}, exiting..."
         # assume that the hidden secret_epoch and the modify_epoch (download) are aligned
         if abs(seconds_ms) > 5 :
             # print(secret_epoch, modify_epoch)
-            print("4> The secret file has been modified.")
+            print("8>")  # The secret file has been modified.
             # return f"Error code {secret_time} = {modify_time}, exiting..."
             return f"Error code {int(secret_epoch) + 132457689} = {int(modify_epoch) + 978653421}, exiting..."
         # assume that the hidden secret_epoch and the creation_time (unzipping) are less than an hour apart
         if abs(seconds_cs) > 60*60 + 1 :
             # print(secret_epoch, creation_epoch)
-            print("5> You need to have less time between downloading and unzipping the file.")
+            print("9>")  # You need to have less time between downloading and unzipping the file.
             # return f"Error code {secret_time} | {creation_time}, exiting..."
             return f"Error code {int(secret_epoch) + 123456789} | {int(creation_epoch) + 546372819}, exiting..."
         return ""
@@ -197,8 +197,8 @@ class Validator:
                 print(f"""Validator init: python script {__file__} is not in the AutoFit package's directory.""")
 
         if sys.platform == "darwin" :
-            if os.path.exists(f"{loc}/MIW's AutoFit.app") :
-                loc = loc + "/MIW's AutoFit.app/Contents/MacOS"
+            if os.path.exists(f"{loc}/MIWs_AutoFit.app") :
+                loc = loc + "/MIWs_AutoFit.app/Contents/MacOS"
         else :
             if os.path.exists(f"{loc}/backend") :
                 loc = loc + "/backend"

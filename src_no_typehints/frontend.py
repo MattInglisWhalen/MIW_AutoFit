@@ -1,16 +1,17 @@
 # default libraries
 import _tkinter
-# import math
+
 import sys
 import os as os
 import re as regex
+from functools import partial
 
 # external libraries
 import tkinter as tk
 import tkinter.filedialog as fd
 
 import numpy as np
-import pandas as pd
+from pandas import ExcelFile
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -50,8 +51,8 @@ class Frontend:
 
         # panels
         self._left_panel_frame= None
-        self._middle_panel_frame = None
-        self._right_panel_frame = None
+        self._middle_panel_frame= None
+        self._right_panel_frame= None
 
         # left panel ------------------------------------------------------------------------------------------------->
         self._fit_data_button= None
@@ -78,8 +79,8 @@ class Frontend:
         # middle panel ------------------------------------------------------------------------------------------------>
         self._middle_panel_frame= None
 
-        self._data_perusal_frame = None
-        self._fit_options_frame = None
+        self._data_perusal_frame= None
+        self._fit_options_frame= None
         self._plot_options_frame= None
         self._polynomial_frame= None
         self._procedural_frame= None
@@ -106,8 +107,8 @@ class Frontend:
         self._show_error_bands = 0
 
         # fit options frame
-        self._model_name_tkstr = tk.StringVar(value="")
-        self._which5_name_tkstr = None
+        self._model_name_tkstr= tk.StringVar(value="")
+        self._which5_name_tkstr= None
         self._which_tr_id = None
 
         self._pause_button= None
@@ -137,25 +138,25 @@ class Frontend:
             self._use_func_dict_name_tkbool[name] = tk.BooleanVar(value=False)
         self._max_functions_tkint = tk.IntVar(value=3)
         self._depth_label = None
-        self._custom_checkbox = None
+        self._custom_checkbox= None
         self._custom_binding = None
-        self._custom_remove_menu = None
+        self._custom_remove_menu= None
 
         # brute-force frame
         self._brute_forcing_tkbool = tk.BooleanVar(value=False)
 
         # manual frame
-        self._manual_name_tkstr = tk.StringVar(value="")
-        self._manual_form_tkstr = tk.StringVar(value="")
-        self._manual_model = None
-        self._library_numpy = None
-        self._library_special = None
-        self._library_stats = None
-        # self._library_math = None
-        self._library_autofit = None
-        self._error_label = None
-        self._current_name_label = None
-        self._current_form_label = None
+        self._manual_name_tkstr= tk.StringVar(value="")
+        self._manual_form_tkstr= tk.StringVar(value="")
+        self._manual_model= None
+        self._library_numpy= None
+        self._library_special= None
+        self._library_stats= None
+        # self._library_math= None
+        self._library_autofit= None
+        self._error_label= None
+        self._current_name_label= None
+        self._current_form_label= None
 
         # defaults config --------------------------------------------------------------------------------------------->
         self._default_gui_width = 0
@@ -168,12 +169,12 @@ class Frontend:
         self._default_excel_sigmax_range = None
         self._default_excel_sigmay_range = None
         self._default_load_file_loc = None
-        self._default_bg_colour = None
-        self._default_dataaxes_colour = None
-        self._default_fit_colour = None
-        self._default_console_colour = None
-        self._default_printout_colour = None
-        self._default_os_scaling = 1
+        self._default_bg_colour= None
+        self._default_dataaxes_colour= None
+        self._default_fit_colour= None
+        self._default_console_colour= None
+        self._default_printout_colour= None
+        self._default_os_scaling= 1
         if sys.platform == "darwin" :
             self._platform_offset = 4
             self._platform_scale = 0.85
@@ -183,6 +184,7 @@ class Frontend:
             self.sym_up = "\U00002191"
             self.sym_right = "\U00002192"
             self.sym_down = "\U00002193"
+            self._right_click = "<Button-2>"
         else :
             self._platform_offset = 0
             self._platform_scale = 0.85
@@ -192,12 +194,13 @@ class Frontend:
             self.sym_up = "\U0001F845"
             self.sym_right = "\U0001F846"
             self.sym_down = "\U0001F847"
+            self._right_click = "<Button-3>"
         self.sym_check = " \U00002713"
-        self._image_r = 1
-        self._custom_function_names = ""
-        self._custom_function_forms = ""
-        self._default_manual_name = "N/A"
-        self._default_manual_form = "N/A"
+        self._image_r= 1
+        self._custom_function_names= ""
+        self._custom_function_forms= ""
+        self._default_manual_name= "N/A"
+        self._default_manual_form= "N/A"
         self._custom_function_button = None
 
 
@@ -224,14 +227,13 @@ class Frontend:
         self.load_defaults()
         self.print_defaults()
 
-        # Fix OS scaling
-        # self._gui.tk.call('tk', 'scaling', self._default_os_scaling)
-
         # load in splash screen
         self.load_splash_screen()
 
-        self.add_message(f"  Directory is{':' if Frontend._meipass_flag else ''} {Frontend.get_package_path()}")
-        print(f"{Frontend._meipass_flag}")
+        if not Frontend._meipass_flag :
+            self.add_message(f"  Directory is {Frontend.get_package_path()}")
+        self._gui.geometry(f"{self._default_gui_width}x{self._default_gui_height}+{self._default_gui_x}"
+                           f"+{self._default_gui_y}")  # to fix aspect ratio changing in add_message
 
     def touch_defaults(self):
         try:
@@ -298,7 +300,7 @@ class Frontend:
                 elif "#LOAD_FILE_LOC" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
-                        arg = f"{Frontend.get_package_path()}/data"
+                        arg = f"{Frontend.get_data_path()}"
                     self._default_load_file_loc = arg
                 elif "#BG_COLOUR" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
@@ -449,7 +451,7 @@ class Frontend:
                     else :
                         self.criterion = "rchisqr"
     def save_defaults(self):
-        # print("SAVED DEFAULTS")
+        # print(f"SAVED DEFAULTS}")
         if self.brute_forcing or self._default_fit_type == "Brute-Force":
             return
         with open(f"{Frontend.get_package_path()}/frontend.cfg", 'w') as file:
@@ -547,15 +549,22 @@ class Frontend:
         gui = self._gui
 
         # window size and title
-        if self._default_gui_width < self._os_width / 4 :
-            width = int(self._os_width * 5 / 6)
+        if self._default_gui_width <= self._os_width / 4 + 1 :
+            print(f"Undersized width {self._default_gui_width} {self._os_width}")
+            self._default_gui_width = int(self._os_width * 3 / 4)
         else :
-            width = min( self._default_gui_width , int(self._os_width * 7 / 6) )
-        if self._default_gui_height < self._os_height / 4 :
-            height = int(self._os_height * 5 / 6)
+            print(f"Fine width {self._default_gui_width} {self._os_width * 7 / 6}")
+            self._default_gui_width = min( self._default_gui_width , int(self._os_width * 7 / 6) )
+
+        if self._default_gui_height <= self._os_height / 4 + 1 :
+            print(f"Undersized height {self._default_gui_height} {self._os_height}")
+            self._default_gui_height = int(self._os_height * 3 / 4)
         else :
-            height = min( self._default_gui_height , int(self._os_width * 7 / 6) )
-        gui.geometry(f"{width}x{height}+{self._default_gui_x}+{self._default_gui_y}")
+            print(f"Fine height {self._default_gui_height} {self._os_height * 7 / 6}")
+            self._default_gui_height = min( self._default_gui_height , int(self._os_height * 7 / 6) )
+
+        gui.geometry(f"{self._default_gui_width}x{self._default_gui_height}"
+                     f"+{self._default_gui_x}+{self._default_gui_y}")
         gui.rowconfigure(0, minsize=400, weight=1)
 
         # icon image and window title
@@ -576,6 +585,7 @@ class Frontend:
         self.create_middle_panel()
         # right panel -- text output
         self.create_right_panel()
+
 
     # MENUS
     def create_file_menu(self):
@@ -633,8 +643,8 @@ class Frontend:
         event_down = tk.Event()
         event_down.delta = -120
         image_size_menu = tk.Menu(master=appearance_menu, tearoff=0)
-        image_size_menu.add_command(label="Up", command=lambda: self.do_image_resize(event_up))
-        image_size_menu.add_command(label="Down", command=lambda: self.do_image_resize(event_down))
+        image_size_menu.add_command(label="Up", command= partial(self.do_image_resize,event_up))
+        image_size_menu.add_command(label="Down", command=partial(self.do_image_resize,event_down))
 
         self._printout_background_menu = tk.Menu(master=appearance_menu, tearoff=0)
         self._printout_background_menu.add_command(label="Default", command=self.console_color_default)
@@ -692,7 +702,7 @@ class Frontend:
     def create_left_panel(self):
         self._left_panel_frame = tk.Frame(master=self._gui, relief=tk.RAISED, bg='white', height=self._os_height)
         self._left_panel_frame.grid(row=0, column=0, sticky='ns')
-        print(self._left_panel_frame.winfo_height(), self._os_height)
+        # print("Left panel:",self._left_panel_frame.winfo_height(), self._os_height)
         self.create_load_data_button()
     def create_middle_panel(self):
         self._gui.columnconfigure(1, minsize=128)  # image panel
@@ -711,9 +721,7 @@ class Frontend:
         self._right_panel_frame = tk.Frame(master=self._gui, bg=hexx(self._console_color))
         self._right_panel_frame.grid(row=0, column=2, sticky='news')
         self.add_message("> Welcome to MIW's AutoFit!")
-        self.create_colors_console_menu()
-        self._right_panel_frame.bind('<Button-3>', self.do_colors_console_popup)
-
+        self._right_panel_frame.bind(self._right_click, self.do_colors_console_popup)
 
     # LEFT PANEL FUNCTIONS -------------------------------------------------------------------------------------------->
 
@@ -757,7 +765,7 @@ class Frontend:
                     new_filepaths.remove(path)
                     continue
                 self._new_user_stage *= 23
-                sheet_names = pd.ExcelFile(path).sheet_names
+                sheet_names = ExcelFile(path).sheet_names
                 if self._all_sheets_in_file.get():
                     for _ in range(len(sheet_names) - 1):
                         self._filepaths.append(path)
@@ -927,7 +935,7 @@ class Frontend:
     def load_new_data(self, new_filepaths_lists):
         for path in new_filepaths_lists:
             if path[-4:] in [".xls", "xlsx", ".ods"]:
-                for idx, sheet_name in enumerate(pd.ExcelFile(path).sheet_names):
+                for idx, sheet_name in enumerate(ExcelFile(path).sheet_names):
                     self._data_handlers.append(DataHandler(filepath=path))
                     self._data_handlers[-1].set_excel_sheet_name(sheet_name)
                     self._data_handlers[-1].set_excel_args(x_range_str=self._excel_x_range,
@@ -940,6 +948,8 @@ class Frontend:
             else:
                 # only add one data handler
                 self._data_handlers.append(DataHandler(filepath=path))
+
+
     def show_data(self):
 
         new_image_path = f"{Frontend.get_package_path()}/plots/front_end_current_plot.png"
@@ -951,8 +961,7 @@ class Frontend:
         sigma_y_points = self.data_handler.unlogged_sigmay_data
 
         plt.close()
-        fig = plt.figure()
-        fig.patch.set_facecolor(self._bg_color)
+        plt.figure(facecolor=self._bg_color)
 
         plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o',
                      color=self._dataaxes_color)
@@ -1008,7 +1017,7 @@ class Frontend:
         axes.yaxis.set_label_coords(offset_X + tx, +0.750)
 
         plt.tight_layout()
-        plt.savefig(new_image_path)
+        plt.savefig(new_image_path, facecolor=self._bg_color)
 
         # replace the splash graphic with the plot
         self._image_path = new_image_path
@@ -1342,32 +1351,35 @@ class Frontend:
 
         name_label = tk.Label(master=data_frame, text="Function Name")
         name_label.grid(row=0, column=0, sticky='w')
-        name_data = tk.Entry(master=data_frame, width=25)
+        name_data = tk.Entry(master=data_frame, width=35)
         name_data.insert(0, "")
         name_data.grid(row=0, column=1, sticky='w')
 
         form_label = tk.Label(master=data_frame, text="Functional Form")
         form_label.grid(row=1, column=0, sticky='w')
-        form_data = tk.Entry(master=data_frame, width=25)
+        form_data = tk.Entry(master=data_frame, width=35)
         form_data.insert(0, "")
         form_data.grid(row=1, column=1, sticky='w')
 
         name_example_label = tk.Label(master=data_frame, text="\nName Example")
         name_example_label.grid(row=2, column=0, sticky='w')
-        name_example_data = tk.Entry(master=data_frame, width=25)
-        name_example_data.insert(0, "cool_thing_2")
+        name_example_data = tk.Entry(master=data_frame, width=35)
+        name_example_data.insert(0, "new_primitive")
         name_example_data.grid(row=2, column=1, sticky='ws')
 
         form_example_label = tk.Label(master=data_frame, text="Form Example")
         form_example_label.grid(row=3, column=0, sticky='w')
-        form_example_data = tk.Entry(master=data_frame, width=25)
-        form_example_data.insert(0, "np.atan(x)*np.exp(-x*x)")
+        form_example_data = tk.Entry(master=data_frame, width=35)
+        form_example_data.insert(0, "np.atan(x)*scipy.special.jv(0,x)")
         form_example_data.grid(row=3, column=1, sticky='w')
 
-        explanation_label = tk.Label(master=exp_frame, text="\nSupports numpy functions. Avoid special characters "
-                                                            "and spaces. \n The first letter of the name should come "
-                                                            "before 's' in the alphabet.")
-        explanation_label.grid(row=4, column=0, sticky='w')
+        explanation_label1 = tk.Label(master=exp_frame, text="\nSupports numpy and scipy functions.")
+        explanation_label1.grid(row=4, column=0, sticky='w')
+        explanation_label2 = tk.Label(master=exp_frame, text="Avoid special characters and spaces.")
+        explanation_label2.grid(row=5, column=0, sticky='w')
+        explanation_label3 = tk.Label(master=exp_frame, text="The first letter of the name"
+                                                            " should come before 's' in the alphabet.")
+        explanation_label3.grid(row=6, column=0, sticky='w')
 
         close_dialog_button = tk.Button(
             master=data_frame,
@@ -1401,17 +1413,23 @@ class Frontend:
             self.add_message("\nYou can't reuse names.")
             return
         if " " in form_str:
-            self.add_message("\nYou can't have a name with a space in it.")
+            self.add_message("\nYou can't have a functional form with a space in it.")
             return
         if form_str == '':
-            self.add_message("\nYou can't have a blank name.\n")
+            self.add_message("\nYou can't have a blank functional form.\n")
             return
 
         self._custom_function_names += f" {name_str}"
         self._custom_function_forms += f" {form_str}"
         self._changed_optimizer_opts_flag = True
         self.update_custom_checkbox()
-        self.update_optimizer()
+        try :
+            self.update_optimizer()
+        except AttributeError as ae:
+            self.add_message( f"\n \n> Custom Function Error: {str(ae)}" )
+            self.remove_named_custom(name_str)
+            self.update_custom_checkbox()
+            return
         self.save_defaults()
         self._popup_window.destroy()
 
@@ -1424,10 +1442,10 @@ class Frontend:
     def add_message(self, message_string)  :
 
         # TODO: consider also printing to a log file
-
-        text_frame = self._gui.children['!frame3']
+        # print("Add_message: ",self._gui.winfo_height(), message_string)
+        text_frame = self._right_panel_frame  # self._gui.children['!frame3']
         text_frame.update()
-
+        # print("Add_message: ",self._gui.winfo_height(), message_string)
 
         for line in regex.split(f"\n", message_string):
             if line == "":
@@ -1690,12 +1708,32 @@ class Frontend:
 
     def create_colors_console_menu(self):
 
+        if self._new_user_stage % 67 == 0 :
+            return
+        self._new_user_stage *= 67
+
         head_menu = tk.Menu(master=self._gui, tearoff=0)
-        head_menu.add_cascade(label="Background Colour", menu=self._printout_background_menu)
-        head_menu.add_cascade(label="Message Colour", menu=self._printout_menu)
+
+        # This works on PC but not OSX
+        # head_menu.add_cascade(label="Background Colour", menu=self._printout_background_menu)
+        # head_menu.add_cascade(label="Message Colour", menu=self._printout_menu)
+
+        background_menu = tk.Menu(master=head_menu, tearoff=0)
+        background_menu.add_command(label="Default", command=self.console_color_default)
+        background_menu.add_command(label="White", command=self.console_color_white)
+        background_menu.add_command(label="Pale", command=self.console_color_pale)
+
+        printout_menu = tk.Menu(master=head_menu, tearoff=0)
+        printout_menu.add_command(label="Default", command=self.printout_color_default)
+        printout_menu.add_command(label="White", command=self.printout_color_white)
+        printout_menu.add_command(label="Black", command=self.printout_color_black)
+
+        head_menu.add_cascade(label="Background Colour", menu=background_menu)
+        head_menu.add_cascade(label="Message Colour", menu=printout_menu)
 
         self._colors_console_menu = head_menu
     def do_colors_console_popup(self, event):
+        self.create_colors_console_menu()
         image_colors_menu= self._colors_console_menu
         try:
             image_colors_menu.tk_popup(event.x_root, event.y_root)
@@ -1772,8 +1810,7 @@ class Frontend:
         print(f"Created frame {self._image_frame}")
         self._image_frame.grid(row=0, column=0)
         self._image_frame.grid_propagate(True)
-        self.create_colors_image_menu()
-        self._image_frame.bind('<Button-3>', self.do_colors_image_popup)
+        self._image_frame.bind(self._right_click, self.do_colors_image_popup)
         self._image_frame.bind('<MouseWheel>', self.do_image_resize)
     def switch_image(self):
         img_raw = Image.open(self._image_path)
@@ -1783,38 +1820,46 @@ class Frontend:
         self._image_frame.configure(image=self._image)
     def do_image_resize(self, event):
 
-        print(type(event))
+        # print(type(event))
         d = event.delta / 120
         self._image_r *= (1 + d / 10)
 
         self.switch_image()
     def create_colors_image_menu(self):
 
+        if self._new_user_stage % 61 == 0 :
+            return
+        self._new_user_stage *= 61
+
         head_menu = tk.Menu(master=self._gui, tearoff=0)
-        head_menu.add_cascade(label="Background Colour", menu=self._background_menu)
-        head_menu.add_cascade(label="Data/Axis Colour", menu=self._dataaxis_menu)
-        head_menu.add_cascade(label="Fit Colour", menu=self._fit_colour_menu)
-        # background_menu = tk.Menu(master=head_menu, tearoff=0)
-        # background_menu.add_command(label="Default", command=self.bg_color_default)
-        # background_menu.add_command(label="White", command=self.bg_color_white)
-        # background_menu.add_command(label="Dark", command=self.bg_color_dark)
-        # background_menu.add_command(label="Black", command=self.bg_color_black)
-        #
-        # dataaxis_menu = tk.Menu(master=head_menu, tearoff=0)
-        # dataaxis_menu.add_command(label="Default", command=self.dataaxes_color_default)
-        # dataaxis_menu.add_command(label="White", command=self.dataaxes_color_white)
-        #
-        # fit_colour_menu = tk.Menu(master=head_menu, tearoff=0)
-        # fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
-        # fit_colour_menu.add_command(label="White", command=self.fit_color_white)
-        # fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
-        #
-        # head_menu.add_cascade(label="Background Colour", menu=background_menu)
-        # head_menu.add_cascade(label="Data/Axis Colour", menu=dataaxis_menu)
-        # head_menu.add_cascade(label="Fit Colour", menu=fit_colour_menu)
+
+        # This commented part works on PC but nto OSX
+        # head_menu.add_cascade(label="Background Colour", menu=self._background_menu)
+        # head_menu.add_cascade(label="Data/Axis Colour", menu=self._dataaxis_menu)
+        # head_menu.add_cascade(label="Fit Colour", menu=self._fit_colour_menu)
+
+        background_menu = tk.Menu(master=head_menu, tearoff=0)
+        background_menu.add_command(label="Default", command=self.bg_color_default)
+        background_menu.add_command(label="White", command=self.bg_color_white)
+        background_menu.add_command(label="Dark", command=self.bg_color_dark)
+        background_menu.add_command(label="Black", command=self.bg_color_black)
+
+        dataaxis_menu = tk.Menu(master=head_menu, tearoff=0)
+        dataaxis_menu.add_command(label="Default", command=self.dataaxes_color_default)
+        dataaxis_menu.add_command(label="White", command=self.dataaxes_color_white)
+
+        fit_colour_menu = tk.Menu(master=head_menu, tearoff=0)
+        fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
+        fit_colour_menu.add_command(label="White", command=self.fit_color_white)
+        fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
+
+        head_menu.add_cascade(label="Background Colour", menu=background_menu)
+        head_menu.add_cascade(label="Data/Axis Colour", menu=dataaxis_menu)
+        head_menu.add_cascade(label="Fit Colour", menu=fit_colour_menu)
 
         self._colors_image_menu = head_menu
     def do_colors_image_popup(self, event):
+        self.create_colors_image_menu()
         image_colors_menu= self._colors_image_menu
         try:
             image_colors_menu.tk_popup(event.x_root, event.y_root)
@@ -2613,8 +2658,8 @@ class Frontend:
             fit_vals = [plot_model.eval_at(xi) for xi in smooth_x_for_fit]
 
         plt.close()
-        fig = plt.figure()
-        fig.patch.set_facecolor(self._bg_color)
+        plt.figure(facecolor=self._bg_color)
+
         plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color=self._dataaxes_color)
 
         plt.plot(smooth_x_for_fit, fit_vals, '-', color=self._fit_color)
@@ -2679,7 +2724,7 @@ class Frontend:
         axes.yaxis.set_label_coords(offset_X + tx, +0.750)
 
         plt.tight_layout()
-        plt.savefig(self._image_path)
+        plt.savefig(self._image_path, facecolor=self._bg_color)
 
         # change the view to show the fit as well
         self.switch_image()
@@ -2696,7 +2741,7 @@ class Frontend:
         sum_len = 0
 
         plt.close()
-        fig = plt.figure()
+        plt.figure(facecolor=self._bg_color)
         axes= plt.gca()
 
         for idx, (handler, args) in enumerate(zip(self._data_handlers, args_list)):
@@ -2772,7 +2817,7 @@ class Frontend:
             plt.plot(smooth_x_for_fit, upper_2error_vals, ':', color=self._fit_color)
             plt.plot(smooth_x_for_fit, lower_2error_vals, ':', color=self._fit_color)
 
-        fig.patch.set_facecolor(self._bg_color)
+        # fig.patch.set_facecolor(self._bg_color)
 
         col_tuple = [icol for icol in self._dataaxes_color]
         for key, val in axes.spines.items():
@@ -2814,15 +2859,15 @@ class Frontend:
 
         #  tx is the proportion between xmin and xmax where the zero lies
         # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
-        tx = max(0, -abs_minX / (abs_maxX - abs_minX))
-        ty = max(0, -abs_minY / (abs_maxY - abs_minY))
+        tx = max(0., -abs_minX / (abs_maxX - abs_minX))
+        ty = max(0., -abs_minY / (abs_maxY - abs_minY))
         offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
 
         axes.xaxis.set_label_coords(1.050, offset_Y + ty)
         axes.yaxis.set_label_coords(offset_X + tx, +0.750)
 
         plt.tight_layout()
-        plt.savefig(self._image_path)
+        plt.savefig(self._image_path, facecolor=self._bg_color)
 
         # change the view to show the fit as well
         self.switch_image()
@@ -2996,11 +3041,11 @@ class Frontend:
                 self._custom_checkbox = checkbox
 
         self.update_custom_checkbox()
-        self.create_custom_remove_menu()
+        # self.create_custom_remove_menu()
     def update_custom_checkbox(self):
         if self._new_user_stage % 31 != 0:
             return
-        self._custom_binding = self._custom_checkbox.bind("<Button-3>", self.do_custom_remove_popup)
+        self._custom_binding = self._custom_checkbox.bind(self._right_click, self.do_custom_remove_popup)
         self._custom_checkbox.configure(text="custom: " +
                                              ', '.join([x for x in regex.split(' ', self._custom_function_names) if x]))
         self.create_custom_remove_menu()
@@ -3049,12 +3094,14 @@ class Frontend:
 
     def create_custom_remove_menu(self):
 
+        print("In create custom remove menu")
         head_menu = tk.Menu(master=self._gui, tearoff=0)
 
         names_menu = tk.Menu(master=head_menu, tearoff=0)
-        names_menu.add_command(label="All Functions", command=lambda: self.remove_named_custom("All"))
+        names_menu.add_command(label="All Functions", command=partial(self.remove_named_custom,"All") )
         for name in [x for x in regex.split(' ', self._custom_function_names) if x] :
-            names_menu.add_command(label=name, command=lambda: self.remove_named_custom(name))
+            print(f"Added command for {name}")
+            names_menu.add_command(label=name, command=partial(self.remove_named_custom,name))
 
         head_menu.add_cascade(label="Remove Custom", menu=names_menu)
 
@@ -3066,31 +3113,31 @@ class Frontend:
             self._custom_remove_menu.grab_release()
     def remove_named_custom(self, name):
 
+        custom_names = [x for x in regex.split(' ', self._custom_function_names) if x]
+        custom_forms = [x for x in regex.split(' ', self._custom_function_forms) if x]
+
+        print("Remove named custom debug: ")
+
         if name == '' :
             return
         elif name == "All" :
             print("Removing all custom functions")
-            custom_names = [x for x in regex.split(' ', self._custom_function_names) if x]
-            custom_forms = [x for x in regex.split(' ', self._custom_function_forms) if x]
 
             for idx, (iname, iform) in enumerate(zip(custom_names[:], custom_forms[:])):
                 custom_names.remove(iname)
                 custom_forms.remove(iform)
 
-                del PrimitiveFunction.built_in_dict()[iname]
+                PrimitiveFunction.built_in_dict().pop(iname,None)
         else :
-            print(f"Remove named custom {name}")
-            custom_names = [x for x in regex.split(' ', self._custom_function_names) if x]
-            custom_forms = [x for x in regex.split(' ', self._custom_function_forms) if x]
 
+            print(f"Remove named custom {name}")
             for idx, (iname, iform) in enumerate(zip(custom_names[:],custom_forms[:])) :
                 if iname == name :
                     custom_names.remove(iname)
                     custom_forms.remove(iform)
 
-                    print(self.optimizer.prim_list)
-                    self.optimizer.prim_list.remove(PrimitiveFunction.built_in_dict()[iname])
-                    del PrimitiveFunction.built_in_dict()[iname]
+                    self.optimizer.remove_named_from_prim_list(name)
+                    PrimitiveFunction.built_in_dict().pop(iname,None)
                     break
 
         self._custom_function_names = ' '.join(custom_names)
@@ -3099,6 +3146,8 @@ class Frontend:
         self.save_defaults()
         self.update_optimizer()
         self.update_custom_checkbox()
+
+        print( [name for name in [x for x in regex.split(' ', self._custom_function_names) if x]] )
 
     # brute force -- also associated with fit_options panel for the pause button
     def begin_brute_loop(self):
@@ -3366,15 +3415,6 @@ class Frontend:
                                        )
         self._library_stats.grid(row=0, column=3, sticky='w')
 
-        # self._library_math = tk.Button(self._fit_options_frame,
-        #                                text="<math>",
-        #                                font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
-        #                                width=common_width,
-        #                                bd=self._platform_border,
-        #                                command=self.print_math_library
-        #                               )
-        # self._library_math.grid(row=0, column=4, sticky='w')
-
         self._library_autofit = tk.Button(self._fit_options_frame,
                                           text="<autofit>",
                                           font=(
@@ -3469,25 +3509,7 @@ class Frontend:
                 self.add_message(buffer[:-2])
                 buffer = "  "
         self.add_message(buffer[:-2])
-    # def print_math_library(self):
-    #     buffer = "\n \n <math> options: \n  "
-    #     for memb in dir(math):
-    #         fn = getattr(math, memb)
-    #         if str(type(fn)) == "<class 'builtin_function_or_method'>":
-    #             try:
-    #                 y = fn(np.pi / 4)
-    #             except TypeError:
-    #                 print(f"{memb} not 1D")
-    #             except ValueError:
-    #                 print(f"{memb} doesn't accept float values")
-    #             else:
-    #                 if type(y) == float:
-    #                     print(memb, y)
-    #                     buffer += f"{memb}, "
-    #         if len(buffer) > 50:
-    #             self.add_message(buffer[:-2])
-    #             buffer = "  "
-    #     self.add_message(buffer[:-2])
+
     def print_autofit_library(self):
         buffer = "\n \n  <autofit> options: \n  "
         for key, prim in PrimitiveFunction.build_built_in_dict().items():
@@ -3514,7 +3536,7 @@ class Frontend:
     def get_package_path():
 
         try:
-            loc = sys._MEIPASS  # for pyinstaller
+            loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
         except AttributeError:
             Frontend._meipass_flag = False
             filepath = os.path.abspath(__file__)
@@ -3527,9 +3549,35 @@ class Frontend:
             loc = os.path.dirname(loc)
             if loc == os.path.dirname(loc):
                 # print(f"""Frontend init: python script {__file__} is not in the AutoFit package's directory.""")
-                return fallback
+                loc = fallback
+                break
+
+        if sys.platform == "darwin" :
+            if os.path.exists(f"{loc}/MIWs_AutoFit.app") :
+                loc = loc + "/MIWs_AutoFit.app/Contents/MacOS"
+        else :
+            if os.path.exists(f"{loc}/backend") :
+                loc = loc + "/backend"
 
         return loc
+
+    @staticmethod
+    def get_data_path():
+
+        try:
+            loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
+        except AttributeError:
+            Frontend._meipass_flag = False
+            filepath = os.path.abspath(__file__)
+            loc = os.path.dirname(filepath)
+
+        fallback = loc
+        while loc[-7:] != "autofit":
+            loc = os.path.dirname(loc)
+            if loc == os.path.dirname(loc):
+                return fallback
+        return loc+"/data"
+
     def show_current_data(self):
         self.show_data()
         self._showing_fit_image = False

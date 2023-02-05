@@ -1,6 +1,5 @@
 
 # default libraries
-# import math
 import re as regex
 from typing import Callable
 
@@ -9,6 +8,8 @@ from scipy.optimize import curve_fit
 from scipy.fft import fft, fftshift, fftfreq
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.stats
+import scipy.special
 
 from tkinter import Label as tk_label
 
@@ -174,8 +175,15 @@ class Optimizer:
         return self.top5_rchisqrs[0]
 
     @property
-    def prim_list(self):
+    def prim_list(self)  :
         return self._primitive_function_list
+    def remove_named_from_prim_list(self, name):
+        for prim in self.prim_list[:] :
+            if prim.name == name :
+                self._primitive_function_list.remove(prim)
+                return
+        else :
+            print(f"No prim named {name} in optimizer prim list")
 
     @property
     def criterion(self)  :
@@ -669,7 +677,7 @@ class Optimizer:
             PrimitiveFunction.built_in(name).eval_at(np.pi/4)
         except NameError :
             return f"One of the functions used in your custom function {name} \n" \
-                   f"with form {functional_form} does not exist."
+                   f"    with form {functional_form} does not exist."
 
         self._primitive_function_list.append( PrimitiveFunction.built_in(name) )
 

@@ -230,8 +230,8 @@ class Frontend:
         # load in splash screen
         self.load_splash_screen()
 
-        self.add_message(f"  Directory is{':' if Frontend._meipass_flag else ''} {Frontend.get_package_path()}")
-        print(f"{Frontend._meipass_flag=}")
+        if not Frontend._meipass_flag :
+            self.add_message(f"  Directory is {Frontend.get_package_path()}")
         self._gui.geometry(f"{self._default_gui_width}x{self._default_gui_height}+{self._default_gui_x}"
                            f"+{self._default_gui_y}")  # to fix aspect ratio changing in add_message
 
@@ -3553,8 +3553,8 @@ class Frontend:
                 break
 
         if sys.platform == "darwin" :
-            if os.path.exists(f"{loc}/MIW's AutoFit.app") :
-                loc = loc + "/MIW's AutoFit.app/Contents/MacOS"
+            if os.path.exists(f"{loc}/MIWs_AutoFit.app") :
+                loc = loc + "/MIWs_AutoFit.app/Contents/MacOS"
         else :
             if os.path.exists(f"{loc}/backend") :
                 loc = loc + "/backend"

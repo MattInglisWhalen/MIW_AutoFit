@@ -1,11 +1,10 @@
 
 # built-in libraries
-import math
 import re as regex
 
 # external libraries
 import numpy as np
-import pandas as pd
+from pandas import read_excel, isna
 
 # user-defined classes
 from autofit.src.datum1D import Datum1D
@@ -102,14 +101,14 @@ class DataHandler:
             if min_X <= 0 :
                 print("You can't log the x-data if there are negative numbers!")
                 return
-            self._X0 = math.sqrt(min_X*max_X) if self.X0 > 0 else -self._X0
+            self._X0 = np.sqrt(min_X*max_X) if self.X0 > 0 else -self._X0
             for datum in self._data :
                 if self._histogram_flag :
                     sigma_lower, sigma_upper = datum.assym_sigma_pos[0]/datum.pos, datum.assym_sigma_pos[1]/datum.pos
                     datum.assym_sigma_pos = (sigma_lower, sigma_upper)
                 else:
                     datum.sigma_pos = datum.sigma_pos/datum.pos
-                datum.pos = math.log(datum.pos / self._X0)
+                datum.pos = np.log(datum.pos / self._X0)
                 # print(datum.pos)
         if not new_flag and self._logx_flag :
             # we are currently logging the data, but now we want to switch it back
@@ -121,7 +120,7 @@ class DataHandler:
                     self.normalize_histogram_data()
             else:
                 for datum in self._data :
-                    datum.pos = self._X0 * math.exp(datum.pos)
+                    datum.pos = self._X0 * np.exp(datum.pos)
                     if self._histogram_flag :
                         sigma_lower, sigma_upper = datum.pos*datum.assym_sigma_pos[0],datum.pos*datum.assym_sigma_pos[1]
                         datum.assym_sigma_pos = (sigma_lower, sigma_upper)
@@ -146,14 +145,14 @@ class DataHandler:
             if min_Y <= 0 :
                 print("You can't log the y-data if there are zeroes or negative numbers!")
                 return
-            self._Y0 = math.sqrt(min_Y*max_Y) if self._Y0 > 0 else -self._Y0
+            self._Y0 = np.sqrt(min_Y*max_Y) if self._Y0 > 0 else -self._Y0
             for datum in self._data :
                 datum.sigma_val = datum.sigma_val/datum.val
-                datum.val = math.log( datum.val / self._Y0 )
+                datum.val = np.log( datum.val / self._Y0 )
         if not new_flag and self._logy_flag :
             # we are currently logging the data, but now we want to switch it back
             for datum in self._data :
-                datum.val = self._Y0 * math.exp( datum.val )
+                datum.val = self._Y0 * np.exp( datum.val )
                 datum.sigma_val = datum.sigma_val*datum.val
         self._logy_flag = new_flag
         print(f"Finished logging y with {self._Y0}")
@@ -162,14 +161,14 @@ class DataHandler:
     def unlogged_x_data(self)  :
         if self._logx_flag :
             # we're logging the data, so return it unlogged
-            return [self._X0 * math.exp( datum.pos ) for datum in self._data ]
+            return [self._X0 * np.exp( datum.pos ) for datum in self._data ]
         # else
         return [datum.pos for datum in self._data]
     @property
     def unlogged_y_data(self)  :
         if self._logy_flag :
             # we're logging the data, so return it unlogged
-            return [self._Y0 * math.exp( datum.val ) for datum in self._data ]
+            return [self._Y0 * np.exp( datum.val ) for datum in self._data ]
         # else
         return [datum.val for datum in self._data]
 
@@ -178,18 +177,18 @@ class DataHandler:
         if self._logx_flag :
             # we're logging the data, so return it unlogged
             if self._histogram_flag :
-                return np.array( [ ( datum.assym_sigma_pos[0] * self._X0 * math.exp(datum.pos),
-                                     datum.assym_sigma_pos[1] * self._X0 * math.exp(datum.pos) )
+                return np.array( [ ( datum.assym_sigma_pos[0] * self._X0 * np.exp(datum.pos),
+                                     datum.assym_sigma_pos[1] * self._X0 * np.exp(datum.pos) )
                                      for datum in self._data] ).T
             else:
-                return [datum.sigma_pos * self._X0 * math.exp(datum.pos) for datum in self._data]
+                return [datum.sigma_pos * self._X0 * np.exp(datum.pos) for datum in self._data]
         # else
         return [datum.sigma_pos for datum in self._data]
     @property
     def unlogged_sigmay_data(self)  :
         if self._logy_flag :
             # we're logging the data, so return it unlogged
-            return [datum.sigma_val * self._Y0 * math.exp(datum.val) for datum in self._data]
+            return [datum.sigma_val * self._Y0 * np.exp(datum.val) for datum in self._data]
         # else
         return [datum.sigma_val for datum in self._data]
 
@@ -346,15 +345,15 @@ class DataHandler:
             print(f"Can't x-log histogram when {minval}<0")
             self._logx_flag = False
 
-        if minval - math.floor(minval) < 2/count :
+        if minval - np.floor(minval) < 2/count :
             # print("Integer bolting min")
             # if it looks like the min and max vals are bolted to an integer, use the integers as a bin boundary
-            minval = math.floor(minval)
-        if math.ceil(maxval) - maxval < 2/count :
+            minval = minval // 1
+        if np.ceil(maxval) - maxval < 2/count :
             # print("Integer bolting max")
-            maxval = math.floor(maxval)
+            maxval = maxval // 1
 
-        num_bins = math.floor( math.sqrt(count) )
+        num_bins = int( np.sqrt(count) // 1 )
 
         if self._logx_flag :
             hist_counts, hist_bounds = np.histogram(vals, bins=np.geomspace(minval, maxval, num=num_bins+1) )
@@ -370,11 +369,11 @@ class DataHandler:
             print(f"Histogram creation error with {hist_bounds}")
         if self._logx_flag :
             for idx, count in enumerate(hist_counts) :
-                geom_mean = math.sqrt(hist_bounds[idx+1]*hist_bounds[idx])
+                geom_mean = np.sqrt(hist_bounds[idx+1]*hist_bounds[idx])
                 self._data.append( Datum1D( pos = geom_mean,
                                             val = count,
                                             assym_sigma_pos = (geom_mean-hist_bounds[idx],hist_bounds[idx+1]-geom_mean),
-                                            sigma_val = max(math.sqrt(count),1)
+                                            sigma_val = max(np.sqrt(count),1)
                                           )  # check that this fixing the zero-bin error not allowing fit
                                  )
         else:
@@ -382,7 +381,7 @@ class DataHandler:
                 self._data.append( Datum1D( pos = ( hist_bounds[idx+1]+hist_bounds[idx] )/2,
                                             val = count,
                                             sigma_pos = ( hist_bounds[idx+1]-hist_bounds[idx] )/2,
-                                            sigma_val = max(math.sqrt(count),1)
+                                            sigma_val = max(np.sqrt(count),1)
                                           )
                                  )
         if self._logy_flag :
@@ -465,16 +464,18 @@ class DataHandler:
             self.read_excel_as_scatter()
     def read_excel_as_scatter(self):
 
-        data_frame = pd.read_excel(self._filepath, self._excel_sheet_name, header=None)
+        data_frame = read_excel(self._filepath, self._excel_sheet_name, header=None)
 
         print("Excel scatter plot chosen")
 
         xvals = []
         for idx, loc in enumerate(DataHandler.excel_range_as_list_of_idx_tuples( self._x_column_endpoints )) :
+
             val = data_frame.iloc[loc[0],loc[1]]
+
             if idx == 0 and regex.search("[a-zA-Z]", str(val) ) :
                 self._x_label = val
-            elif pd.isna(val) :
+            elif isna(val) :
                 print(f"Invalid value >{val}< encountered in excel workbook. ")
                 continue
             else:
@@ -487,7 +488,7 @@ class DataHandler:
             val = data_frame.iloc[loc[0],loc[1]]
             if idx == 0 and regex.search("[a-zA-Z]", str(val) ) :
                 self._y_label = val
-            elif pd.isna(val) :
+            elif isna(val) :
                 print(f"Invalid value >{val}< encountered in excel workbook. ")
                 continue
             else:
@@ -505,7 +506,7 @@ class DataHandler:
                 val = data_frame.iloc[loc[0],loc[1]]
                 if idx == 0 and regex.search("[a-zA-Z]", str(val) ):
                     pass
-                elif pd.isna(val):
+                elif isna(val):
                     print(f"Invalid value >{val}< encountered in excel workbook. ")
                     continue
                 else:
@@ -517,7 +518,7 @@ class DataHandler:
                 val = data_frame.iloc[loc[0],loc[1]]
                 if idx == 0 and regex.search("[a-zA-Z]", str(val) ):
                     pass
-                elif pd.isna(val):
+                elif isna(val):
                     print(f"Invalid value >{val}< encountered in excel workbook. ")
                     continue
                 else:
@@ -530,7 +531,7 @@ class DataHandler:
             self._data[idx].sigma_val = err
     def read_excel_as_histogram(self):
 
-        data_frame = pd.read_excel(self._filepath, self._excel_sheet_name)
+        data_frame = read_excel(self._filepath, self._excel_sheet_name)
 
         print("Excel histogram chosen")
 
@@ -557,12 +558,12 @@ class DataHandler:
         # if we are y-logging the data, unlog the data then restore the y-logging at the end
         if self.logy_flag :
             for datum in self._data :
-                datum.val = self._Y0 * math.exp( datum.val )
+                datum.val = self._Y0 * np.exp( datum.val )
                 datum.sigma_val = datum.sigma_val*datum.val
 
                 # # we are currently logging the data, but now we want to switch it back
                 # for datum in self._data :
-                #     datum.pos = self._Y0 * math.exp( datum.pos )
+                #     datum.pos = self._Y0 * np.exp( datum.pos )
                 #     datum.sigma_pos = datum.sigma_pos * datum.pos
 
         for datum in self._data :
@@ -606,10 +607,10 @@ class DataHandler:
                 error_handler("\n \n> Normalize: You can't log the y-data if there are non-positive numbers!")
                 self._normalized_histogram_flag = False
                 return False
-            self._Y0 = math.sqrt(min_Y * max_Y)
+            self._Y0 = np.sqrt(min_Y * max_Y)
             for datum in self._data:
                 datum.sigma_val = datum.sigma_val / datum.val
-                datum.val = math.log(datum.val / self._Y0)
+                datum.val = np.log(datum.val / self._Y0)
 
         self._normalized_histogram_flag = True
         return True
