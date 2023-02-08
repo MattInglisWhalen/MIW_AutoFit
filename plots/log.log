@@ -1205,3 +1205,40 @@ Changed printout colour to black.
 
    C₀ = +1.66E+01  ±  +4.42E-01
   Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For binormal_wide.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -2.55E-01  ±  +1.61E-02
+
+   C₁ = +7.67E+00  ±  +4.86E-01
+
+   C₀ = -1.43E+01  ±  +2.78E+00
+  Goodness of fit: 𝛘²/dof = 3.71
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/dataChanged printout colour to white.
+ 
+> For binormal_wide.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -2.55E-01  ±  +1.61E-02
+
+   C₁ = +7.67E+00  ±  +4.86E-01
+
+   C₀ = -1.43E+01  ±  +2.78E+00
+  Goodness of fit: 𝛘²/dof = 3.71
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/dataChanged printout colour to black.Changed console colour to white.Changed console colour to pale.Changed console colour to white.Changed printout colour to white.Changed console colour to default, black.Changed printout colour to default, green.Changed console colour to white.Changed printout colour to black.Changed printout colour to white.Changed console colour to default, black.

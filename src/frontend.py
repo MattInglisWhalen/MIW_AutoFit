@@ -71,7 +71,7 @@ class Frontend:
         self._num_messages: int = 0
 
         self._colors_console_menu: tk.Menu = None
-        self._console_color: tuple[int, int, int] = (0, 0, 0)  # these tk colors work differently than matplotlib colors
+        self._console_color: str = 'black'
         self._printout_color: tuple[int, int, int] = (0, 200, 0)
 
         self._progress_label = None
@@ -177,7 +177,7 @@ class Frontend:
         self._default_os_scaling: float = 1
         if sys.platform == "darwin" :
             self._platform_offset = 4
-            self._platform_scale = 0.85
+            self._platform_scale = 1.17
             self._platform_border = 0
             self.sym_chi = "\U000003C7"
             self.sym_left = "\U00002190"
@@ -185,6 +185,7 @@ class Frontend:
             self.sym_right = "\U00002192"
             self.sym_down = "\U00002193"
             self._right_click = "<Button-2>"
+            self.sym_sigma = "sigma"
         else :
             self._platform_offset = 0
             self._platform_scale = 0.85
@@ -195,6 +196,7 @@ class Frontend:
             self.sym_right = "\U0001F846"
             self.sym_down = "\U0001F847"
             self._right_click = "<Button-3>"
+            self.sym_sigma = "\U000003C3"
         self.sym_check = " \U00002713"
         self._image_r: float = 1
         self._custom_function_names: str = ""
@@ -355,11 +357,11 @@ class Frontend:
                     else :
                         self._default_console_colour = "Default"
                     if arg == "Pale":
-                        self._console_color = (240, 240, 240)
+                        self._console_color = 'SystemButtonFace'
                     elif arg == "White":
-                        self._console_color = (255, 255, 255)
+                        self._console_color = 'white'
                     else:
-                        self._console_color = (0, 0, 0)
+                        self._console_color = 'black'
                 elif "#PRINTOUT_COLOUR" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
@@ -724,7 +726,7 @@ class Frontend:
         self.create_manual_frame()
     def create_right_panel(self, hello_str=""):
         self._gui.columnconfigure(2, minsize=128, weight=1)  # image panel
-        self._right_panel_frame = tk.Frame(master=self._gui, bg=hexx(self._console_color))
+        self._right_panel_frame = tk.Frame(master=self._gui, bg=self._console_color)
         self._right_panel_frame.grid(row=0, column=2, sticky='news')
         self.add_message(hello_str)
         self._right_panel_frame.bind(self._right_click, self.do_colors_console_popup)
@@ -1328,11 +1330,16 @@ class Frontend:
         self._gui.children['!frame'].rowconfigure(2, weight=1)
         left_panel_bottom.rowconfigure(0, weight=1)
 
+
+        if sys.platform == "darwin" :
+            size = int(12*self._default_os_scaling)
+        else :
+            size = int(12*self._default_os_scaling*self._platform_scale)
         custom_function_button = tk.Button(
             master=left_panel_bottom,
             text="Custom\nFunction",
             width=len("Function")-self._platform_offset,
-            font=('TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)),
+            font=('TkDefaultFont', size),
             bd=self._platform_border,
             command=self.dialog_box_new_function
         )
@@ -1467,7 +1474,7 @@ class Frontend:
             if sys.platform == "darwin" :
                 my_font = "courier new bold", int(12*self._default_os_scaling)
             new_message_label = tk.Label(master=text_frame, text=line,
-                                         bg=hexx(self._console_color),
+                                         bg=self._console_color,
                                          fg=hexx(self._printout_color), font=my_font)
 
             new_message_label.grid(row=self._num_messages_ever, column=0, sticky=tk.W)
@@ -1757,52 +1764,52 @@ class Frontend:
 
     def create_image_frame(self):  # !frame : image only
         image_frame = tk.Frame(
-            master=self._gui.children['!frame2']
+            master=self._gui.children['!frame2'], bg='SystemButtonFace'
         )
         image_frame.grid(row=0, column=0, sticky='w')
         self.load_splash_image()
     def create_data_perusal_frame(self):  # !frame2 : inspect, left<>right buttons
-        self._data_perusal_frame = tk.Frame(master=self._gui.children['!frame2'])
+        self._data_perusal_frame = tk.Frame(master=self._gui.children['!frame2'], bg='SystemButtonFace')
         self._data_perusal_frame.grid(row=1, column=0, sticky='ew')
         self._data_perusal_frame.grid_columnconfigure(0, weight=1)
 
-        data_perusal_frame_left = tk.Frame(master=self._data_perusal_frame)
+        data_perusal_frame_left = tk.Frame(master=self._data_perusal_frame, bg='SystemButtonFace')
         data_perusal_frame_left.grid(row=0, column=0, sticky='w')
 
-        data_perusal_frame_right = tk.Frame(master=self._data_perusal_frame)
+        data_perusal_frame_right = tk.Frame(master=self._data_perusal_frame, bg='SystemButtonFace')
         data_perusal_frame_right.grid(row=0, column=1, sticky='e')
     def create_fit_options_frame(self):  # !frame3 : fit type, procedural top5, pause/go, refit
         self._fit_options_frame = tk.Frame(
-            master=self._gui.children['!frame2']
+            master=self._gui.children['!frame2'], bg='SystemButtonFace'
         )
         self._fit_options_frame.grid(row=3, column=0, sticky='w')  # row2 is reserved for the black line
     def create_plot_options_frame(self):  # !frame4 : logx, logy, normalize
         self._gui.children['!frame2'].columnconfigure(1, minsize=50)
         self._plot_options_frame = tk.Frame(
-            master=self._gui.children['!frame2']
+            master=self._gui.children['!frame2'], bg='SystemButtonFace'
         )
         self._plot_options_frame.grid(row=0, column=1, sticky='ns')
     # def create_linear_frame(self) : pass
     def create_polynomial_frame(self):  # !frame6 : depth of procedural fits
         self._polynomial_frame = tk.Frame(
-            master=self._gui.children['!frame2']
+            master=self._gui.children['!frame2'], bg='SystemButtonFace'
         )
         self._polynomial_frame.grid(row=4, column=0, sticky='w')
     def create_gaussian_frame(self):  # !frame7 : depth of procedural fits
         self._gaussian_frame = tk.Frame(
-            master=self._gui.children['!frame2']
+            master=self._gui.children['!frame2'], bg='SystemButtonFace'
         )
         self._gaussian_frame.grid(row=4, column=0, sticky='w')
     # def create_sigmoid_frame(self) : pass
     def create_procedural_frame(self):  # !frame5 : checkboxes, depth of procedural fit
         self._procedural_frame = tk.Frame(
-            master=self._gui.children['!frame2']
+            master=self._gui.children['!frame2'], bg='SystemButtonFace'
         )
         self._procedural_frame.grid(row=4, column=0, sticky='w')
     # def create_brute_force_frame(self) : pass
     def create_manual_frame(self):  # !frame6 : depth of procedural fits
         self._manual_frame = tk.Frame(
-            master=self._gui.children['!frame2']
+            master=self._gui.children['!frame2'], bg='SystemButtonFace'
         )
         self._manual_frame.grid(row=4, column=0, sticky='w')
 
@@ -1819,7 +1826,7 @@ class Frontend:
         self._image = ImageTk.PhotoImage(img_resized)
         self._image_frame = tk.Label(master=self._gui.children['!frame2'].children['!frame'],
                                      image=self._image,
-                                     relief=tk.SUNKEN)
+                                     relief=tk.SUNKEN, bg='SystemButtonFace')
         print(f"Created frame {self._image_frame}")
         self._image_frame.grid(row=0, column=0)
         self._image_frame.grid_propagate(True)
@@ -1922,12 +1929,12 @@ class Frontend:
         count_text = tk.Label(
             master=self._gui.children['!frame2'].children['!frame2'].children['!frame'],
             text=f"{self._curr_image_num % len(self._data_handlers) + 1}/{len(self._data_handlers)}",
-            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale))
+            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)), bg='SystemButtonFace'
         )
         right_button = tk.Button(master=self._gui.children['!frame2'].children['!frame2'].children['!frame'],
                                  text=self.sym_right,
                                  bd=self._platform_border,
-                                 command=self.image_right_command
+                                 command=self.image_right_command, bg='SystemButtonFace'
                                  )
         left_button.grid(row=0, column=1, padx=5, pady=5)
         count_text.grid(row=0, column=2)
@@ -1980,19 +1987,19 @@ class Frontend:
             self._show_error_bands = 0
             return
         if self._error_bands_button['text'] == "Error Bands":
-            print("Switching to 1-\u03C3 confidence region")
-            self._error_bands_button.configure(text="       1-\u03C3       ")
+            print(f"Switching to 1-{self.sym_sigma} confidence region")
+            self._error_bands_button.configure(text=f"       1-{self.sym_sigma}       ")
             self._show_error_bands = 1
-        elif self._error_bands_button['text'] == "       1-\u03C3       ":
-            print("Switching to 2-\u03C3 confidence region")
-            self._error_bands_button.configure(text="       2-\u03C3       ")
+        elif self._error_bands_button['text'] == f"       1-{self.sym_sigma}       ":
+            print(f"Switching to 2-{self.sym_sigma} confidence region")
+            self._error_bands_button.configure(text=f"       2-{self.sym_sigma}       ")
             self._show_error_bands = 2
-        elif self._error_bands_button['text'] == "       2-\u03C3       ":
+        elif self._error_bands_button['text'] == f"       2-{self.sym_sigma}       ":
             print("Switching to both confidence regions")
-            self._error_bands_button.configure(text=" 1- and 2-\u03C3")
+            self._error_bands_button.configure(text=f"Both")
             self._show_error_bands = 3
-        elif self._error_bands_button['text'] == " 1- and 2-\u03C3":
-            print("Switching to 1-\u03C3 confidence region")
+        elif self._error_bands_button['text'] == f"Both":
+            print(f"Switching off error bands")
             self._error_bands_button.configure(text="Error Bands")
             self._show_error_bands = 0
         else:
@@ -2019,6 +2026,7 @@ class Frontend:
         #    -- the residuals plot looks good but I don't think the normality tests are working
         #    --   maybe it's because we aren't normalizing the residuals histogram?
 
+        # TODO: also show the time residuals as a function of x, below plot, toggle with residuals button
         if self.current_model is None:
             print("Residuals_command: you shouldn't be here, quitting")
             raise SystemExit
@@ -2546,7 +2554,7 @@ class Frontend:
             return
         # print("Making log_x raised")
         self._logx_button.configure(relief=tk.RAISED)
-        self._logx_button.configure(bg='SystemButtonFace')
+
         if not self.data_handler.logy_flag and self.data_handler.histogram_flag:
             self.show_normalize_button()
     def update_logy_relief(self):
@@ -2561,7 +2569,7 @@ class Frontend:
             return
         # print("Making log_y raised")
         self._logy_button.configure(relief=tk.RAISED)
-        self._logy_button.configure(bg='SystemButtonFace')
+
         if not self.data_handler.logx_flag and self.data_handler.histogram_flag:  # purpose?
             self.show_normalize_button()
 
@@ -2927,7 +2935,7 @@ class Frontend:
         self._polynomial_degree_label = tk.Label(
             master=self._polynomial_frame,
             text=f"Degree: {self._polynomial_degree_tkint.get()}",
-            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale))
+            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)), bg='SystemButtonFace'
         )
         down_button = tk.Button(self._gui.children['!frame2'].children['!frame6'],
                                 text=self.sym_down,
@@ -2990,7 +2998,7 @@ class Frontend:
         self._gaussian_modal_label = tk.Label(
             master=self._gaussian_frame,
             text=f"Modes: {self._gaussian_modal_tkint.get()}",
-            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale))
+            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)), bg='SystemButtonFace'
         )
         down_button = tk.Button(self._gaussian_frame,
                                 text=self.sym_down,
@@ -3091,7 +3099,7 @@ class Frontend:
         self._depth_label = tk.Label(
             master=self._procedural_frame,
             text=f"Depth: {self._max_functions_tkint.get()}",
-            font = ('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale))
+            font = ('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)), bg='SystemButtonFace'
         )
         down_button = tk.Button(self._procedural_frame,
                                 text=self.sym_down,
@@ -3262,7 +3270,7 @@ class Frontend:
 
         def_font = ('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale))
 
-        name_label = tk.Label(master=self._manual_frame, text="Function's Name", font=def_font)
+        name_label = tk.Label(master=self._manual_frame, text="Function's Name", font=def_font, bg='SystemButtonFace')
         name_label.grid(row=0, column=0, sticky='w')
         name_data = tk.Entry(master=self._manual_frame, width=30, font=def_font)
         name_data.insert(0, "ManualEntryFunc" if self._default_manual_name == "N/A" else self._default_manual_name)
@@ -3274,23 +3282,25 @@ class Frontend:
         # form_data.insert(0, "sin(pow1)+sin(pow1)+sin(pow1)+sin(pow1)")
         # form_data.grid(row=1, column=1, sticky='w')
 
-        long_label = tk.Label(master=self._manual_frame, text="Function's Form",font=def_font)
+        long_label = tk.Label(master=self._manual_frame, text="Function's Form",font=def_font, bg='SystemButtonFace')
         long_label.grid(row=1, column=0, sticky='nw')
         long_data = tk.Text(master=self._manual_frame, width=55, height=5,font=def_font)
         long_data.insert('1.0', "logistic(pow1+pow0)" if self._default_manual_form == "N/A"
                                                       else self._default_manual_form)
         long_data.grid(row=1, column=1, sticky='w')
 
-        self._error_label = tk.Label(master=self._manual_frame, text=f"", fg="#EF0909")
+        self._error_label = tk.Label(master=self._manual_frame, text=f"", fg="#EF0909", bg='SystemButtonFace')
         self._error_label.grid(row=2, column=1, sticky='w', pady=5)
 
-        current_name_title_label = tk.Label(master=self._manual_frame, text=f"Current Name:",font=def_font)
+        current_name_title_label = tk.Label(master=self._manual_frame, text=f"Current Name:",
+                                            font=def_font, bg='SystemButtonFace')
         current_name_title_label.grid(row=3, column=0, sticky='w', pady=(5,0))
-        self._current_name_label = tk.Label(master=self._manual_frame, text=f"N/A")
+        self._current_name_label = tk.Label(master=self._manual_frame, text=f"N/A", bg='SystemButtonFace')
         self._current_name_label.grid(row=3, column=1, sticky='w', pady=(5,0))
-        current_form_title_label = tk.Label(master=self._manual_frame, text=f"Current Form:",font=def_font)
+        current_form_title_label = tk.Label(master=self._manual_frame, text=f"Current Form:",
+                                            font=def_font, bg='SystemButtonFace')
         current_form_title_label.grid(row=4, column=0, sticky='w')
-        self._current_form_label = tk.Label(master=self._manual_frame, text=f"N/A")
+        self._current_form_label = tk.Label(master=self._manual_frame, text=f"N/A", bg='SystemButtonFace')
         self._current_form_label.grid(row=4, column=1, sticky='w')
 
         submit_button = tk.Button(
@@ -3805,7 +3815,7 @@ class Frontend:
 
     def console_color_default(self):
         self._default_console_colour = "Default"
-        self._console_color = (0, 0, 0)
+        self._console_color = 'black'
         self.checkmark_printout_background_options(0)
         if self._default_printout_colour == "Black" :
             self.printout_color_white()
@@ -3813,26 +3823,29 @@ class Frontend:
 
         self._right_panel_frame.destroy()
         self.create_right_panel()
+        self.add_message("Changed console colour to default, black.")
         # self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
     def console_color_white(self):
         self._default_console_colour = "White"
-        self._console_color = (255, 255, 255)
+        self._console_color = 'white'
         self.checkmark_printout_background_options(1)
         if self._default_printout_colour == "White" :
             self.printout_color_black()
         self.save_defaults()
         self._right_panel_frame.destroy()
         self.create_right_panel()
+        self.add_message("Changed console colour to white.")
         # self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
     def console_color_pale(self):
         self._default_console_colour = "Pale"
-        self._console_color = 'SystemButtonFace'  # (240, 240, 240)
+        self._console_color = 'SystemButtonFace'
         self.checkmark_printout_background_options(2)
         if self._default_printout_colour == "White" :
             self.printout_color_black()
         self.save_defaults()
         self._right_panel_frame.destroy()
         self.create_right_panel()
+        self.add_message("Changed console colour to pale.")
         # self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
 
 
