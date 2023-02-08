@@ -1,0 +1,1207 @@
+Package directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Data directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Package directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Data directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Package directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Data directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Package directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Data directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Package directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Data directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Package directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Data directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+> Welcome to MIW's AutoFit!
+  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Package directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Data directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+> Welcome to MIW's AutoFit!
+  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Package directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Data directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+
+ 
+> For expsin.csv 
+
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Linear fit is y = m x + b with
+   m = -2.53E-01  ±  9.80E-03
+   b = +2.13E+01  ±  2.87E-01
+  Goodness of fit: R² = 0.6000  ,  𝛘²/dof = 9.29
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Linear fit is y = m x + b with
+   m = -2.53E-01  ±  9.80E-03
+   b = +2.13E+01  ±  2.87E-01
+  Goodness of fit: R² = 0.6000  ,  𝛘²/dof = 9.29
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₁x¹+C₀
+   where the constants are
+   C₁ = -2.53E-01  ±  +9.80E-03
+
+   C₀ = +2.13E+01  ±  +2.87E-01
+  Goodness of fit: 𝛘²/dof = 9.29
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> All images now show a true fit of the selected model
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₃x³+C₂x²+C₁x¹+C₀
+   where the constants are
+   C₃ = +7.97E-04  ±  +6.00E-05
+
+   C₂ = -7.14E-02  ±  +4.66E-03
+
+   C₁ = +1.54E+00  ±  +1.03E-01
+
+   C₀ = +1.10E+01  ±  +6.11E-01
+  Goodness of fit: 𝛘²/dof = 1.75
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₁x¹+C₀
+   where the constants are
+   C₁ = -2.53E-01  ±  +9.80E-03
+
+   C₀ = +2.13E+01  ±  +2.87E-01
+  Goodness of fit: 𝛘²/dof = 9.29
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₃x³+C₂x²+C₁x¹+C₀
+   where the constants are
+   C₃ = +7.97E-04  ±  +6.00E-05
+
+   C₂ = -7.14E-02  ±  +4.66E-03
+
+   C₁ = +1.54E+00  ±  +1.03E-01
+
+   C₀ = +1.10E+01  ±  +6.11E-01
+  Goodness of fit: 𝛘²/dof = 1.75
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₃x³+C₂x²+C₁x¹+C₀
+   where the constants are
+   C₃ = +7.97E-04  ±  +6.00E-05
+
+   C₂ = -7.14E-02  ±  +4.66E-03
+
+   C₁ = +1.54E+00  ±  +1.03E-01
+
+   C₀ = +1.10E+01  ±  +6.11E-01
+  Goodness of fit: 𝛘²/dof = 1.75
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₁x¹+C₀
+   where the constants are
+   C₁ = -2.53E-01  ±  +9.80E-03
+
+   C₀ = +2.13E+01  ±  +2.87E-01
+  Goodness of fit: 𝛘²/dof = 9.29
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₁x¹+C₀
+   where the constants are
+   C₁ = -2.53E-01  ±  +9.80E-03
+
+   C₀ = +2.13E+01  ±  +2.87E-01
+  Goodness of fit: 𝛘²/dof = 9.29
+
+ 
+> For expsin.csv 
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₁x¹+C₀
+   where the constants are
+   C₁ = -2.53E-01  ±  +9.80E-03
+
+   C₀ = +2.13E+01  ±  +2.87E-01
+  Goodness of fit: 𝛘²/dof = 9.29
+
+ 
+> Average parameters from fitting all datasets:
+
+>  Polynomial fit is y = C₁x¹+C₀
+   where the constants are
+   C₁ = -1.64E-01  ±  +3.56E-01
+
+   C₀ = +1.30E+01  ±  +3.41E+00
+  Goodness of fit: 𝛘²/dof = 2.18
+
+ 
+> Average parameters from fitting all datasets:
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₁x¹+C₀
+   where the constants are
+   C₁ = -2.53E-01  ±  +9.80E-03
+
+   C₀ = +2.13E+01  ±  +2.87E-01
+  Goodness of fit: 𝛘²/dof = 9.29
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₀
+   where the constants are
+   C₀ = +1.48E+01  ±  +1.41E-01
+  Goodness of fit: 𝛘²/dof = 22.75
+
+ 
+> Polynomials must have a degree of at least 0
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₀
+   where the constants are
+   C₀ = +1.48E+01  ±  +1.41E-01
+  Goodness of fit: 𝛘²/dof = 22.75
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₁x¹+C₀
+   where the constants are
+   C₁ = -2.53E-01  ±  +9.80E-03
+
+   C₀ = +2.13E+01  ±  +2.87E-01
+  Goodness of fit: 𝛘²/dof = 9.29
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₀
+   where the constants are
+   C₀ = +1.48E+01  ±  +1.41E-01
+  Goodness of fit: 𝛘²/dof = 22.75
+
+ 
+> Polynomials must have a degree of at least 0
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₀
+   where the constants are
+   C₀ = +1.48E+01  ±  +1.41E-01
+  Goodness of fit: 𝛘²/dof = 22.75
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For binormal_wide.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -2.55E-01  ±  +1.61E-02
+
+   C₁ = +7.67E+00  ±  +4.86E-01
+
+   C₀ = -1.43E+01  ±  +2.78E+00
+  Goodness of fit: 𝛘²/dof = 3.71
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!Please restart MIW's AutoFit for these changes to take effect.> Welcome to MIW's AutoFit!Please restart MIW's AutoFit for these changes to take effect.> Welcome to MIW's AutoFit!Please restart MIW's AutoFit for these changes to take effect.> Welcome to MIW's AutoFit!Please restart MIW's AutoFit for these changes to take effect.> Welcome to MIW's AutoFit!Please restart MIW's AutoFit for these changes to take effect.
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!Please restart MIW's AutoFit for these changes to take effect.> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!Changed printout colour to white.Changed printout colour to black.Changed printout colour to default, green.
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+
+ 
+> For constants_or_not.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -8.60E-03  ±  +6.83E-01
+
+   C₁ = -1.04E+00  ±  +1.91E+00
+
+   C₀ = +2.05E+02  ±  +9.11E+00
+  Goodness of fit: 𝛘²/dof = 0.00
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For binormal.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -4.45E-01  ±  +3.84E-02
+
+   C₁ = +9.50E+00  ±  +7.25E-01
+
+   C₀ = -1.54E+01  ±  +2.41E+00
+  Goodness of fit: 𝛘²/dof = 9.15
+
+ 
+> For binormal.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -4.45E-01  ±  +3.84E-02
+
+   C₁ = +9.50E+00  ±  +7.25E-01
+
+   C₀ = -1.54E+01  ±  +2.41E+00
+  Goodness of fit: 𝛘²/dof = 9.15
+
+ 
+> For binormal.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -4.45E-01  ±  +3.84E-02
+
+   C₁ = +9.50E+00  ±  +7.25E-01
+
+   C₀ = -1.54E+01  ±  +2.41E+00
+  Goodness of fit: 𝛘²/dof = 9.15
+
+ 
+> For binormal.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -4.45E-01  ±  +3.84E-02
+
+   C₁ = +9.50E+00  ±  +7.25E-01
+
+   C₀ = -1.54E+01  ±  +2.41E+00
+  Goodness of fit: 𝛘²/dof = 9.15
+
+ 
+> For binormal.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -4.45E-01  ±  +3.84E-02
+
+   C₁ = +9.50E+00  ±  +7.25E-01
+
+   C₀ = -1.54E+01  ±  +2.41E+00
+  Goodness of fit: 𝛘²/dof = 9.15
+
+ 
+> For binormal.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -4.45E-01  ±  +3.84E-02
+
+   C₁ = +9.50E+00  ±  +7.25E-01
+
+   C₀ = -1.54E+01  ±  +2.41E+00
+  Goodness of fit: 𝛘²/dof = 9.15
+
+ 
+> For binormal.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -4.45E-01  ±  +3.84E-02
+
+   C₁ = +9.50E+00  ±  +7.25E-01
+
+   C₀ = -1.54E+01  ±  +2.41E+00
+  Goodness of fit: 𝛘²/dof = 9.15
+
+ 
+> For binormal.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -4.45E-01  ±  +3.84E-02
+
+   C₁ = +9.50E+00  ±  +7.25E-01
+
+   C₀ = -1.54E+01  ±  +2.41E+00
+  Goodness of fit: 𝛘²/dof = 9.15
+
+ 
+> For binormal.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -4.45E-01  ±  +3.84E-02
+
+   C₁ = +9.50E+00  ±  +7.25E-01
+
+   C₀ = -1.54E+01  ±  +2.41E+00
+  Goodness of fit: 𝛘²/dof = 9.15
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/dataChanged printout colour to white.Changed printout colour to black.> Welcome to MIW's AutoFit!Changed printout colour to white.> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/dataChanged printout colour to black.> Welcome to MIW's AutoFit!Changed printout colour to white.> Welcome to MIW's AutoFit!> Welcome to MIW's AutoFit!Changed printout colour to black.> Welcome to MIW's AutoFit!Changed printout colour to white.Changed printout colour to default, green.> Welcome to MIW's AutoFit!> Welcome to MIW's AutoFit!> Welcome to MIW's AutoFit!Changed printout colour to white.> Welcome to MIW's AutoFit!Changed printout colour to black.Changed printout colour to white.> Welcome to MIW's AutoFit!> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/dataChanged printout colour to default, green.
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+Changed printout colour to black.
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46
+
+ > By the 68% rule of thumb, the number of datapoints with error bars 
+   touching the line of best fit should obey 29 ≤ 16 ≤ 38   Since this undershoots the minimum expected number, it is likely that either 
+     • the fit is a poor representation of the data
+     • the error bars have been underestimated
+     • you are fitting multiple datasets
+
+ 
+> Based on residuals binned in the tail, far-tail, and central regions,  the probability that you have found the correct fit for the data is 0.01000
+
+ 
+> p-values from standard normality tests:
+  Shapiro-Wilk       : p = 0.07955  Anderson-Darling   : p < 0.15  Kolmogorov-Smirnov : p = 0.57750  d'Agostino         : p = 0.30428> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data> Welcome to MIW's AutoFit!  Directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitPackage directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofitData directory is C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit/data
+ 
+> For expsin.csv 
+
+>  Polynomial fit is y = C₂x²+C₁x¹+C₀
+   where the constants are
+   C₂ = -1.04E-02  ±  +7.60E-04
+
+   C₁ = +2.79E-01  ±  +4.00E-02
+
+   C₀ = +1.66E+01  ±  +4.42E-01
+  Goodness of fit: 𝛘²/dof = 5.46

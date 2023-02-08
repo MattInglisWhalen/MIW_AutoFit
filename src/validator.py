@@ -40,12 +40,10 @@ class Validator:
                     print("3> No content, exiting...")
                     return 0, f"Error code 3, exiting..."
                 message : str = Validator.de_crypt(cipher)
-                # print(message)
         except FileNotFoundError :
             print("4> No file detected, exiting...")
             return 0, f"Error code 4, exiting..."
 
-        print(message)
         part : list[str] = regex.split(f"<<<",message)
         try :
             _ , str_epoch = regex.split(f">>>",part[0])

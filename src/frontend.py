@@ -113,7 +113,7 @@ class Frontend:
 
         self._pause_button: tk.Button = None
         self._refit_button: tk.Button = None
-        self._refit_on_click = False
+        self._refit_on_click = True
 
         # plot options frame
         self._logx_button: tk.Button = None
@@ -164,11 +164,11 @@ class Frontend:
         self._default_gui_x = -10
         self._default_gui_y = -10
         self._default_fit_type = "Linear"
-        self._default_excel_x_range = None
-        self._default_excel_y_range = None
-        self._default_excel_sigmax_range = None
-        self._default_excel_sigmay_range = None
-        self._default_load_file_loc = None
+        self._default_excel_x_range: str = ""
+        self._default_excel_y_range: str = ""
+        self._default_excel_sigmax_range: str = ""
+        self._default_excel_sigmay_range: str = ""
+        self._default_load_file_loc: str = ""
         self._default_bg_colour: str = None
         self._default_dataaxes_colour: str = None
         self._default_fit_colour: str = None
@@ -232,6 +232,8 @@ class Frontend:
 
         if not Frontend._meipass_flag :
             self.add_message(f"  Directory is {Frontend.get_package_path()}")
+        self.logger(f"Package directory is {Frontend.get_package_path()}")
+        self.logger(f"Data directory is {Frontend.get_data_path()}")
         self._gui.geometry(f"{self._default_gui_width}x{self._default_gui_height}+{self._default_gui_x}"
                            f"+{self._default_gui_y}")  # to fix aspect ratio changing in add_message
 
@@ -437,7 +439,7 @@ class Frontend:
                 elif "#REFIT_ALWAYS" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
-                        arg = "0"
+                        arg = "1"
                     if arg in ["0","1"] :
                         self._refit_on_click = bool( int(arg) )
                     else :
@@ -584,38 +586,42 @@ class Frontend:
         # middle panel -- data visualization, fit options, data transforms
         self.create_middle_panel()
         # right panel -- text output
-        self.create_right_panel()
+        self.create_right_panel(hello_str="> Welcome to MIW's AutoFit!")
 
 
     # MENUS
     def create_file_menu(self):
 
         menu_bar = tk.Menu(self._gui)
-        file_menu = tk.Menu(master=menu_bar, tearoff=0)
-        settings_menu = tk.Menu(master=menu_bar, tearoff=0)
+
+
 
         self._gui.config(menu=menu_bar)
-        menu_bar.add_cascade(label="File", menu=file_menu, underline=0)
-        menu_bar.add_cascade(label="Settings", menu=settings_menu, underline=0)
 
         # FILE menu
-        file_menu.add_command(label="Open", command=self.load_data_command)
+        if sys.platform != "darwin" :
+            file_menu = tk.Menu(master=menu_bar, tearoff=0)
+            menu_bar.add_cascade(label="File", menu=file_menu, underline=0)
 
-        restart_menu = tk.Menu(master=file_menu, tearoff=0)
-        restart_are_you_sure_menu = tk.Menu(master=restart_menu, tearoff=0)
-        restart_are_you_sure_menu.add_command(label="Yes", command=self.restart_command)
+            file_menu.add_command(label="Open", command=self.load_data_command)
 
-        file_menu.add_cascade(label="Restart", menu=restart_menu)
-        restart_menu.add_cascade(label="Are you sure?", menu=restart_are_you_sure_menu)
+            restart_menu = tk.Menu(master=file_menu, tearoff=0)
+            restart_are_you_sure_menu = tk.Menu(master=restart_menu, tearoff=0)
+            restart_are_you_sure_menu.add_command(label="Yes", command=self.restart_command)
 
-        exit_menu = tk.Menu(master=file_menu, tearoff=0)
-        exit_are_you_sure_menu = tk.Menu(master=exit_menu, tearoff=0)
-        exit_are_you_sure_menu.add_command(label="Yes", command=self._gui.destroy)
+            file_menu.add_cascade(label="Restart", menu=restart_menu)
+            restart_menu.add_cascade(label="Are you sure?", menu=restart_are_you_sure_menu)
 
-        file_menu.add_cascade(label="Exit", menu=exit_menu)
-        exit_menu.add_cascade(label="Are you sure?", menu=exit_are_you_sure_menu)
+            exit_menu = tk.Menu(master=file_menu, tearoff=0)
+            exit_are_you_sure_menu = tk.Menu(master=exit_menu, tearoff=0)
+            exit_are_you_sure_menu.add_command(label="Yes", command=self._gui.destroy)
+
+            file_menu.add_cascade(label="Exit", menu=exit_menu)
+            exit_menu.add_cascade(label="Are you sure?", menu=exit_are_you_sure_menu)
 
         # SETTINGS menu
+        settings_menu = tk.Menu(master=menu_bar, tearoff=0)
+        menu_bar.add_cascade(label="Settings", menu=settings_menu, underline=0)
 
         # appearance
         appearance_menu = tk.Menu(master=settings_menu, tearoff=0)
@@ -680,7 +686,7 @@ class Frontend:
         self._refit_menu = tk.Menu(master=behaviour_menu, tearoff=0)
         self._refit_menu.add_command(label="Always", command=self.refit_always)
         self._refit_menu.add_command(label="With Button", command=self.refit_sometimes)
-        self.checkmark_refit_options( 0 if self._refit_menu else 1 )
+        self.checkmark_refit_options( 0 if self._refit_on_click else 1 )  # 0 is the index of always, 1 of with button
 
         self._criterion_menu = tk.Menu(master=behaviour_menu, tearoff=0)
         self._criterion_menu.add_command(label=f"Reduced {self.sym_chi}{sup(2)}", command=self.criterion_rchisqr)
@@ -706,7 +712,7 @@ class Frontend:
         self.create_load_data_button()
     def create_middle_panel(self):
         self._gui.columnconfigure(1, minsize=128)  # image panel
-        self._middle_panel_frame = tk.Frame(master=self._gui)
+        self._middle_panel_frame = tk.Frame(master=self._gui, bg='SystemButtonFace')
         self._middle_panel_frame.grid(row=0, column=1, sticky='nsew')
         self.create_image_frame()  # aka image frame
         self.create_data_perusal_frame()  # aka inspect frame
@@ -716,11 +722,11 @@ class Frontend:
         self.create_polynomial_frame()  # aka polynomial frame
         self.create_gaussian_frame()  # aka gaussian frame
         self.create_manual_frame()
-    def create_right_panel(self):
+    def create_right_panel(self, hello_str=""):
         self._gui.columnconfigure(2, minsize=128, weight=1)  # image panel
         self._right_panel_frame = tk.Frame(master=self._gui, bg=hexx(self._console_color))
         self._right_panel_frame.grid(row=0, column=2, sticky='news')
-        self.add_message("> Welcome to MIW's AutoFit!")
+        self.add_message(hello_str)
         self._right_panel_frame.bind(self._right_click, self.do_colors_console_popup)
 
     # LEFT PANEL FUNCTIONS -------------------------------------------------------------------------------------------->
@@ -744,7 +750,8 @@ class Frontend:
         print("4...", self._image_frame.winfo_width(), self._image_frame.winfo_height())
 
         new_filepaths = list(
-            fd.askopenfilenames(initialdir=self._default_load_file_loc, title="Select a file to fit",
+            fd.askopenfilenames(parent=self._gui,
+                                initialdir=self._default_load_file_loc, title="Select a file to fit",
                                 filetypes=(("All Files", "*.*"),
                                            ("Comma-Separated Files", "*.csv *.txt"),
                                            ("Spreadsheets", "*.xls *.xlsx *.ods"))
@@ -968,6 +975,11 @@ class Frontend:
         plt.xlabel(self.data_handler.x_label)
         plt.ylabel(self.data_handler.y_label)
         axes = plt.gca()
+        axes.tick_params(color=self._dataaxes_color, labelcolor=self._dataaxes_color)
+        axes.xaxis.label.set_color(self._dataaxes_color)
+        axes.yaxis.label.set_color(self._dataaxes_color)
+        for spine in axes.spines.values() :
+            spine.set_edgecolor(self._dataaxes_color)
         if axes.get_xlim()[0] > 0:
             axes.set_xlim([0, axes.get_xlim()[1]])
         elif axes.get_xlim()[1] < 0:
@@ -1441,10 +1453,11 @@ class Frontend:
 
     def add_message(self, message_string) -> bool :
 
+        self.logger(message_string)
         # TODO: consider also printing to a log file
         # print("Add_message: ",self._gui.winfo_height(), message_string)
         text_frame = self._right_panel_frame  # self._gui.children['!frame3']
-        text_frame.update()
+        # text_frame.update()  # WHY was this necessary? It hangs the mac on restart
         # print("Add_message: ",self._gui.winfo_height(), message_string)
 
         for line in regex.split(f"\n", message_string):
@@ -1471,7 +1484,7 @@ class Frontend:
         return True
     def remove_n_messages(self, n):
 
-        text_frame = self._gui.children['!frame3']
+        text_frame = self._right_panel_frame
 
         key_removal_list = []
         for key in text_frame.children.keys():
@@ -2681,6 +2694,11 @@ class Frontend:
         plt.xlabel(handler.x_label)
         plt.ylabel(handler.y_label)
         axes: plt.axes = plt.gca()
+        axes.tick_params(color=self._dataaxes_color, labelcolor=self._dataaxes_color)
+        axes.xaxis.label.set_color(self._dataaxes_color)
+        axes.yaxis.label.set_color(self._dataaxes_color)
+        for spine in axes.spines.values() :
+            spine.set_edgecolor(self._dataaxes_color)
         if axes.get_xlim()[0] > 0:
             axes.set_xlim([0, axes.get_xlim()[1]])
         elif axes.get_xlim()[1] < 0:
@@ -2743,7 +2761,11 @@ class Frontend:
         plt.close()
         plt.figure(facecolor=self._bg_color)
         axes: plt.axes = plt.gca()
-
+        axes.tick_params(color=self._dataaxes_color, labelcolor=self._dataaxes_color)
+        axes.xaxis.label.set_color(self._dataaxes_color)
+        axes.yaxis.label.set_color(self._dataaxes_color)
+        for spine in axes.spines.values() :
+            spine.set_edgecolor(self._dataaxes_color)
         for idx, (handler, args) in enumerate(zip(self._data_handlers, args_list)):
 
             x_points = handler.unlogged_x_data
@@ -2935,14 +2957,26 @@ class Frontend:
             self._polynomial_degree_tkint.set(self._polynomial_degree_tkint.get() - 1)
         else:
             self.add_message(f"\n \n> Polynomials must have a degree of at least 0\n")
+            return
         self._polynomial_degree_label.configure(text=f"Degree: {self._polynomial_degree_tkint.get()}")
+
+        if self._showing_fit_image:
+            if self._refit_on_click:
+                self.fit_data_command()
+
     def degree_up_command(self):
         if self._polynomial_degree_tkint.get() < self.max_poly_degree():
             self._polynomial_degree_tkint.set(self._polynomial_degree_tkint.get() + 1)
         else:
             self.add_message(f"\n \n> Degree greater than {self._polynomial_degree_tkint.get()}"
                              f" will lead to an overfit.")
+            return
         self._polynomial_degree_label.configure(text=f"Degree: {self._polynomial_degree_tkint.get()}")
+
+        if self._showing_fit_image:
+            if self._refit_on_click:
+                self.fit_data_command()
+
     def max_poly_degree(self):
         return len(set([datum.pos for datum in self.data_handler.data])) - 1
 
@@ -3575,8 +3609,13 @@ class Frontend:
         while loc[-7:] != "autofit":
             loc = os.path.dirname(loc)
             if loc == os.path.dirname(loc):
-                return fallback
-        return loc+"/data"
+                loc = fallback
+                break
+
+        if os.path.exists(f"{loc}/data"):
+            loc = loc + "/data"
+
+        return loc
 
     def show_current_data(self):
         self.show_data()
@@ -3681,81 +3720,120 @@ class Frontend:
         self._criterion = other
 
 
-    def bg_color_default(self):
+    def bg_color_default(self, do_update_image = True):
         self._default_bg_colour = "Default"
         self._bg_color = (112 / 255, 146 / 255, 190 / 255)
-        self.update_image()
         self.checkmark_background_options(0)
-        self.save_defaults()
-    def bg_color_white(self):
+        if do_update_image :
+            self.update_image()
+            self.save_defaults()
+    def bg_color_white(self, do_update_image = True):
         self._default_bg_colour = "White"
         self._bg_color = (1., 1., 1.)
-        self.update_image()
         self.checkmark_background_options(1)
-        self.save_defaults()
-    def bg_color_dark(self):
+        if self._default_fit_colour == "White" :  # shouldn't allow white on white
+            self.fit_color_black(do_update_image=False)
+        if self._default_dataaxes_colour == "White" :  # shouldn't allow white on white
+            self.dataaxes_color_default(do_update_image=False)
+        if do_update_image:
+            self.update_image()
+            self.save_defaults()
+
+    def bg_color_dark(self, do_update_image = True):
         self._default_bg_colour = "Dark"
         self._bg_color = (0.2, 0.2, 0.2)
-        self.update_image()
         self.checkmark_background_options(2)
-        self.save_defaults()
-    def bg_color_black(self):
+        if do_update_image:
+            self.update_image()
+            self.save_defaults()
+    def bg_color_black(self, do_update_image = True):
         self._default_bg_colour = "Black"
         self._bg_color = (0., 0., 0.)
-        self.update_image()
         self.checkmark_background_options(3)
-        self.save_defaults()
+        if self._default_fit_colour == "Black" :  # shouldn't allow black on black
+            self.fit_color_white(do_update_image=False)
+        if self._default_dataaxes_colour == "Default" :
+            self.dataaxes_color_white(do_update_image=False)
+        if do_update_image:
+            self.update_image()
+            self.save_defaults()
 
-    def dataaxes_color_default(self):
+    def dataaxes_color_default(self, do_update_image = True):
         self._default_dataaxes_colour = "Default"
         self._dataaxes_color = (0., 0., 0.)
-        self.update_image()
         self.checkmark_dataaxis_options(0)
-        self.save_defaults()
-    def dataaxes_color_white(self):
+        if self._default_bg_colour == "Black" :  # should allow black on black in case they don't want axes
+            self.bg_color_white(do_update_image=False)
+        if do_update_image:
+            self.update_image()
+            self.save_defaults()
+    def dataaxes_color_white(self, do_update_image = True):
         self._default_dataaxes_colour = "White"
         self._dataaxes_color = (1., 1., 1.)
-        self.update_image()
         self.checkmark_dataaxis_options(1)
-        self.save_defaults()
+        if self._default_bg_colour == "White" :  # should allow white on white in case they don't want axes
+            self.bg_color_black(do_update_image=False)
+        if do_update_image:
+            self.update_image()
+            self.save_defaults()
 
-    def fit_color_default(self):
+    def fit_color_default(self, do_update_image = True):
         self._default_fit_colour = "Default"
         self._fit_color = (1., 0., 0.)
-        self.update_image()
         self.checkmark_fit_colour_options(0)
-        self.save_defaults()
-    def fit_color_white(self):
+        if do_update_image:
+            self.update_image()
+            self.save_defaults()
+    def fit_color_white(self, do_update_image = True):
         self._default_fit_colour = "White"
         self._fit_color = (1., 1., 1.)
-        self.update_image()
         self.checkmark_fit_colour_options(1)
-        self.save_defaults()
-    def fit_color_black(self):
+        if self._default_bg_colour == "White" :  # can't have white on white
+            self.bg_color_black(do_update_image=False)
+        if do_update_image:
+            self.update_image()
+            self.save_defaults()
+    def fit_color_black(self, do_update_image = True):
         self._default_fit_colour = "Black"
         self._fit_color = (0., 0., 0.)
-        self.update_image()
         self.checkmark_fit_colour_options(2)
-        self.save_defaults()
+        if self._default_bg_colour == "Black" :  # can't have black on black
+            self.bg_color_white(do_update_image=False)
+        if do_update_image:
+            self.update_image()
+            self.save_defaults()
 
     def console_color_default(self):
         self._default_console_colour = "Default"
         self._console_color = (0, 0, 0)
         self.checkmark_printout_background_options(0)
+        if self._default_printout_colour == "Black" :
+            self.printout_color_white()
         self.save_defaults()
-        self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
+
+        self._right_panel_frame.destroy()
+        self.create_right_panel()
+        # self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
     def console_color_white(self):
         self._default_console_colour = "White"
         self._console_color = (255, 255, 255)
         self.checkmark_printout_background_options(1)
+        if self._default_printout_colour == "White" :
+            self.printout_color_black()
         self.save_defaults()
-        self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
+        self._right_panel_frame.destroy()
+        self.create_right_panel()
+        # self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
     def console_color_pale(self):
         self._default_console_colour = "Pale"
         self._console_color = 'SystemButtonFace'  # (240, 240, 240)
         self.checkmark_printout_background_options(2)
+        if self._default_printout_colour == "White" :
+            self.printout_color_black()
         self.save_defaults()
-        self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
+        self._right_panel_frame.destroy()
+        self.create_right_panel()
+        # self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
 
 
     def printout_color_default(self):
@@ -3768,12 +3846,16 @@ class Frontend:
         self._default_printout_colour = "White"
         self._printout_color = (255, 255, 255)
         self.checkmark_printout_options(1)
+        if self._default_console_colour == "White" :
+            self.console_color_default()
         self.save_defaults()
         self.add_message("Changed printout colour to white.")
     def printout_color_black(self):
         self._default_printout_colour = "Black"
         self._printout_color = (0, 0, 0)
         self.checkmark_printout_options(2)
+        if self._default_console_colour == "Default" :
+            self.console_color_white()
         self.save_defaults()
         self.add_message("Changed printout colour to black.")
 
@@ -3923,11 +4005,19 @@ class Frontend:
         for i, label in enumerate(self._criterion_labels) :
             self._criterion_menu.entryconfigure(i, label=label + (self.sym_check if i == idx else ""))
 
+    def logger(self, logstr: str) :
+        log_filepath = f"{self.get_package_path()}/plots/log.log"
+        with open(file=log_filepath, mode='a+', encoding='utf-8') as log_file :
+            log_file.write(logstr)
+
     def exist(self):
         self._gui.mainloop()
     def restart_command(self):
         self.save_defaults()
         self._gui.destroy()
+
+        import gc
+        gc.collect()
 
         new_frontend = Frontend()
         new_frontend.exist()
