@@ -1,7 +1,7 @@
 
 import autofit.examples.frontend_startup as fe_start
 
-from autofit.src.validator import Validator
+from autofit.src.frontend import Validator
 
 def start_autofit():
 

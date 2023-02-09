@@ -34,8 +34,10 @@ def pprint(*stuff) :
     # pprint(stuff)
 
     # production
-    for istr in list(stuff) :
-        logger(istr)
+    # for istr in list(stuff) :
+    #     logger(istr)
+
+    pass
 
 def logger(logstr: str):
     log_filepath = f"{get_package_path()}/autofit_output.log"
@@ -928,11 +930,11 @@ class Optimizer:
             if status_bar['bg'] == "#010101" :  # cancel code
                 break
             # if model.name == "my_exp(my_sin(pow1))" :
-            #     print(fitted_model.args)
-            #     print(self._sin_freq_list)
-            #     print([2*np.pi*freq for freq in self._sin_freq_list])
-            #     print(self._cos_freq_list)
-            #     print([2*np.pi*freq for freq in self._cos_freq_list])
+            #     pprint(fitted_model.args)
+            #     pprint(self._sin_freq_list)
+            #     pprint([2*np.pi*freq for freq in self._sin_freq_list])
+            #     pprint(self._cos_freq_list)
+            #     pprint([2*np.pi*freq for freq in self._cos_freq_list])
             #
             #     self.show_fit(model=fitted_model,pause_on_image=True)
 
@@ -1120,8 +1122,8 @@ class Optimizer:
                 test_func1.set_args(avg_y, 2*np.abs(pos_Ynu[argmax]), 2*np.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) )
                 sin_rchisqr_list.append( self.reduced_chi_squared_of_fit(model=test_func1) )
 
-            # print(f"{avg_y:.3F}", [ 2*np.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) for i in range(7)])
-            # print(sin_rchisqr_list)
+            # pprint(f"{avg_y:.3F}", [ 2*np.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) for i in range(7)])
+            # pprint(sin_rchisqr_list)
 
             # should only do this if we find a minimum
             min_idx, min_val = np.argmin(sin_rchisqr_list[1:-1]), min(sin_rchisqr_list[1:-1])  # don't look at endpoints
@@ -1160,10 +1162,10 @@ class Optimizer:
 
 
             if is_sin :
-                # print(f"Adding {best_freq} to sin")
+                # pprint(f"Adding {best_freq} to sin")
                 self._sin_freq_list.append(best_freq)
             else:
-                # print(f"Adding {best_freq} to cos")
+                # pprint(f"Adding {best_freq} to cos")
                 self._cos_freq_list.append(best_freq)
             pos_Ynu = np.delete(pos_Ynu, argmax)
             pos_nu = np.delete(pos_nu, argmax)

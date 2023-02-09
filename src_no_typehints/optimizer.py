@@ -2,6 +2,7 @@
 # default libraries
 import re as regex
 from typing import Callable
+import sys, os
 
 # external libraries
 from scipy.optimize import curve_fit
@@ -27,12 +28,54 @@ as a discriminator. The model which achieves a reduced chi-squared closest to 1 
 ( log rchi^2 )^2 ] is chosen to be the "best" model
 """
 
+# production print
+def pprint(*stuff) :
+    # testing
+    # pprint(stuff)
+
+    # production
+    # for istr in list(stuff) :
+    #     logger(istr)
+
+    pass
+
+def logger(logstr):
+    log_filepath = f"{get_package_path()}/autofit_output.log"
+    with open(file=log_filepath, mode='a+', encoding='utf-8') as log_file :
+        log_file.write(f"{logstr}\n")
+
+def get_package_path():
+
+    try:
+        loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
+    except AttributeError:
+        filepath = os.path.abspath(__file__)
+        loc = os.path.dirname(filepath)
+
+    fallback = loc
+    # keep stepping back from the current directory until we are in the directory /autofit
+    while loc[-7:] != "autofit":
+        loc = os.path.dirname(loc)
+        if loc == os.path.dirname(loc):
+            loc = fallback
+            break
+
+    if sys.platform == "darwin" :
+        if os.path.exists(f"{loc}/MIWs_AutoFit.app") :
+            loc = loc + "/MIWs_AutoFit.app/Contents/MacOS"
+    else :
+        if os.path.exists(f"{loc}/backend") :
+            loc = loc + "/backend"
+
+    return loc
+
+
 class Optimizer:
 
     # noinspection PyTypeChecker
     def __init__(self, data=None, use_functions_dict = None, max_functions=3, regen=True, criterion="rchisqr"):
 
-        print("New optimizer created")
+        pprint("New optimizer created")
 
         # datasets, which are lists of Datum1D instances
         self._data = []  # the raw datapoints of (x,y), possibly with uncertainties. It may
@@ -183,14 +226,14 @@ class Optimizer:
                 self._primitive_function_list.remove(prim)
                 return
         else :
-            print(f"No prim named {name} in optimizer prim list")
+            pprint(f"No prim named {name} in optimizer prim list")
 
     @property
     def criterion(self)  :
         return self._criterion
     @criterion.setter
     def criterion(self,other):
-        # print(f"Changed {self._criterion} to {other}")
+        # pprint(f"Changed {self._criterion} to {other}")
         self._criterion = other
         self.update_top5_rchisqrs_for_new_data(self._data)
 
@@ -221,29 +264,29 @@ class Optimizer:
     #         if model.name == chosen_model.name :
     #             self.top5_rchisqrs[idx] = self.reduced_chi_squared_of_fit(model)
     def update_top5_rchisqrs_for_new_data(self, new_data):
-        print(f"Updating top5 criterions. Before: {self.top5_rchisqrs}")
+        pprint(f"Updating top5 criterions. Before: {self.top5_rchisqrs}")
         self.set_data_to(new_data)
         for idx, model in enumerate(self.top5_models) :
             self.top5_rchisqrs[idx] = self.criterion(model)
-        print(f"After: {self.top5_rchisqrs}")
+        pprint(f"After: {self.top5_rchisqrs}")
 
     # changes top5 lists, does not change _shown variables
     def query_add_to_top5(self, model, covariance):
 
         rchisqr = self.criterion(model)
-        print(f"Querying {rchisqr:.2F} for {model.name}")
+        pprint(f"Querying {rchisqr:.2F} for {model.name}")
         if np.isnan(rchisqr) or rchisqr > self.top5_rchisqrs[-1] or any( V < 0 for V in np.diagonal(covariance)) :
             return
 
         rchisqr_adjusted = self.criterion_w_cov_punish(model, covariance)
         if rchisqr_adjusted > rchisqr :
-            print(f"Adjustment: {rchisqr} -> {rchisqr_adjusted}")
+            pprint(f"Adjustment: {rchisqr} -> {rchisqr_adjusted}")
             rchisqr = rchisqr_adjusted
         # check for duplication
         for idx, (topper, chisqr) in enumerate(zip( self.top5_models[:],self.top5_rchisqrs[:] )):
             # comparing with names
             if model.longname == topper.longname:
-                print("Same name in query")
+                pprint("Same name in query")
                 if chisqr <= rchisqr+1e-5 :
                     return
                 # delete the original entry from the list because ???
@@ -256,26 +299,26 @@ class Optimizer:
 
                 # dof should trump all
                 if topper.dof < model.dof :
-                    print(f"Booting out contender {model.name} with dof {model.dof} "
+                    pprint(f"Booting out contender {model.name} with dof {model.dof} "
                           f"in favour of {topper.name} with dof {topper.dof}")
                     return
                 # depth should then be preferred
                 if topper.depth > model.depth :
-                    print(f"Booting out contender {model.name} with depth {model.width} "
+                    pprint(f"Booting out contender {model.name} with depth {model.width} "
                           f"in favour of {topper.name} with depth {topper.width}")
                     return
                 # width should then be minimized
                 if topper.width < model.width :
-                    print(f"Booting out contender {model.name} with width {model.width} "
+                    pprint(f"Booting out contender {model.name} with width {model.width} "
                           f"in favour of {topper.name} with width {topper.width}")
                     return
                 if topper.dof == model.dof and topper.depth == model.depth and topper.width == model.width :
-                    print(f"Booting out contender {model.name} in favour of {topper.name}, "
+                    pprint(f"Booting out contender {model.name} in favour of {topper.name}, "
                           f"both with with dof, depth, width {topper.dof} {topper.depth} {topper.width}")
                     # default is to keep the first one added
                     return
                 # more sophisticated distinguishers might also try to minimize correlations between parameters
-                print(f"Booting out {topper.name} in favour of contender {model.name}")
+                pprint(f"Booting out {topper.name} in favour of contender {model.name}")
                 del self.top5_models[idx]
                 del self.top5_covariances[idx]
                 del self.top5_rchisqrs[idx]
@@ -283,7 +326,7 @@ class Optimizer:
                 # after dof, depth should trump all
 
 
-        # print(f"Passed basic check, trying to add {rchisqr} to {self._top5_rchisqrs}")
+        # pprint(f"Passed basic check, trying to add {rchisqr} to {self._top5_rchisqrs}")
         for idx, chi_sqr in enumerate(self._top5_rchisqrs[:]) :
             if rchisqr < self._top5_rchisqrs[idx] :
                 self.top5_models.insert(idx, model.copy())
@@ -297,7 +340,7 @@ class Optimizer:
                 par_str_list = [f"{arg:.3F}" for arg in model.args]
                 unc_str_list = [f"{unc:.3F}" for unc in std(covariance)]
 
-                print(f"New top {idx} with red_chisqr={rchisqr:.2F}: "
+                pprint(f"New top {idx} with red_chisqr={rchisqr:.2F}: "
                       f"{model} with pars=[" + ', '.join(par_str_list) + "] \u00B1 [" + ', '.join(unc_str_list) + "]")
                 model.print_tree()
 
@@ -310,15 +353,15 @@ class Optimizer:
                         if ( reduced_model is None
                                 or self.fails_rules(reduced_model)
                                 or (reduced_model.prim.name == "sum_" and reduced_model.num_children() == 0) ):
-                            print("Zero arg detected but but can't reduce the model")
+                            pprint("Zero arg detected but but can't reduce the model")
                             continue
-                        print("Zero arg detected: new trimmed model is")
+                        pprint("Zero arg detected: new trimmed model is")
                         reduced_model.set_submodel_of_zero_idx(model,ndx)
                         reduced_model.print_tree()
                         if reduced_model.name in self.top5_names :
                             reduced_idx = self.top5_names.index(reduced_model.name)
                             if reduced_idx < idx :
-                                print("Shazam")
+                                pprint("Shazam")
                                 # don't keep the supermodel
                                 del self.top5_models[idx]
                                 del self.top5_covariances[idx]
@@ -346,8 +389,8 @@ class Optimizer:
 
         if depth == 0 :
             if regen_built_ins :
-                print("Composite generator:",self._primitive_names_list)
-                print("Starting new generator at 0 depth")
+                pprint("Composite generator:",self._primitive_names_list)
+                pprint("Starting new generator at 0 depth")
                 self._gen_idx = 0
                 for model in CompositeFunction.built_in_list() :
                     yield model
@@ -406,7 +449,7 @@ class Optimizer:
         # to generate it again. Follow that logic
         if not self._regen_composite_flag :
             return
-        print(f"{self._regen_composite_flag}, so regenerating composite list with {self._max_functions} "
+        pprint(f"{self._regen_composite_flag}, so regenerating composite list with {self._max_functions} "
               f"and {[prim.name for prim in self._primitive_function_list]}")
         self._regen_composite_flag = False
 
@@ -457,7 +500,7 @@ class Optimizer:
                                 new_list.append(new_mul)
                 if status_bar['bg'] == "#010101" :  # cancel code
                     break
-            print(f"{depth} build_comp_list new_len=",len(new_list))
+            pprint(f"{depth} build_comp_list new_len=",len(new_list))
             self._composite_function_list.extend( new_list )
             last_list = new_list
 
@@ -467,10 +510,10 @@ class Optimizer:
         # prepend the current top 5 models
 
         self.trim_composite_function_list(status_bar=status_bar)
-        print(f"After trimming list: (len={len(self._composite_function_list)})")
+        pprint(f"After trimming list: (len={len(self._composite_function_list)})")
         for icomp in self._composite_function_list:
-            print(icomp)
-        print("|----------------\n")
+            pprint(icomp)
+        pprint("|----------------\n")
     def trim_composite_function_list(self,status_bar:tk_label):
         # Finds and removes duplicates
         # Performs basic algebra to recognize simpler forms with fewer parameters
@@ -492,7 +535,7 @@ class Optimizer:
                 if status_bar['bg'] == "#010101" :  # cancel code
                     self._regen_composite_flag = True
                     break
-                print(f"{idx}/{num_comps}")
+                pprint(f"{idx}/{num_comps}")
 
             # if self.fails_rules(icomp) :
             if self.validate_fails(icomp) :
@@ -616,29 +659,29 @@ class Optimizer:
 
         for good in good_list :
             if name == good and remove_flag:
-                print(f"\n\n>>> Why did we remove {name} at {remove_flag} <<<\n\n")
+                pprint(f"\n\n>>> Why did we remove {name} at {remove_flag} <<<\n\n")
                 raise SystemExit
 
         if name == "pow1(pow0+pow0)" and not remove_flag:
-            print(f"\n\n>>> Why did we NOT remove {name} at remove_flag=23 <<<\n\n")
+            pprint(f"\n\n>>> Why did we NOT remove {name} at remove_flag=23 <<<\n\n")
             raise SystemExit
 
         if name == "pow1·pow1(pow1·pow1)" and not remove_flag:
-            print(f"\n\n>>> Why did we NOT remove {name} at remove_flag=?? <<<\n\n")
+            pprint(f"\n\n>>> Why did we NOT remove {name} at remove_flag=?? <<<\n\n")
             raise SystemExit
 
         if name == "my_exp(pow1)·my_exp·pow1" and not remove_flag:
-            print(f"\n\n>>> Why did we NOT remove {name} at remove_flag=43 <<<\n\n")
-            print(icomp.has_double_expness())
+            pprint(f"\n\n>>> Why did we NOT remove {name} at remove_flag=43 <<<\n\n")
+            pprint(icomp.has_double_expness())
             raise SystemExit
 
         if (name == "pow1·my_exp(my_exp)" or name == "pow1·my_exp(pow1·my_exp)") and not remove_flag:
-            print(f"\n\n>>> Why did we NOT remove {name} at remove_flag=29 <<<\n\n")
-            print(icomp.has_double_expness())
+            pprint(f"\n\n>>> Why did we NOT remove {name} at remove_flag=29 <<<\n\n")
+            pprint(icomp.has_double_expness())
             raise SystemExit
 
         if name == "my_exp(pow1)·my_exp(pow1)" :
-            print(f"\n\n>>> Why did we NOT remove {name} at remove_flag=?? <<<\n\n")
+            pprint(f"\n\n>>> Why did we NOT remove {name} at remove_flag=?? <<<\n\n")
             raise RuntimeWarning
 
         return remove_flag
@@ -651,7 +694,7 @@ class Optimizer:
         if name in [prim.name for prim in self._primitive_function_list ] :
             return ""
 
-        # print(f"\n{name} {functional_form}")
+        # pprint(f"\n{name} {functional_form}")
         if regex.search("\\\\",functional_form) or regex.search("\n",functional_form)\
                 or regex.search("\s",functional_form) :
             return "Stop trying to inject code"
@@ -669,9 +712,9 @@ class Optimizer:
             return f"Corrupted custom function {name} " \
                    f"with form={functional_form}, returning to blank slate."
 
-        print("add_primitive_to...")
+        pprint("add_primitive_to...")
         for key, val in PrimitiveFunction.built_in_dict().items() :
-            print(f"{key}, {val}")
+            pprint(f"{key}, {val}")
 
         try :
             PrimitiveFunction.built_in(name).eval_at(np.pi/4)
@@ -724,8 +767,8 @@ class Optimizer:
             self._cos_freq_list_dup = self._cos_freq_list.copy()
             self._sin_freq_list_dup = self._sin_freq_list.copy()
 
-        print(f"\nFitting {model}")
-        print(model.tree_as_string_with_dimensions())
+        pprint(f"\nFitting {model}")
+        pprint(model.tree_as_string_with_dimensions())
 
         # Find an initial guess for the parameters based off scaling arguments
         if initial_guess is None :
@@ -738,7 +781,7 @@ class Optimizer:
                 trailing = np_args[1:]/leading
                 initial_guess = [leading] + list(trailing)
 
-        print(f"{info_string}Scaling guess: {initial_guess}")
+        pprint(f"{info_string}Scaling guess: {initial_guess}")
 
         # Next, find a better guess by relaxing the error bars on the data
         # Unintuitively, this helps. Tight error bars flatten the gradients away from the global minimum,
@@ -747,14 +790,14 @@ class Optimizer:
             better_guess, better_cov = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
                                                  p0=initial_guess, maxfev=5000, method='lm')
             if any( [x < 0 for x in np.diagonal(better_cov)] ) :
-                print("Negative variance encountered")
+                pprint("Negative variance encountered")
                 raise RuntimeError
         except RuntimeError:
-            print("Couldn't find optimal parameters for better guess.")
+            pprint("Couldn't find optimal parameters for better guess.")
             model.args = list(initial_guess)
             return model, np.array([1e10 for _ in range(len(initial_guess)**2)]) \
                             .reshape(len(initial_guess),len(initial_guess))
-        print(f"{info_string}Better guess: {better_guess} +- {np.sqrt(np.diagonal(better_cov))}")
+        pprint(f"{info_string}Better guess: {better_guess} +- {np.sqrt(np.diagonal(better_cov))}")
 
         # Finally, use the better guess to find the true minimum with the true error bars
         try:
@@ -762,13 +805,13 @@ class Optimizer:
                                         sigma=sigma_points, absolute_sigma=use_errors,
                                         p0=better_guess, maxfev=5000)
             if any([x < 0 for x in np.diagonal(np_cov)]):
-                print("Negative variance encountered")
+                pprint("Negative variance encountered")
                 raise RuntimeError
         except RuntimeError:
-            print("Couldn't find optimal parameters for final fit.")
+            pprint("Couldn't find optimal parameters for final fit.")
             model.args = list(better_guess)
             return model, better_cov
-        print(f"{info_string}Final guess: {np_pars} +- {np.sqrt(np.diagonal(np_cov))}")
+        pprint(f"{info_string}Final guess: {np_pars} +- {np.sqrt(np.diagonal(np_cov))}")
         model.args = list(np_pars)
 
         # should use the effective variance method if x-errors exist, e.g.
@@ -782,10 +825,10 @@ class Optimizer:
                                                         sigma=effective_sigma, absolute_sigma=use_errors,
                                                         p0=np_pars, maxfev=5000)
                 except RuntimeError :
-                    print(f"On model {model} max_fev reached")
+                    pprint(f"On model {model} max_fev reached")
                     # raise RuntimeError
                 model.args = list(np_pars)
-                print(f"Now with effective variance: {np_pars} +- {np.sqrt(np.diagonal(np_cov))}")
+                pprint(f"Now with effective variance: {np_pars} +- {np.sqrt(np.diagonal(np_cov))}")
 
         return model, np_cov
 
@@ -801,11 +844,11 @@ class Optimizer:
         if init_guess is None:
             while model.is_submodel :
                 supermodel = model_.submodel_of.copy()
-                print(f"\n>>> {model_}: Have to go back to the supermodel {supermodel} "
+                pprint(f"\n>>> {model_}: Have to go back to the supermodel {supermodel} "
                       f"for refitting. {model_.submodel_zero_index}")
                 supermodel, _ = self.fit_this_and_get_model_and_covariance(model_=supermodel, change_shown=False,
                                                                            do_halving=do_halving, halved=halved)
-                print(f"rchisqr for supermodel = {self.reduced_chi_squared_of_fit(supermodel)} {do_halving} {halved}")
+                pprint(f"rchisqr for supermodel = {self.reduced_chi_squared_of_fit(supermodel)} {do_halving} {halved}")
                 model = supermodel.submodel_without_node_idx(model_.submodel_zero_index)
                 # ^ creates a submodel that doesnt think it's a submodel
                 init_guess = model.args
@@ -813,11 +856,11 @@ class Optimizer:
             modal = model.num_children()
             if modal > 1 :
                 means = self.find_peaks_for_gaussian(expected_n = modal)
-                print(f"Peaks expected at {means}")
+                pprint(f"Peaks expected at {means}")
                 widths = self.find_widths_for_gaussian(means=means)
-                print(f"Widths expected to be {widths}")
+                pprint(f"Widths expected to be {widths}")
                 est_amplitudes = self.find_amplitudes_for_gaussian(means=means,widths=widths)
-                print(f"Amplitudes expected to be {est_amplitudes}")
+                pprint(f"Amplitudes expected to be {est_amplitudes}")
                 init_guess = []
                 for amp, width, mean in zip(est_amplitudes, widths, means) :
                     init_guess.extend( [amp,width,mean] )
@@ -830,7 +873,7 @@ class Optimizer:
         fitted_rchisqr = self.reduced_chi_squared_of_fit(fitted_model)
 
         if fitted_rchisqr > 10 and len(self._data) > 20 and do_halving:
-            print(" "*halved*4 + f"It is unlikely that we have found the correct model... "
+            pprint(" "*halved*4 + f"It is unlikely that we have found the correct model... "
                                  f"halving the dataset to {len(self._data)//2}")
 
             lower_data = self._data[:len(self._data)//2]
@@ -886,13 +929,21 @@ class Optimizer:
             status_bar.master.master.update()
             if status_bar['bg'] == "#010101" :  # cancel code
                 break
+            # if model.name == "my_exp(my_sin(pow1))" :
+            #     pprint(fitted_model.args)
+            #     pprint(self._sin_freq_list)
+            #     pprint([2*np.pi*freq for freq in self._sin_freq_list])
+            #     pprint(self._cos_freq_list)
+            #     pprint([2*np.pi*freq for freq in self._cos_freq_list])
+            #
+            #     self.show_fit(model=fitted_model,pause_on_image=True)
 
 
 
-        print(f"\nBest models are {[m.name for m in self.top5_models]} with "
+        pprint(f"\nBest models are {[m.name for m in self.top5_models]} with "
               f"associated reduced chi-squareds {self.top5_rchisqrs}")
 
-        print(f"\nBest model is {self.top_model} "
+        pprint(f"\nBest model is {self.top_model} "
               f"\n with args {self.top_args} += {self.top_uncs} "
               f"\n and reduced chi-sqr {self.top_rchisqr}")
         self.top_model.print_sub_facts()
@@ -901,7 +952,7 @@ class Optimizer:
         if self.top_rchisqr > 10 and len(self._data) > 20:
             # if a better model is found here it will probably underestimate the actual rchisqr since
             # it will only calculate based on half the data
-            print("It is unlikely that we have found the correct model... halving the dataset")
+            pprint("It is unlikely that we have found the correct model... halving the dataset")
             lower_data = self._data[:len(self._data)//2]
             lower_optimizer = Optimizer(data=lower_data,
                                         use_functions_dict=self._use_functions_dict,
@@ -969,7 +1020,7 @@ class Optimizer:
             if np.sign(m0.val) != np.sign(m1.val) :
                 tup = (m0.pos + m1.pos)/2, (m1.val-m0.val)/(m1.pos-m0.pos)
                 cand_con.append( tup )
-                print(f"New candidate at {(m0.pos + m1.pos)/2} "
+                pprint(f"New candidate at {(m0.pos + m1.pos)/2} "
                       f"with concavity {(m1.val-m0.val)/(m1.pos-m0.pos)}")
 
         # sort the candidates by their concavity
@@ -1029,7 +1080,7 @@ class Optimizer:
                     # equation of the line connecting the two points is
                     # y(x) = [ y_low(x_high-x) + y_high(x-x_low) ] / (x_high - x_low)
                     x_low, y_low = self._data[idx-1].pos, self._data[idx-1].val
-                    x_high, y_high = self._data[idx].pos, self._data[idx].pos
+                    x_high, y_high = self._data[idx].pos, self._data[idx].val  # wtf its been wrong this entire time
                     y_points.append( ( y_low*(x_high-target) + y_high*(target-x_low) ) / (x_high - x_low)  )
                     break
 
@@ -1062,12 +1113,17 @@ class Optimizer:
             # note that tested frequencies can overlap from one argmax to the next
 
             # first with sine
-            test_func = CompositeFunction(prim_=PrimitiveFunction.built_in("sin"),
-                                          children_list=[PrimitiveFunction.built_in("pow1")])
+            sin_func = CompositeFunction(prim_=PrimitiveFunction.built_in("sin"),
+                                         children_list=[PrimitiveFunction.built_in("pow1")])
+            test_func1 = CompositeFunction(prim_=PrimitiveFunction.built_in("sum"),
+                                           children_list=[PrimitiveFunction.built_in("pow0"),sin_func])
             sin_rchisqr_list = []
             for i in range(7) :
-                test_func.set_args(2*np.abs(pos_Ynu[argmax]), 2*np.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) )
-                sin_rchisqr_list.append( self.reduced_chi_squared_of_fit(model=test_func) )
+                test_func1.set_args(avg_y, 2*np.abs(pos_Ynu[argmax]), 2*np.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) )
+                sin_rchisqr_list.append( self.reduced_chi_squared_of_fit(model=test_func1) )
+
+            # pprint(f"{avg_y:.3F}", [ 2*np.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) for i in range(7)])
+            # pprint(sin_rchisqr_list)
 
             # should only do this if we find a minimum
             min_idx, min_val = np.argmin(sin_rchisqr_list[1:-1]), min(sin_rchisqr_list[1:-1])  # don't look at endpoints
@@ -1082,12 +1138,14 @@ class Optimizer:
                     best_rchisqr = min_val
 
             # now with cosine
-            test_func = CompositeFunction(prim_=PrimitiveFunction.built_in("cos"),
+            cos_func = CompositeFunction(prim_=PrimitiveFunction.built_in("cos"),
                                           children_list=[PrimitiveFunction.built_in("pow1")])
+            test_func2 = CompositeFunction(prim_=PrimitiveFunction.built_in("sum"),
+                                          children_list=[PrimitiveFunction.built_in("pow0"),cos_func])
             cos_rchisqr_list = []
             for i in range(7):
-                test_func.set_args( 2*np.abs(pos_Ynu[argmax]), 2*np.pi*(pos_nu[argmax] + delta_nu*(i-3) / 3) )
-                cos_rchisqr_list.append(self.reduced_chi_squared_of_fit(model=test_func))
+                test_func2.set_args( avg_y, 2*np.abs(pos_Ynu[argmax]), 2*np.pi*(pos_nu[argmax] + delta_nu*(i-3) / 3) )
+                cos_rchisqr_list.append(self.reduced_chi_squared_of_fit(model=test_func2))
 
             # should only do this if we find a minimum
             min_idx, min_val = np.argmin(cos_rchisqr_list[1:-1]), min(cos_rchisqr_list[1:-1])  # don't look at endpoints
@@ -1104,10 +1162,10 @@ class Optimizer:
 
 
             if is_sin :
-                # print(f"Adding {best_freq} to sin")
+                # pprint(f"Adding {best_freq} to sin")
                 self._sin_freq_list.append(best_freq)
             else:
-                # print(f"Adding {best_freq} to cos")
+                # pprint(f"Adding {best_freq} to cos")
                 self._cos_freq_list.append(best_freq)
             pos_Ynu = np.delete(pos_Ynu, argmax)
             pos_nu = np.delete(pos_nu, argmax)
@@ -1150,7 +1208,7 @@ class Optimizer:
         if temp_rchisqr < best_rchisqr and model.num_trig() < 1:  # don't want to mess up frequencies
             best_grid_point = weighted_point_norm
             # best_rchisqr = temp_rchisqr
-            # print(f"Using weighted {best_rchisqr} {best_grid_point}")
+            # pprint(f"Using weighted {best_rchisqr} {best_grid_point}")
 
         model.set_args( *best_grid_point )
         # model.print_tree()
@@ -1158,7 +1216,7 @@ class Optimizer:
         return best_grid_point
     def find_set_initial_guess_scaling(self, composite):
 
-        print(composite, self._sin_freq_list_dup, self._cos_freq_list_dup)
+        pprint(composite, self._sin_freq_list_dup, self._cos_freq_list_dup)
 
         for child in reversed(composite.children_list) :
             # reverse to bias towards more complicated
@@ -1196,26 +1254,26 @@ class Optimizer:
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / (1e-5 * composite.prim.arg)
             if abs(slope_at_zero) > 1e-5 :
                 if len(self._cos_freq_list_dup) > 0 :
-                    print(f"Using cosine frequency {2*np.pi*self._cos_freq_list_dup[0]}")
+                    pprint(f"Using cosine frequency {2*np.pi*self._cos_freq_list_dup[0]}")
                     xmul = ( 2*np.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
                 else:  # misassigned cosine frequency
                     try:
                         xmul = ( 2*np.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
                     except TypeError :
-                        print("find_set_initial_guess_scaling TypeError",self._sin_freq_list_dup)
-                        print("find_set_initial_guess_scaling TypeError",self._sin_freq_list)
-                        print("find_set_initial_guess_scaling TypeError",self._cos_freq_list_dup)
-                        print("find_set_initial_guess_scaling TypeError",self._cos_freq_list)
+                        pprint("find_set_initial_guess_scaling TypeError",self._sin_freq_list_dup)
+                        pprint("find_set_initial_guess_scaling TypeError",self._sin_freq_list)
+                        pprint("find_set_initial_guess_scaling TypeError",self._cos_freq_list_dup)
+                        pprint("find_set_initial_guess_scaling TypeError",self._cos_freq_list)
                         raise SystemExit
         elif "sin" in composite.parent.prim.name :
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / (1e-5 * composite.prim.arg)
             if abs(slope_at_zero) > 1e-5 :
                 if len(self._sin_freq_list_dup) > 0 :
-                    print(f"Using sine frequency {2*np.pi*self._sin_freq_list_dup[0]}")
+                    pprint(f"Using sine frequency {2*np.pi*self._sin_freq_list_dup[0]}")
                     xmul = ( 2*np.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
                 else:  # misassigned cosine frequency
                     xmul = ( 2*np.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
-
+            pprint(f"{xmul} {self._sin_freq_list} {slope_at_zero*2*np.pi}")
         composite.prim.arg = xmul * ymul
 
         return composite.get_args()
@@ -1256,7 +1314,7 @@ class Optimizer:
         if axes.get_ylim()[0] > 0 :
             axes.set_ylim( [0, axes.get_ylim()[1]] )
         axes.set_facecolor( (112/255, 146/255, 190/255) )
-        # print("Optimizer show fit: here once")
+        # pprint("Optimizer show fit: here once")
         plt.show(block=pause_on_image)
 
     def inferred_error_bar_size(self)  :
@@ -1278,7 +1336,7 @@ class Optimizer:
             node = model.get_node_with_index(idx)
             if node.parent is not None and node.parent.prim.name in ["my_sin", "my_cos"] :
                 if node.prim.arg > 10*avg_grid_spacing :
-                    print("LIAR! FREQUENCY EXTRAVAGENT")
+                    pprint("LIAR! FREQUENCY EXTRAVAGENT")
                     return self.criterion(model) * (node.prim.arg/avg_grid_spacing)**2
         return self.criterion(model)
     def criterion_w_cov_punish(self, model, cov):
@@ -1322,7 +1380,7 @@ class Optimizer:
 
     def smoothed_data(self, data = None, n=1)  :
 
-        print("Using smoothed data")
+        pprint("Using smoothed data")
 
         return_data = []
         if data is None :

@@ -14,8 +14,10 @@ def pprint(*stuff) :
     # pprint(stuff)
 
     # production
-    for istr in list(stuff) :
-        logger(istr)
+    # for istr in list(stuff) :
+    #     logger(istr)
+
+    pass
 
 def logger(logstr: str):
     log_filepath = f"{get_package_path()}/autofit_output.log"

@@ -3,6 +3,7 @@
 # built-in libraries
 from typing import Callable, Union
 import re as regex
+import sys, os
 
 # external libraries
 import numpy as np
@@ -11,6 +12,47 @@ import scipy.stats
 
 # internal classes
 from autofit.src.primitive_function import PrimitiveFunction
+
+# production print
+def pprint(*stuff) :
+    # testing
+    # pprint(stuff)
+
+    # production
+    # for istr in list(stuff) :
+    #     logger(istr)
+
+    pass
+
+def logger(logstr):
+    log_filepath = f"{get_package_path()}/autofit_output.log"
+    with open(file=log_filepath, mode='a+', encoding='utf-8') as log_file :
+        log_file.write(f"{logstr}\n")
+
+def get_package_path():
+
+    try:
+        loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
+    except AttributeError:
+        filepath = os.path.abspath(__file__)
+        loc = os.path.dirname(filepath)
+
+    fallback = loc
+    # keep stepping back from the current directory until we are in the directory /autofit
+    while loc[-7:] != "autofit":
+        loc = os.path.dirname(loc)
+        if loc == os.path.dirname(loc):
+            loc = fallback
+            break
+
+    if sys.platform == "darwin" :
+        if os.path.exists(f"{loc}/MIWs_AutoFit.app") :
+            loc = loc + "/MIWs_AutoFit.app/Contents/MacOS"
+    else :
+        if os.path.exists(f"{loc}/backend") :
+            loc = loc + "/backend"
+
+    return loc
 
 class CompositeFunction:
 
@@ -154,7 +196,7 @@ class CompositeFunction:
         self._submodel_zero_index = zero_idx
         self._submodel_of = larger_model.copy()
         if self.name == larger_model.name :
-            print(f"Set submodel: {self.name} =!= {larger_model.name}")
+            pprint(f"Set submodel: {self.name} =!= {larger_model.name}")
             raise RuntimeError
     @property
     def is_submodel(self)  :
@@ -172,7 +214,7 @@ class CompositeFunction:
     def submodel_of(self)  :
         return self._submodel_of
     def print_sub_facts(self):
-        print(f"{self}{'is' if self._is_submodel else 'isnt'} "
+        pprint(f"{self}{'is' if self._is_submodel else 'isnt'} "
               f"submodel of {self._submodel_of} {self._submodel_zero_index}")
 
 
@@ -473,9 +515,9 @@ class CompositeFunction:
         return tree_str.rstrip('\n') + "\n"
 
     def print_tree(self):
-        print(f"{self.name}:")
-        # print(self.tree_as_string())
-        print(self.tree_as_string_with_args())
+        pprint(f"{self.name}:")
+        # pprint(self.tree_as_string())
+        pprint(self.tree_as_string_with_args())
 
 
     """
@@ -651,7 +693,7 @@ class CompositeFunction:
 
     def eval_at(self,x, X0 = 0, Y0 = 0):
         if X0 :
-            # print(f"{X0}")
+            # pprint(f"{X0}")
             # the model is working with LX as the independent variable, but we're being passed x
             LX = np.log(x/X0)
             x = LX
@@ -671,7 +713,7 @@ class CompositeFunction:
         for child in self._children_list :
             children_eval_to += child.eval_at(x)
         if Y0 :
-            # print(f"{Y0}")
+            # pprint(f"{Y0}")
             # the model is working with LY as the dependent variable, but we're expecting to return x
             LY = self._prim.eval_at(children_eval_to)
             if self._younger_brother is not None:
@@ -720,7 +762,7 @@ class CompositeFunction:
             it += brother_dof
 
         if it != len(args_as_list) :
-            print(f"Trying to set {args_as_list} in {self.name}")
+            pprint(f"Trying to set {args_as_list} in {self.name}")
             raise RuntimeError
     def get_args(self, skip_flag=0)  :
         # get all arguments normally, then pop off the ones with constraints once we get to the head
@@ -749,7 +791,7 @@ class CompositeFunction:
     @staticmethod
     def construct_model_from_str(form, error_handler, name= "")  :
 
-        print(f"Entering construction for {form}")
+        pprint(f"Entering construction for {form}")
 
         # get all the names of the primitives used
         split_form = regex.split(f"[·+()*]", form)
@@ -764,7 +806,7 @@ class CompositeFunction:
             library_names = ["numpy","scipy.special","scipy.stats"]  # math doesn't accept arrays of xvals as inputs
 
             if not valid and prim in PrimitiveFunction.built_in_dict():
-                # print(f"{prim} exists in PrimitiveFunction")
+                # pprint(f"{prim} exists in PrimitiveFunction")
                 try :
                     fn = PrimitiveFunction.built_in(prim).copy()
                     fn.eval_at(np.pi/4)
@@ -778,7 +820,7 @@ class CompositeFunction:
                 if valid :
                     break
                 if getattr(lib, prim, None) is not None:
-                    # print(f"{prim} exists in {lib_name}")
+                    # pprint(f"{prim} exists in {lib_name}")
                     try :
                         if lib == scipy.stats._continuous_distns :
                             getattr(lib, prim).pdf(np.pi / 4)
@@ -795,7 +837,7 @@ class CompositeFunction:
                         valid = True
 
             if not valid :
-                print(PrimitiveFunction.built_in_dict())
+                pprint(PrimitiveFunction.built_in_dict())
                 error_handler(f"Couldn't find a valid version of \"{prim}\" in the list of known functions.")
                 # error_handler(f"  You can try creating it yourself using the Custom Function button.")
                 # noinspection PyTypeChecker
@@ -847,7 +889,7 @@ class CompositeFunction:
                     prim_to_add_name += c
                     form_it += 1
                     if form_it+1 == len(form) :
-                        print(prim_list)
+                        pprint(prim_list)
                         break
 
                 if form_it+1 == len(form) or form[form_it+1] in ['+','·','*'] :
@@ -919,7 +961,7 @@ class CompositeFunction:
     def submodel_without_node_idx(self, n)  :
 
         if len(self._constraints) > 0 :
-            print("Reduced model of a constrained model is not yet implemented")
+            pprint("Reduced model of a constrained model is not yet implemented")
             raise NotImplementedError
 
         new_model = self.copy()
@@ -931,7 +973,7 @@ class CompositeFunction:
 
         # untested with siblings
         if node_to_remove.parent is None and node_to_remove.older_brother is None :
-            print("Can't remove head node of a model ")
+            pprint("Can't remove head node of a model ")
             return None
 
         reduced_model = new_model.remove_node(node=node_to_remove)
@@ -1139,7 +1181,7 @@ def do_new_things():
     values = [ rng.normalvariate( mu=5/(1+np.exp(-(x-3)/7))-2.5, sigma=sigma) for x in positions]
 
     for pos, val in zip(positions,values) :
-        print(f"{pos:.2F}, {val:.2F}, {sigma}")
+        pprint(f"{pos:.2F}, {val:.2F}, {sigma}")
 
 
 
