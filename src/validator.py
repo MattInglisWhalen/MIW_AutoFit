@@ -25,7 +25,7 @@ class Validator:
     @staticmethod
     def extract_epoch_from_file(filepath) -> tuple[int, str]:
         if not os.path.exists(filepath) :
-            print("1> No secret file detected, exiting...")
+            print("1> No file detected, exiting...")
             return 0, f"Error code 1, exiting..."
         try:
             with open(filepath) as file :

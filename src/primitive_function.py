@@ -3,10 +3,49 @@ from __future__ import annotations
 # built-in libraries
 import inspect
 from typing import Callable
+import sys, os
 
 # external libraries
 import numpy as np
 
+# production print
+def pprint(*stuff) :
+    # testing
+    # pprint(stuff)
+
+    # production
+    for istr in list(stuff) :
+        logger(istr)
+
+def logger(logstr: str):
+    log_filepath = f"{get_package_path()}/autofit_output.log"
+    with open(file=log_filepath, mode='a+', encoding='utf-8') as log_file :
+        log_file.write(f"{logstr}\n")
+
+def get_package_path():
+
+    try:
+        loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
+    except AttributeError:
+        filepath = os.path.abspath(__file__)
+        loc = os.path.dirname(filepath)
+
+    fallback = loc
+    # keep stepping back from the current directory until we are in the directory /autofit
+    while loc[-7:] != "autofit":
+        loc = os.path.dirname(loc)
+        if loc == os.path.dirname(loc):
+            loc = fallback
+            break
+
+    if sys.platform == "darwin" :
+        if os.path.exists(f"{loc}/MIWs_AutoFit.app") :
+            loc = loc + "/MIWs_AutoFit.app/Contents/MacOS"
+    else :
+        if os.path.exists(f"{loc}/backend") :
+            loc = loc + "/backend"
+
+    return loc
 
 class PrimitiveFunction:
 
@@ -68,10 +107,10 @@ class PrimitiveFunction:
         try :
             return arg*self._callable_1param(x)
         except ValueError :
-            print(self, x, arg)
+            pprint(self, x, arg)
             raise ValueError
         except TypeError :
-            print(inspect.getmodule(self._callable_1param),self, x, arg)
+            pprint(inspect.getmodule(self._callable_1param),self, x, arg)
             raise TypeError
 
     @property
