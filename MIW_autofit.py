@@ -1,7 +1,10 @@
+# default libraries
 
+# external libraries
+
+# internal classes
 import autofit.examples.frontend_startup as fe_start
-
-from autofit.src.frontend import Validator
+from autofit.src.validator import Validator
 
 def start_autofit():
 
@@ -17,3 +20,4 @@ def start_autofit():
 if __name__ == "__main__":
 
     start_autofit()
+

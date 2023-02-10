@@ -1,3 +1,6 @@
+# default libraries
+
+# external libraries
 
 # internal classes
 from autofit.src.frontend import Frontend
@@ -33,7 +36,7 @@ datas=[('C:/Users/Matt/Documents/GitHub/MIW_AutoFit/autofit/icon.ico','.'),
 """
 Packaging instructions for directory version, saved settings enabled, quick startup 
 
-> pyinstaller --windowed --hidden-import autofit frontend_startup.py
+> pyinstaller --windowed --hidden-import autofit MIW_autofit.py
 
 then change datas in the .spec file to include the data you want 
 
@@ -43,7 +46,6 @@ datas=[('C:/Users/Matt/Documents/GitHub/MIW_AutoFit/autofit/icon.ico','.'),
            ('C:/Users/Matt/Documents/GitHub/MIW_AutoFit/autofit/data','data'),
            ('libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll','.')],
 
-> pyinstaller frontend_startup.spec
+> pyinstaller MIW_autofit.spec
 
 """
-

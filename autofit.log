@@ -1,10 +1,12 @@
-In C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+C:\Users\Matt\Documents\GitHub\MIW_AutoFit\autofit
+Thing1 Thing 2 Thing 
+ 3 Thing 	 4
 GUI Width >1440<
 GUI Height >810<
 GUI X >0<
 GUI Y >0<
 Fit-type >Procedural<
-Procedural depth >3<
+Procedural depth >4<
 Excel X-Range >A3:A18<
 Excel Y-Range >B3:B18<
 Excel SigmaX-Range ><

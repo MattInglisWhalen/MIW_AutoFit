@@ -2,7 +2,7 @@
 import _tkinter
 
 import sys
-import os as os
+import os.path as ospath
 import re as regex
 from functools import partial
 
@@ -24,86 +24,15 @@ from autofit.src.composite_function import CompositeFunction
 from autofit.src.primitive_function import PrimitiveFunction
 from autofit.src.data_handler import DataHandler
 from autofit.src.optimizer import Optimizer
+from autofit.src.package import pkg_path, logger
 
 # Possible todos for pro version
 # Copy to clipboard console
 # Reinstate logging capability
 # Finer detail sig figs of parameters
 # Covariance matrix
+# Residuals under plot
 
-# production print
-def pprint(*stuff) :
-    # testing
-    # print(stuff)
-
-    # production
-    # for istr in list(stuff) :
-    #     logger(istr)
-
-    pass
-
-def logger(logstr):
-    #log_filepath = f"{self.get_package_path()}/plots/log.log"
-    log_filepath = f"{get_package_path()}/autofit_output.log"
-    with open(file=log_filepath, mode='a+', encoding='utf-8') as log_file :
-        log_file.write(f"{logstr}\n")
-def logger_clean(logstr):
-    log_filepath = f"{get_package_path()}/autofit_output.log"
-    with open(file=log_filepath, mode='w', encoding='utf-8') as log_file :
-        log_file.write(f"{logstr}\n")
-
-def get_package_path():
-
-    try:
-        loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
-    except AttributeError:
-        Frontend._meipass_flag = False
-        filepath = os.path.abspath(__file__)
-        loc = os.path.dirname(filepath)
-        # pprint("It doesn't know about _MEIPASS")
-    else :
-        if "_MEI" not in loc :
-            Frontend._meipass_flag = False
-
-    fallback = loc
-    # keep stepping back from the current directory until we are in the directory /autofit
-    while loc[-7:] != "autofit":
-        loc = os.path.dirname(loc)
-        if loc == os.path.dirname(loc):
-            # pprint(f"""Frontend init: python script {__file__} is not in the AutoFit package's directory.""")
-            loc = fallback
-            break
-
-    if sys.platform == "darwin" :
-        if os.path.exists(f"{loc}/MIWs_AutoFit.app") :
-            loc = loc + "/MIWs_AutoFit.app/Contents/MacOS"
-    else :
-        if os.path.exists(f"{loc}/backend") :
-            loc = loc + "/backend"
-
-    return loc
-
-
-def get_data_path():
-
-    try:
-        loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
-    except AttributeError:
-        Frontend._meipass_flag = False
-        filepath = os.path.abspath(__file__)
-        loc = os.path.dirname(filepath)
-
-    fallback = loc
-    while loc[-7:] != "autofit":
-        loc = os.path.dirname(loc)
-        if loc == os.path.dirname(loc):
-            loc = fallback
-            break
-
-    if os.path.exists(f"{loc}/data"):
-        loc = loc + "/data"
-
-    return loc
 
 
 class Frontend:
@@ -111,7 +40,7 @@ class Frontend:
 
     def __init__(self):
 
-        logger_clean(f"In {get_package_path()}")
+        self.set_meipass()
 
         # UX
         self._new_user_stage= 1  # uses prime factors to notate which actions the user has taken
@@ -287,10 +216,6 @@ class Frontend:
         self._default_manual_form= "N/A"
         self._custom_function_button = None
 
-
-
-
-
         self._criterion = "rchisqr"  # other opts AIC, AICc, BICc, HQIC
 
         self._background_menu, self._dataaxis_menu, self._fit_colour_menu = None, None, None
@@ -304,8 +229,6 @@ class Frontend:
         self._refit_labels = ["Always","With Button"]
         self._criterion_labels = [f"Reduced {self.sym_chi}{sup(2)}","AIC","AICc","BIC","HQIC"]
 
-
-
         # default configs
         self.touch_defaults()  # required for free version
         self.load_defaults()
@@ -315,22 +238,59 @@ class Frontend:
         self.load_splash_screen()
 
         if not Frontend._meipass_flag :
-            self.add_message(f"  Directory is {get_package_path()}")
-        pprint(f"Package directory is {get_package_path()} with MEIPASS={Frontend._meipass_flag}")
-        pprint(f"Data directory is {get_data_path()}")
+            self.add_message(f"  Directory is {pkg_path()}")
+        logger(f"Package directory is {pkg_path()} with MEIPASS={Frontend._meipass_flag}")
+        logger(f"Data directory is {Frontend.get_data_path()}")
         self._gui.geometry(f"{self._default_gui_width}x{self._default_gui_height}+{self._default_gui_x}"
                            f"+{self._default_gui_y}")  # to fix aspect ratio changing in add_message
 
+    @staticmethod
+    def set_meipass()  :
+
+        try:
+            loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
+        except AttributeError:
+            Frontend._meipass_flag = False
+        else:
+            if "_MEI" not in loc:
+                Frontend._meipass_flag = False
+
+    @staticmethod
+    def get_data_path():
+
+        try:
+            loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
+        except AttributeError:
+            filepath = ospath.abspath(__file__)
+            loc = ospath.dirname(filepath)
+
+        fallback = loc
+        failsafe = 0
+        while loc[-7:] != "autofit":
+            failsafe += 1
+            loc = ospath.dirname(loc)
+            if loc == ospath.dirname(loc):
+                loc = fallback
+                break
+            if failsafe > 50 :
+                loc = fallback
+                break
+
+        if ospath.exists(f"{loc}/data"):
+            loc = loc + "/data"
+
+        return loc
+
     def touch_defaults(self):
         try:
-            with open(f"{get_package_path()}/frontend.cfg") as _:
+            with open(f"{pkg_path()}/frontend.cfg") as _:
                 return
         except FileNotFoundError:
-            f = open(f"{get_package_path()}/frontend.cfg", 'a+')
+            f = open(f"{pkg_path()}/frontend.cfg", 'a+')
             f.close()
             self.save_defaults()
     def load_defaults(self):
-        with open(f"{get_package_path()}/frontend.cfg") as file:
+        with open(f"{pkg_path()}/frontend.cfg") as file:
             for line in file:
                 if "#GUI_WIDTH" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
@@ -386,7 +346,7 @@ class Frontend:
                 elif "#LOAD_FILE_LOC" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
-                        arg = f"{get_data_path()}"
+                        arg = f"{Frontend.get_data_path()}"
                     self._default_load_file_loc = arg
                 elif "#BG_COLOUR" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
@@ -537,10 +497,10 @@ class Frontend:
                     else :
                         self.criterion = "rchisqr"
     def save_defaults(self):
-        # pprint(f"SAVED DEFAULTS}")
+        # logger(f"SAVED DEFAULTS}")
         if self.brute_forcing or self._default_fit_type == "Brute-Force":
             return
-        with open(f"{get_package_path()}/frontend.cfg", 'w') as file:
+        with open(f"{pkg_path()}/frontend.cfg", 'w') as file:
             file.write(f"#GUI_WIDTH {self._gui.winfo_width()}\n")
             file.write(f"#GUI_HEIGHT {self._gui.winfo_height()}\n")
             file.write(f"#GUI_X {self._gui.winfo_x()}\n")
@@ -566,8 +526,8 @@ class Frontend:
             if (cos_on and sin_on and exp_on and log_on and pow_neg1_on
                     # and pow2_on and pow3_on and pow4_on
                     and custom_on):
-                pprint("You shouldn't have all functions turned on for a procedural fit. Use brute-force instead.")
-                pprint(f" {self.brute_forcing} {self._default_fit_type}")
+                logger("You shouldn't have all functions turned on for a procedural fit. Use brute-force instead.")
+                logger(f" {self.brute_forcing} {self._default_fit_type}")
             file.write(f"#COS_ON {cos_on}\n")
             file.write(f"#SIN_ON {sin_on}\n")
             file.write(f"#EXP_ON {exp_on}\n")
@@ -586,22 +546,22 @@ class Frontend:
             file.write(f"#REFIT_ALWAYS {1 if self._refit_on_click else 0}\n")
             file.write(f"#CRITERION {self.criterion}\n")
     def print_defaults(self):
-        pprint(f"GUI Width >{self._default_gui_width}<")
-        pprint(f"GUI Height >{self._default_gui_height}<")
-        pprint(f"GUI X >{self._default_gui_x}<")
-        pprint(f"GUI Y >{self._default_gui_y}<")
-        pprint(f"Fit-type >{self._default_fit_type}<")
-        pprint(f"Procedural depth >{self.max_functions}<")
-        pprint(f"Excel X-Range >{self._default_excel_x_range}<")
-        pprint(f"Excel Y-Range >{self._default_excel_y_range}<")
-        pprint(f"Excel SigmaX-Range >{self._default_excel_sigmax_range}<")
-        pprint(f"Excel SigmaY-Range >{self._default_excel_sigmay_range}<")
-        pprint(f"Data location >{self._default_load_file_loc}<")
-        pprint(f"Background Colour >{self._default_bg_colour}<")
-        pprint(f"Data and Axis Colour >{self._default_dataaxes_colour}<")
-        pprint(f"Fit Line Colour >{self._default_fit_colour}<")
-        pprint(f"Console Colour >{self._default_console_colour}<")
-        pprint(f"Printout Colour >{self._default_printout_colour}<")
+        logger(f"GUI Width >{self._default_gui_width}<")
+        logger(f"GUI Height >{self._default_gui_height}<")
+        logger(f"GUI X >{self._default_gui_x}<")
+        logger(f"GUI Y >{self._default_gui_y}<")
+        logger(f"Fit-type >{self._default_fit_type}<")
+        logger(f"Procedural depth >{self.max_functions}<")
+        logger(f"Excel X-Range >{self._default_excel_x_range}<")
+        logger(f"Excel Y-Range >{self._default_excel_y_range}<")
+        logger(f"Excel SigmaX-Range >{self._default_excel_sigmax_range}<")
+        logger(f"Excel SigmaY-Range >{self._default_excel_sigmay_range}<")
+        logger(f"Data location >{self._default_load_file_loc}<")
+        logger(f"Background Colour >{self._default_bg_colour}<")
+        logger(f"Data and Axis Colour >{self._default_dataaxes_colour}<")
+        logger(f"Fit Line Colour >{self._default_fit_colour}<")
+        logger(f"Console Colour >{self._default_console_colour}<")
+        logger(f"Printout Colour >{self._default_printout_colour}<")
         cos_on = int(self._use_func_dict_name_tkbool["cos(x)"].get())
         sin_on = int(self._use_func_dict_name_tkbool["sin(x)"].get())
         exp_on = int(self._use_func_dict_name_tkbool["exp(x)"].get())
@@ -611,23 +571,23 @@ class Frontend:
         # pow3_on = int(self._use_func_dict_name_tkVar["x\U000000B3"].get())
         # pow4_on = int(self._use_func_dict_name_tkVar["x\U00002074"].get())
         custom_on = int(self._use_func_dict_name_tkbool["custom"].get())
-        pprint(f"Procedural cos(x) >{cos_on}<")
-        pprint(f"Procedural sin(x) >{sin_on}<")
-        pprint(f"Procedural exp(x) >{exp_on}<")
-        pprint(f"Procedural log(x) >{log_on}<")
-        pprint(f"Procedural 1/x >{pow_neg1_on}<")
-        # pprint(f"Procedural x\U000000B2 >{pow2_on}<")
-        # pprint(f"Procedural x\U000000B3 >{pow3_on}<")
-        # pprint(f"Procedural x\U00002074 >{pow4_on}<")
-        pprint(f"Procedural custom >{custom_on}<")
-        pprint(f"Custom function names >{self._custom_function_names}<")
-        pprint(f"Custom function forms >{self._custom_function_forms}<")
-        pprint(f"Manual function name >{self._default_manual_name}<")
-        pprint(f"Manual function form >{self._default_manual_form}<")
-        pprint(f"OS Scaling >{self._default_os_scaling:.2F}<")
-        pprint(f"Image R >{self._image_r:.3F}<")
-        pprint(f"Refit on Click: >{1 if self._refit_on_click else 0}<")
-        pprint(f"Criterion: >{self.criterion}<")
+        logger(f"Procedural cos(x) >{cos_on}<")
+        logger(f"Procedural sin(x) >{sin_on}<")
+        logger(f"Procedural exp(x) >{exp_on}<")
+        logger(f"Procedural log(x) >{log_on}<")
+        logger(f"Procedural 1/x >{pow_neg1_on}<")
+        # logger(f"Procedural x\U000000B2 >{pow2_on}<")
+        # logger(f"Procedural x\U000000B3 >{pow3_on}<")
+        # logger(f"Procedural x\U00002074 >{pow4_on}<")
+        logger(f"Procedural custom >{custom_on}<")
+        logger(f"Custom function names >{self._custom_function_names}<")
+        logger(f"Custom function forms >{self._custom_function_forms}<")
+        logger(f"Manual function name >{self._default_manual_name}<")
+        logger(f"Manual function form >{self._default_manual_form}<")
+        logger(f"OS Scaling >{self._default_os_scaling:.2F}<")
+        logger(f"Image R >{self._image_r:.3F}<")
+        logger(f"Refit on Click: >{1 if self._refit_on_click else 0}<")
+        logger(f"Criterion: >{self.criterion}<")
 
     # create left, right, and middle panels
     def load_splash_screen(self):
@@ -636,17 +596,17 @@ class Frontend:
 
         # window size and title
         if self._default_gui_width <= self._os_width / 4 + 1 :
-            pprint(f"Undersized width {self._default_gui_width} {self._os_width}")
+            logger(f"Undersized width {self._default_gui_width} {self._os_width}")
             self._default_gui_width = int(self._os_width * 3 / 4)
         else :
-            pprint(f"Fine width {self._default_gui_width} {self._os_width * 7 / 6}")
+            logger(f"Fine width {self._default_gui_width} {self._os_width * 7 / 6}")
             self._default_gui_width = min( self._default_gui_width , int(self._os_width * 7 / 6) )
 
         if self._default_gui_height <= self._os_height / 4 + 1 :
-            pprint(f"Undersized height {self._default_gui_height} {self._os_height}")
+            logger(f"Undersized height {self._default_gui_height} {self._os_height}")
             self._default_gui_height = int(self._os_height * 3 / 4)
         else :
-            pprint(f"Fine height {self._default_gui_height} {self._os_height * 7 / 6}")
+            logger(f"Fine height {self._default_gui_height} {self._os_height * 7 / 6}")
             self._default_gui_height = min( self._default_gui_height , int(self._os_height * 7 / 6) )
 
         gui.geometry(f"{self._default_gui_width}x{self._default_gui_height}"
@@ -654,10 +614,9 @@ class Frontend:
         gui.rowconfigure(0, minsize=400, weight=1)
 
         # icon image and window title
-        loc = get_package_path()
-        gui.iconbitmap(f"{loc}/icon.ico")
+        gui.iconbitmap(f"{pkg_path()}/icon.ico")
         if sys.platform == "darwin" :
-            iconify = Image.open(f"{loc}/splash.png")
+            iconify = Image.open(f"{pkg_path()}/splash.png")
             photo = ImageTk.PhotoImage(iconify)
             gui.wm_iconphoto(False,photo)
         gui.title("MIW's AutoFit")
@@ -792,7 +751,7 @@ class Frontend:
     def create_left_panel(self):
         self._left_panel_frame = tk.Frame(master=self._gui, relief=tk.RAISED, bg='white', height=self._os_height)
         self._left_panel_frame.grid(row=0, column=0, sticky='ns')
-        # pprint("Left panel:",self._left_panel_frame.winfo_height(), self._os_height)
+        # logger("Left panel:",self._left_panel_frame.winfo_height(), self._os_height)
         self.create_load_data_button()
     def create_middle_panel(self):
         self._gui.columnconfigure(1, minsize=128)  # image panel
@@ -832,19 +791,22 @@ class Frontend:
                                 initialdir=self._default_load_file_loc, title="Select a file to fit",
                                 filetypes=(("All Files", "*.*"),
                                            ("Comma-Separated Files", "*.csv *.txt"),
-                                           ("Spreadsheets", "*.xls *.xlsx *.ods"))
+                                           ("Spreadsheets", "*.xls *.ods"))
                                 )
             )
         # trim duplicates
         for path in new_filepaths[:]:
             if path in self._filepaths:
                 shortpath = regex.split(f"/", path)[-1]
-                pprint(f"{shortpath} already loaded")
+                logger(f"{shortpath} already loaded")
                 new_filepaths.remove(path)
+            if path[-4:] == "xlsx" :
+                if sys.platform == "darwin" :
+                    self.add_message(f"\n \n> .xlsx file format not supported.")
         for path in new_filepaths[:]:
-            if path[-4:] in [".xls", "xlsx", ".ods"] and self._new_user_stage % 23 != 0:
+            if path[-4:] in [".xls", ".ods"] and self._new_user_stage % 23 != 0:
                 self.dialog_box_get_excel_data_ranges()
-                pprint(f"{self._excel_x_range} {self._excel_y_range}")
+                logger(f"{self._excel_x_range} {self._excel_y_range}")
                 if self._excel_x_range is None:
                     # the user didn't actually want to load that file
                     new_filepaths.remove(path)
@@ -854,7 +816,7 @@ class Frontend:
                 if self._all_sheets_in_file.get():
                     for _ in range(len(sheet_names) - 1):
                         self._filepaths.append(path)
-                pprint(f"In this file the sheets names are {sheet_names}")
+                logger(f"In this file the sheets names are {sheet_names}")
             self._default_load_file_loc = '/'.join(regex.split(f"/", path)[:-1])
             self._filepaths.append(path)
             # self._normalized_histogram_flags.append(False)
@@ -863,7 +825,7 @@ class Frontend:
             return
 
         if self.brute_forcing or self._default_fit_type == "Brute Force":
-            pprint("In load data command, we're loading a file while brute-forcing is on")
+            logger("In load data command, we're loading a file while brute-forcing is on")
             self.brute_forcing = False
 
         if self._new_user_stage % 2 != 0:
@@ -900,14 +862,14 @@ class Frontend:
             if self._new_user_stage % 3 != 0:
                 self.create_inspect_button()
                 self._new_user_stage *= 3
-            pprint(f"Loaded {len(new_filepaths)} files.")
+            logger(f"Loaded {len(new_filepaths)} files.")
 
         # update dropdown with new chi_sqrs for the current top 5 models, but according to the original parameters
         if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"]:
             self.update_top5_chisqrs()
-            pprint("If refit on button, this should make refit_button appear")
+            logger("If refit on button, this should make refit_button appear")
             if len(self._data_handlers) > 1 :
-                pprint("If refit on button, this should make refit_button appear")
+                logger("If refit on button, this should make refit_button appear")
                 self.show_refit_button()
 
         if self._model_name_tkstr.get() in ["Procedural","Brute-Force","Manual"] :
@@ -916,7 +878,7 @@ class Frontend:
             self.hide_custom_function_button()
 
 
-        pprint(self._filepaths)
+        logger(self._filepaths)
         if len(self._filepaths) > 1:
             self.show_left_right_buttons()
             self.update_data_select()
@@ -934,7 +896,7 @@ class Frontend:
         dialog_box = tk.Toplevel()
         dialog_box.geometry(f"{int(self._image_frame.winfo_width()*4/5)}x{int(self._image_frame.winfo_height()*6/10)}")
         dialog_box.title("Spreadsheet Input Options")
-        dialog_box.iconbitmap(f"{get_package_path()}/icon.ico")
+        dialog_box.iconbitmap(f"{pkg_path()}/icon.ico")
 
         data_frame = tk.Frame(master=dialog_box)
         data_frame.grid(row=0, column=0, sticky='ew')
@@ -1003,7 +965,7 @@ class Frontend:
     def close_dialog_box_command_excel(self, bind_command=None):
 
         if self._popup_window is None:
-            pprint("Window already closed")
+            logger("Window already closed")
         self._excel_x_range = self._popup_window.children['!frame'].children['!entry'].get()
         self._excel_y_range = self._popup_window.children['!frame'].children['!entry2'].get()
         self._excel_sigmax_range = self._popup_window.children['!frame'].children['!entry3'].get()
@@ -1037,7 +999,7 @@ class Frontend:
 
     def show_data(self):
 
-        new_image_path = f"{get_package_path()}/plots/front_end_current_plot.png"
+        new_image_path = f"{pkg_path()}/plots/front_end_current_plot.png"
         # create a scatter plot of the first file
 
         x_points = self.data_handler.unlogged_x_data
@@ -1067,11 +1029,11 @@ class Frontend:
         elif axes.get_ylim()[1] < 0:
             axes.set_ylim([axes.get_ylim()[0], 0])
 
-        # pprint(f"Log flags : {self.data_handler.logx_flag} {self.data_handler.logy_flag}")
+        # logger(f"Log flags : {self.data_handler.logx_flag} {self.data_handler.logy_flag}")
         if self.data_handler.logx_flag:
-            pprint("Setting log x-scale in show_data")
+            logger("Setting log x-scale in show_data")
             log_min, log_max = np.log(min(x_points)), np.log(max(x_points))
-            pprint(log_min, log_max, np.exp(log_min), np.exp(log_max))
+            logger(log_min, log_max, np.exp(log_min), np.exp(log_max))
             axes.set_xlim(
                 [np.exp(log_min - (log_max - log_min) / 10), np.exp(log_max + (log_max - log_min) / 10)])
             axes.set(xscale="log")
@@ -1101,7 +1063,7 @@ class Frontend:
                 axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}"))
 
         if self.data_handler.logy_flag:
-            pprint("Setting log y-scale in show_data")
+            logger("Setting log y-scale in show_data")
             axes.set(yscale="log")
             log_min, log_max = np.log(min(y_points)), np.log(max(y_points))
             axes.set_ylim(
@@ -1117,7 +1079,11 @@ class Frontend:
             if log_deltaY > 4 :
                 axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}"))
             elif 0 <= log_deltaY <= 4 :
-                axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else (f"{x:.1F}" if (x - np.trunc(x))**2 > 1e-10 else f"{int(x)}" ) ) )
+                axes.yaxis.set_major_formatter(
+                    ticker.FuncFormatter(
+                        lambda x, pos: "" if x == 0 else (f"{x:.1F}" if (x - np.trunc(x))**2 > 1e-10 else f"{int(x)}" )
+                    )
+                )
             # elif log_deltaY == 0 :
             #     axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
             elif log_deltaY == -1 :
@@ -1193,11 +1159,11 @@ class Frontend:
                 self.optimizer.query_add_to_top5(self.current_model, self.current_covariance)
 
         if self._model_name_tkstr.get() == "Linear":
-            pprint("Fitting to linear model")
+            logger("Fitting to linear model")
             plot_model = CompositeFunction.built_in("Linear")
             self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkstr.get() == "Polynomial":
-            pprint(f"Fitting to polynomial model of degree {self._polynomial_degree_tkint.get()}")
+            logger(f"Fitting to polynomial model of degree {self._polynomial_degree_tkint.get()}")
             plot_model = CompositeFunction.built_in(f"Polynomial{self._polynomial_degree_tkint.get()}")
             self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkstr.get() == "Gaussian" and self.data_handler.normalized:
@@ -1205,14 +1171,14 @@ class Frontend:
                 plot_model = CompositeFunction.built_in(f"Gaussian{self._gaussian_modal_tkint.get()}")
             else:
                 plot_model = CompositeFunction.built_in("Normal")
-            pprint(f"Fitting to {plot_model.name} distribution")
+            logger(f"Fitting to {plot_model.name} distribution")
             self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkstr.get() == "Gaussian":
             plot_model = CompositeFunction.built_in(f"Gaussian{self._gaussian_modal_tkint.get()}")
-            pprint(f"Fitting to {plot_model.name} distribution")
+            logger(f"Fitting to {plot_model.name} distribution")
             self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkstr.get() == "Sigmoid":
-            pprint("Fitting to Sigmoid model")
+            logger("Fitting to Sigmoid model")
             plot_model = CompositeFunction.built_in("Sigmoid")
             self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkstr.get() == "Procedural":
@@ -1232,7 +1198,7 @@ class Frontend:
             self.optimizer.find_best_model_for_dataset(status_bar=self._progress_label)
             self._fit_data_button.configure(text="Fit Data")
         elif self._model_name_tkstr.get() == "Brute-Force":
-            pprint("Brute forcing a procedural model")
+            logger("Brute forcing a procedural model")
             self.brute_forcing = True
             # for name in self._checkbox_names_list:
             #     self._use_func_dict_name_tkVar[name].set(value=True)
@@ -1249,7 +1215,7 @@ class Frontend:
         elif self._model_name_tkstr.get() == "Manual" :
 
             if self._manual_model is not None :
-                pprint(f"Fitting data to {self._manual_model.name} model.")
+                logger(f"Fitting data to {self._manual_model.name} model.")
                 try :
                     self.optimizer.fit_this_and_get_model_and_covariance(model_=self._manual_model)
                 except ValueError :
@@ -1260,7 +1226,7 @@ class Frontend:
                 self.add_message("\n \n> You must validate the model before fitting.")
                 return
         else:
-            pprint(f"Invalid model name {self._model_name_tkstr.get()}")
+            logger(f"Invalid model name {self._model_name_tkstr.get()}")
             pass
 
         # add fit all button if there's more than one file
@@ -1394,7 +1360,7 @@ class Frontend:
                                                                  initial_guess=self.current_model.args,
                                                                  do_halving=True)
             list_of_args.append(self.current_args)
-            pprint(f"Beelzebub={handler.shortpath} {self.current_args} +- {self.current_uncs}")
+            logger(f"Beelzebub={handler.shortpath} {self.current_args} +- {self.current_uncs}")
             list_of_uncertainties.append(self.current_uncs)
 
         means = []
@@ -1418,7 +1384,7 @@ class Frontend:
             means.append(mean)
             uncs.append(np.sqrt(effective_variance))
 
-        pprint(f"{means} +- {uncs}")
+        logger(f"{means} +- {uncs}")
         fit_all_model = self.current_model.copy()
         fit_all_model.args = means
         self.optimizer.shown_model = fit_all_model
@@ -1473,7 +1439,7 @@ class Frontend:
         dialog_box = tk.Toplevel()
         dialog_box.geometry(f"{round(self._os_width / 4)}x{round(self._os_height / 4)}")
         dialog_box.title("New Custom Function")
-        dialog_box.iconbitmap(f"{get_package_path()}/icon.ico")
+        dialog_box.iconbitmap(f"{pkg_path()}/icon.ico")
 
         data_frame = tk.Frame(master=dialog_box)
         data_frame.grid(row=0, column=0, sticky='ew')
@@ -1531,7 +1497,7 @@ class Frontend:
     def close_dialog_box_command_custom_function(self, bind_command=None):
 
         if self._popup_window is None:
-            pprint("Window already closed")
+            logger("Window already closed")
         name_str = self._popup_window.children['!frame'].children['!entry'].get()
         form_str = self._popup_window.children['!frame'].children['!entry2'].get()
 
@@ -1565,8 +1531,8 @@ class Frontend:
         self.save_defaults()
         self._popup_window.destroy()
 
-        pprint(f"close_dialog: >{self._custom_function_names}<")
-        pprint(f"close_dialog: >{self._custom_function_forms}<")
+        logger(f"close_dialog: >{self._custom_function_names}<")
+        logger(f"close_dialog: >{self._custom_function_forms}<")
 
 
     # RIGHT PANEL FUNCTIONS ------------------------------------------------------------------------------------------->
@@ -1574,10 +1540,10 @@ class Frontend:
     def add_message(self, message_string)  :
 
         # TODO: consider also printing to a log file
-        # pprint("Add_message: ",self._gui.winfo_height(), message_string)
+        # logger("Add_message: ",self._gui.winfo_height(), message_string)
         text_frame = self._right_panel_frame  # self._gui.children['!frame3']
         # text_frame.update()  # WHY was this necessary? It hangs the mac on restart
-        # pprint("Add_message: ",self._gui.winfo_height(), message_string)
+        # logger("Add_message: ",self._gui.winfo_height(), message_string)
 
         for line in regex.split(f"\n", message_string):
             if line == "":
@@ -1695,7 +1661,7 @@ class Frontend:
             else :
                 print_string += f"  Goodness of fit: {self.sym_chi}{sup(2)}/dof = " \
                                 f"{self.optimizer.criterion(self.current_model):.2F}\n"
-            pprint([datum.val for datum in self.data_handler.data])
+            logger([datum.val for datum in self.data_handler.data])
         elif self.current_model.name == "Gaussian":
             args, uncs = self.current_args, self.current_uncs
             if self.data_handler.logy_flag:
@@ -1827,7 +1793,7 @@ class Frontend:
             print_string += f" and as a tree, this is \n"
             print_string += self.current_model.tree_as_string_with_args() + "\n"
         else:
-            pprint(f"{self.current_model.name} {self.data_handler.normalized}")
+            logger(f"{self.current_model.name} {self.data_handler.normalized}")
             raise EnvironmentError
         if self.data_handler.logy_flag and self.data_handler.logx_flag:
             print_string += f"Keep in mind that LY = log(y/{self.data_handler.Y0:.2E}) " \
@@ -1927,7 +1893,7 @@ class Frontend:
 
     # IMAGE frame ----------------------------------------------------------------------------------------------------->
     def load_splash_image(self):
-        self._image_path = f"{get_package_path()}/splash.png"
+        self._image_path = f"{pkg_path()}/splash.png"
 
         img_raw = Image.open(self._image_path)
         if self._default_gui_width < 2 and self._image_r == 1 :
@@ -1939,7 +1905,7 @@ class Frontend:
         self._image_frame = tk.Label(master=self._gui.children['!frame2'].children['!frame'],
                                      image=self._image,
                                      relief=tk.SUNKEN, bg='SystemButtonFace')
-        pprint(f"Created frame {self._image_frame}")
+        logger(f"Created frame {self._image_frame}")
         self._image_frame.grid(row=0, column=0)
         self._image_frame.grid_propagate(True)
         self._image_frame.bind(self._right_click, self.do_colors_image_popup)
@@ -1952,7 +1918,7 @@ class Frontend:
         self._image_frame.configure(image=self._image)
     def do_image_resize(self, event):
 
-        # pprint(type(event))
+        # logger(type(event))
         d = event.delta / 120
         self._image_r *= (1 + d / 10)
 
@@ -2099,23 +2065,23 @@ class Frontend:
             self._show_error_bands = 0
             return
         if self._error_bands_button['text'] == "Error Bands":
-            pprint(f"Switching to 1-{self.sym_sigma} confidence region")
+            logger(f"Switching to 1-{self.sym_sigma} confidence region")
             self._error_bands_button.configure(text=f"       1-{self.sym_sigma}       ")
             self._show_error_bands = 1
         elif self._error_bands_button['text'] == f"       1-{self.sym_sigma}       ":
-            pprint(f"Switching to 2-{self.sym_sigma} confidence region")
+            logger(f"Switching to 2-{self.sym_sigma} confidence region")
             self._error_bands_button.configure(text=f"       2-{self.sym_sigma}       ")
             self._show_error_bands = 2
         elif self._error_bands_button['text'] == f"       2-{self.sym_sigma}       ":
-            pprint("Switching to both confidence regions")
+            logger("Switching to both confidence regions")
             self._error_bands_button.configure(text=f"Both")
             self._show_error_bands = 3
         elif self._error_bands_button['text'] == f"Both":
-            pprint(f"Switching off error bands")
+            logger(f"Switching off error bands")
             self._error_bands_button.configure(text="Error Bands")
             self._show_error_bands = 0
         else:
-            pprint("Can't change from", self._error_bands_button['text'])
+            logger("Can't change from", self._error_bands_button['text'])
 
         if self._showing_fit_all_image:
             self.fit_all_command(quiet=True)
@@ -2140,12 +2106,12 @@ class Frontend:
 
         # TODO, below plot, toggle with residuals button
         if self.current_model is None:
-            pprint("Residuals_command: you shouldn't be here, quitting")
+            logger("Residuals_command: you shouldn't be here, quitting")
             raise SystemExit
         else:
-            pprint(f"\n\n\n\n\n\n\nShowing residuals relative to {self.current_model.name}")
+            logger(f"\n\n\n\n\n\n\nShowing residuals relative to {self.current_model.name}")
 
-        res_filepath = f"{get_package_path()}/plots/residuals.csv"
+        res_filepath = f"{pkg_path()}/plots/residuals.csv"
 
         residuals = []
         norm_residuals = []
@@ -2159,7 +2125,7 @@ class Frontend:
                         res_file.write(f"{res},\n")
             else:
                 for datum in self.data_handler.data:
-                    # pprint(datum)
+                    # logger(datum)
                     res = datum.val - self.current_model.eval_at(datum.pos)
                     residuals.append(res)
                     norm_residuals.append(res / datum.sigma_val)
@@ -2184,9 +2150,9 @@ class Frontend:
             res_optimizer.fit_this_and_get_model_and_covariance(model_=CompositeFunction.built_in("Gaussian"))
             A, sigma, x0 = res_optimizer.shown_parameters
             sigmaA, sigmasigma, sigmax0 = res_optimizer.shown_uncertainties
-            pprint(f"Mean from fit: {x0} +- {sigmax0}")
-            pprint(f"Sigma from fit: {sigma} +- {sigmasigma} "
-                  f"... sample standard deviation: {sample_std_dev}")
+            logger(f"Mean from fit: {x0} +- {sigmax0}")
+            logger(f"Sigma from fit: {sigma} +- {sigmasigma} "
+                   f"... sample standard deviation: {sample_std_dev}")
             std_dev = sigma
             sample_mean = x0
         else:
@@ -2196,8 +2162,8 @@ class Frontend:
             count = len(residuals)
             manual_gaussian = CompositeFunction.built_in("Gaussian")
             manual_gaussian.set_args(count * res_handler.bin_width() / np.sqrt(2 * np.pi * sigma ** 2), sigma, mu)
-            pprint(f"{res_handler.bin_width()}")
-            pprint(count * res_handler.bin_width() / np.sqrt(2 * np.pi * sigma ** 2), sigma, mu)
+            logger(f"{res_handler.bin_width()}")
+            logger(count * res_handler.bin_width() / np.sqrt(2 * np.pi * sigma ** 2), sigma, mu)
             res_optimizer.shown_model = manual_gaussian
         res_optimizer.show_fit()
 
@@ -2223,7 +2189,7 @@ class Frontend:
             touching_max -= 1
 
         if any(np.isinf(norm_residuals)):
-            pprint("Can't do rule of thumb!")
+            logger("Can't do rule of thumb!")
         else:
             self.add_message("\n ")
             self.add_message(f"> By the 68% rule of thumb, the number of datapoints with error bars \n"
@@ -2295,20 +2261,20 @@ class Frontend:
                 break
             kmax_centre -= 1
 
-        pprint(f"If residuals were normally distributed, {kmin_fartail} ≤ {count_ulow} ≤ {kmax_fartail} ")
-        pprint(f"If residuals were normally distributed, {kmin_tail} ≤ {count_low} ≤ {kmax_tail} ")
-        pprint(f"If residuals were normally distributed, {kmin_centre} ≤ {count_middle} ≤ {kmax_centre} ")
-        pprint(f"If residuals were normally distributed, {kmin_tail} ≤ {count_high} ≤ {kmax_tail} ")
-        pprint(f"If residuals were normally distributed, {kmin_fartail} ≤ {count_uhigh} ≤ {kmax_fartail} ")
+        logger(f"If residuals were normally distributed, {kmin_fartail} ≤ {count_ulow} ≤ {kmax_fartail} ")
+        logger(f"If residuals were normally distributed, {kmin_tail} ≤ {count_low} ≤ {kmax_tail} ")
+        logger(f"If residuals were normally distributed, {kmin_centre} ≤ {count_middle} ≤ {kmax_centre} ")
+        logger(f"If residuals were normally distributed, {kmin_tail} ≤ {count_high} ≤ {kmax_tail} ")
+        logger(f"If residuals were normally distributed, {kmin_fartail} ≤ {count_uhigh} ≤ {kmax_fartail} ")
         pvalue_ulow = 1 if kmin_fartail <= count_ulow <= kmax_fartail else 0.1
         pvalue_low = 1 if kmin_tail <= count_low <= kmax_tail else 0.1
         pvalue_middle = 1 if kmin_centre <= count_middle <= kmax_centre else 0.1
         pvalue_high = 1 if kmin_tail <= count_high <= kmax_tail else 0.1
         pvalue_uhigh = 1 if kmin_fartail <= count_uhigh <= kmax_fartail else 0.1
-        pprint([pvalue_ulow, pvalue_low, pvalue_middle, pvalue_high, pvalue_uhigh])
+        logger([pvalue_ulow, pvalue_low, pvalue_middle, pvalue_high, pvalue_uhigh])
         # if 0.1 in [pvalue_ulow, pvalue_low, pvalue_middle, pvalue_high, pvalue_uhigh] :
-        #     # pprint(f"You have evidence that the residuals are not normally distributed. Therefore,")
-        #     # pprint(f"the probability that you have found the correct fit for the data is "
+        #     # logger(f"You have evidence that the residuals are not normally distributed. Therefore,")
+        #     # logger(f"the probability that you have found the correct fit for the data is "
         #     #       f"{pvalue_ulow*pvalue_low*pvalue_middle*pvalue_high*pvalue_uhigh:.5F}")
         #     self.add_message(f"\n \n> You have evidence that the residuals are not normally distributed.")
         #     self.add_message(f"  The probability that you have found the correct fit for the data is "
@@ -2326,11 +2292,11 @@ class Frontend:
         self.add_message(f"\n \n> p-values from standard normality tests:\n")
         # other normality tests
         W, alpha = scipy.stats.shapiro(residuals)  # free mean, free variance
-        pprint(f"\n{W} {alpha}")
+        logger(f"\n{W} {alpha}")
         self.add_message(f"  Shapiro-Wilk       = {alpha:.5F}")
 
         A2, crit, sig = scipy.stats.anderson(residuals, dist='norm')  # free mean, free variance
-        pprint(f"{A2} {crit} {sig}")
+        logger(f"{A2} {crit} {sig}")
         threshold_idx = -1
         for idx, icrit in enumerate(crit):
             if A2 > icrit:
@@ -2342,7 +2308,7 @@ class Frontend:
 
         # kolmogorov, kol_pvalue = scipy.stats.kstest(residuals,'norm')
         kolmogorov, kol_pvalue = scipy.stats.kstest(self.sample_standardize(residuals), 'norm')  # mean 0, variance 1
-        pprint(f"{kolmogorov} {kol_pvalue}")
+        logger(f"{kolmogorov} {kol_pvalue}")
         if kol_pvalue > 1e-5:
             self.add_message(f"  Kolmogorov-Smirnov = {kol_pvalue:.5F}")
         else:
@@ -2350,7 +2316,7 @@ class Frontend:
 
         if len(residuals) > 8:
             dagostino, dag_pvalue = scipy.stats.normaltest(residuals)  # free mean, free variance
-            pprint(f"{dagostino} {dag_pvalue}")
+            logger(f"{dagostino} {dag_pvalue}")
             if dag_pvalue > 1e-5:
                 self.add_message(f"  d'Agostino         = {dag_pvalue:.5F}")
             else:
@@ -2478,13 +2444,13 @@ class Frontend:
     # noinspection PyUnusedLocal
     def which5_dropdown_trace(self, *args)  :
         which5_choice = self._which5_name_tkstr.get()
-        pprint(f"Changed top5_dropdown to {which5_choice}")
+        logger(f"Changed top5_dropdown to {which5_choice}")
         # show the fit of the selected model
         rchisqr, model_name = regex.split(f" ", which5_choice)
         try:
             selected_model_idx = self.optimizer.top5_names.index(model_name)
         except ValueError:
-            pprint(f"{model_name} is not in {self.optimizer.top5_names}")
+            logger(f"{model_name} is not in {self.optimizer.top5_names}")
             selected_model_idx = 0
 
         self.current_model = self.optimizer.top5_models[selected_model_idx]
@@ -2492,10 +2458,10 @@ class Frontend:
         self.current_rchisqr = self.optimizer.top5_rchisqrs[selected_model_idx]
 
         # also update the fit of the current model
-        pprint(f"{self._refit_on_click} {self._changed_data_flag}")
+        logger(f"{self._refit_on_click} {self._changed_data_flag}")
         if self._refit_on_click :
                 # and self._changed_data_flag:
-            pprint("||| REFIT ON CLICK |||")
+            logger("||| REFIT ON CLICK |||")
             self.show_current_data_with_fit(do_halving=True)
             # self.optimizer.update_top5_rchisqrs_for_new_data_single_model(self.data_handler.data, self.current_model)
             # self.update_top5_dropdown()
@@ -2539,7 +2505,7 @@ class Frontend:
                                                                                      change_shown=False,
                                                                                      do_halving=True)
                 self.optimizer.top5_rchisqrs[idx] = self.optimizer.criterion(better_fit)
-                pprint(f"Update top 5 {model} {self.optimizer.top5_rchisqrs[idx]}")
+                logger(f"Update top 5 {model} {self.optimizer.top5_rchisqrs[idx]}")
         else :
             self.optimizer.update_top5_rchisqrs_for_new_data(self.data_handler.data)
         self.update_top5_dropdown()
@@ -2557,7 +2523,7 @@ class Frontend:
         top5_dropdown = self._fit_options_frame.children['!optionmenu2']
         top5_dropdown.grid(row=0, column=1)
         if len(self._data_handlers) > 1 :
-            pprint("MAKING REFIT BUTTON")
+            logger("MAKING REFIT BUTTON")
             self.show_refit_button()
 
     def create_refit_button(self):
@@ -2657,13 +2623,13 @@ class Frontend:
         if self._new_user_stage % 13 != 0:
             return
         if self.data_handler.logx_flag:
-            # pprint("Making log_x sunken")
+            # logger("Making log_x sunken")
             self._logx_button.configure(relief=tk.SUNKEN)
             self._logx_button.configure(bg='grey90')
             self.hide_normalize_button()
-            pprint(self._logx_button['relief'])
+            logger(self._logx_button['relief'])
             return
-        # pprint("Making log_x raised")
+        # logger("Making log_x raised")
         self._logx_button.configure(relief=tk.RAISED)
 
         if not self.data_handler.logy_flag and self.data_handler.histogram_flag:
@@ -2673,12 +2639,12 @@ class Frontend:
             return
 
         if self.data_handler.logy_flag:
-            # pprint("Making log_y sunken")
+            # logger("Making log_y sunken")
             self._logy_button.configure(relief=tk.SUNKEN)
             self._logy_button.configure(bg='grey90')
             self.hide_normalize_button()
             return
-        # pprint("Making log_y raised")
+        # logger("Making log_y raised")
         self._logy_button.configure(relief=tk.RAISED)
 
         if not self.data_handler.logx_flag and self.data_handler.histogram_flag:  # purpose?
@@ -2869,7 +2835,11 @@ class Frontend:
             if log_deltaY > 4 :
                 axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}"))
             elif 0 <= log_deltaY <= 4 :
-                axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else (f"{x:.1F}" if (x - np.trunc(x))**2 > 1e-10 else f"{int(x)}" ) ) )
+                axes.yaxis.set_major_formatter(
+                    ticker.FuncFormatter(
+                        lambda x, pos: "" if x == 0 else (f"{x:.1F}" if (x - np.trunc(x))**2 > 1e-10 else f"{int(x)}" )
+                    )
+                )
             # elif log_deltaY == 0 :
             #     axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
             elif log_deltaY == -1 :
@@ -2930,7 +2900,7 @@ class Frontend:
             sum_len += len(x_points)
             smooth_x_for_fit = np.linspace(x_points[0], x_points[-1], 4 * len(x_points))
             plot_model.args = args
-            pprint(f"{plot_model.args}")
+            logger(f"{plot_model.args}")
             if handler.logx_flag and handler.logy_flag:
                 fit_vals = [plot_model.eval_at(xi, X0=handler.X0, Y0=handler.Y0)
                             for xi in smooth_x_for_fit]
@@ -2946,7 +2916,7 @@ class Frontend:
             col_tuple = [(icol / max(self._dataaxes_color) if max(self._dataaxes_color) > 0 else 1)
                          * (idx / num_sets) for icol in self._dataaxes_color]
             # col = idx / num_sets
-            # pprint(f"{col}")
+            # logger(f"{col}")
             # set_color = (col,col,col)
             axes.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color=col_tuple)
             plt.plot(smooth_x_for_fit, fit_vals, '-', color=col_tuple)
@@ -3053,7 +3023,11 @@ class Frontend:
             if log_deltaY > 4 :
                 axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}"))
             elif 0 <= log_deltaY <= 4 :
-                axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else (f"{x:.1F}" if (x - np.trunc(x))**2 > 1e-10 else f"{int(x)}" ) ) )
+                axes.yaxis.set_major_formatter(
+                    ticker.FuncFormatter(
+                        lambda x, pos: "" if x == 0 else (f"{x:.1F}" if (x - np.trunc(x))**2 > 1e-10 else f"{int(x)}" )
+                    )
+                )
             # elif log_deltaY == 0 :
             #     axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.1F}"))
             elif log_deltaY == -1 :
@@ -3248,7 +3222,7 @@ class Frontend:
         
         for idx, name in enumerate(self._checkbox_names_list):
             my_font = 'TkDefaultFont', int(12*self._default_os_scaling*self._platform_scale)
-            # pprint(regex.split(f" ", self._custom_function_names))
+            # logger(regex.split(f" ", self._custom_function_names))
             checkbox = tk.Checkbutton(
                 master=self._procedural_frame,
                 text=name,
@@ -3273,7 +3247,7 @@ class Frontend:
                                              ', '.join([x for x in regex.split(' ', self._custom_function_names) if x]))
         self.create_custom_remove_menu()
     def checkbox_on_off_command(self):
-        pprint("Activated re-build of composite list")
+        logger("Activated re-build of composite list")
         self._changed_optimizer_opts_flag = True
     def create_depth_up_down_buttons(self):
         # duplication taken care of with % 31 i.e. default_checkboxes
@@ -3317,13 +3291,13 @@ class Frontend:
 
     def create_custom_remove_menu(self):
 
-        pprint("In create custom remove menu")
+        logger("In create custom remove menu")
         head_menu = tk.Menu(master=self._gui, tearoff=0)
 
         names_menu = tk.Menu(master=head_menu, tearoff=0)
         names_menu.add_command(label="All Functions", command=partial(self.remove_named_custom,"All") )
         for name in [x for x in regex.split(' ', self._custom_function_names) if x] :
-            pprint(f"Added command for {name}")
+            logger(f"Added command for {name}")
             names_menu.add_command(label=name, command=partial(self.remove_named_custom,name))
 
         head_menu.add_cascade(label="Remove Custom", menu=names_menu)
@@ -3339,12 +3313,12 @@ class Frontend:
         custom_names = [x for x in regex.split(' ', self._custom_function_names) if x]
         custom_forms = [x for x in regex.split(' ', self._custom_function_forms) if x]
 
-        pprint("Remove named custom debug: ")
+        logger("Remove named custom debug: ")
 
         if name == '' :
             return
         elif name == "All" :
-            pprint("Removing all custom functions")
+            logger("Removing all custom functions")
 
             for idx, (iname, iform) in enumerate(zip(custom_names[:], custom_forms[:])):
                 custom_names.remove(iname)
@@ -3353,7 +3327,7 @@ class Frontend:
                 PrimitiveFunction.built_in_dict().pop(iname,None)
         else :
 
-            pprint(f"Remove named custom {name}")
+            logger(f"Remove named custom {name}")
             for idx, (iname, iform) in enumerate(zip(custom_names[:],custom_forms[:])) :
                 if iname == name :
                     custom_names.remove(iname)
@@ -3370,7 +3344,7 @@ class Frontend:
         self.update_optimizer()
         self.update_custom_checkbox()
 
-        pprint( [name for name in [x for x in regex.split(' ', self._custom_function_names) if x]] )
+        logger( [name for name in [x for x in regex.split(' ', self._custom_function_names) if x]] )
 
     # brute force -- also associated with fit_options panel for the pause button
     def begin_brute_loop(self):
@@ -3496,7 +3470,7 @@ class Frontend:
         self.create_library_options()
 
         if self._default_manual_name != "N/A" :
-            pprint(self._default_manual_form)
+            logger(self._default_manual_form)
             manual_model = CompositeFunction.construct_model_from_str(form=self._default_manual_form,
                                                                       error_handler=self.add_message,
                                                                       name=self._default_manual_name)
@@ -3598,7 +3572,7 @@ class Frontend:
         self._current_name_label.configure(text=self._default_manual_name)
         self._current_form_label.configure(text=self._default_manual_form)
         manual_model.print_tree()
-        pprint(manual_model.tree_as_string_with_dimensions())
+        logger(manual_model.tree_as_string_with_dimensions())
         self._manual_model = manual_model
         self.save_defaults()
         return True
@@ -3677,11 +3651,11 @@ class Frontend:
                 try:
                     y = fn(np.pi / 4)
                 except TypeError:
-                    pprint(f"{memb} not 1D")
+                    logger(f"{memb} not 1D")
                 except ValueError:
-                    pprint(f"{memb} doesn't accept float values")
+                    logger(f"{memb} doesn't accept float values")
                 else:
-                    pprint(memb, y)
+                    logger(memb, y)
                     buffer += f"{memb}, "
             if len(buffer) > 50 :
                 self.add_message(buffer[:-2])
@@ -3695,11 +3669,11 @@ class Frontend:
                 try:
                     y = fn(np.pi / 4)
                 except TypeError:
-                    pprint(f"{memb} not 1D")
+                    logger(f"{memb} not 1D")
                 except ValueError:
-                    pprint(f"{memb} doesn't accept float values")
+                    logger(f"{memb} doesn't accept float values")
                 else:
-                    pprint(memb, y)
+                    logger(memb, y)
                     buffer += f"{memb}, "
             if len(buffer) > 50 :
                 self.add_message(buffer[:-2])
@@ -3713,22 +3687,22 @@ class Frontend:
                 try:
                     y = fn.pdf(np.pi / 4)
                 except TypeError:
-                    pprint(f"{memb} not 1D")
+                    logger(f"{memb} not 1D")
                 except ValueError:
-                    pprint(f"{fn} should be ok?")
+                    logger(f"{fn} should be ok?")
                 else:
-                    pprint(memb, y)
+                    logger(memb, y)
                     buffer += f"{memb}, "
 
                 # Maybe add this is the next version
                 # try:
                 #     y = fn.cdf(np.pi / 4)
                 # except TypeError:
-                #     pprint(f"{memb}_cdf not 1D")
+                #     logger(f"{memb}_cdf not 1D")
                 # except ValueError:
-                #     pprint(f"{fn} should be ok?")
+                #     logger(f"{fn} should be ok?")
                 # else:
-                #     pprint(memb, y)
+                #     logger(memb, y)
                 #     buffer += f"{memb}_cdf, "
             if len(buffer) > 50 :
                 self.add_message(buffer[:-2])
@@ -3738,7 +3712,7 @@ class Frontend:
     def print_autofit_library(self):
         buffer = "\n \n  <autofit> options: \n  "
         for key, prim in PrimitiveFunction.build_built_in_dict().items():
-            pprint(prim.name)
+            logger(prim.name)
             buffer += f"{prim.name}, "
             if len(buffer) > 50 :
                 self.add_message(buffer[:-2])
@@ -3767,7 +3741,7 @@ class Frontend:
         elif self._showing_fit_image:
             self.show_current_data_with_fit()
         else:
-            if self._image_path != f"{get_package_path()}/splash.png":
+            if self._image_path != f"{pkg_path()}/splash.png":
                 self.show_current_data()
 
     @property
@@ -3792,8 +3766,8 @@ class Frontend:
         if self._changed_optimizer_opts_flag:  # max depth, changed dict
             self.optimizer.update_opts(use_functions_dict=self.use_functions_dict, max_functions=self.max_functions)
             if self._custom_function_forms != "":
-                pprint(f"Update_optimizer: Including custom functions "
-                      f">{self._custom_function_names}< with forms >{self._custom_function_forms}<")
+                logger(f"Update_optimizer: Including custom functions "
+                       f">{self._custom_function_names}< with forms >{self._custom_function_forms}<")
                 for name, form in zip([x for x in regex.split(' ', self._custom_function_names) if x],
                                       [x for x in regex.split(' ', self._custom_function_forms) if x]):
                     info_str = self._optimizer.add_primitive_to_list(name, form)
@@ -4004,12 +3978,12 @@ class Frontend:
 
 
     def size_down(self):
-        pprint("Increasing resolution / decreasing text size")
+        logger("Increasing resolution / decreasing text size")
         self._default_os_scaling -= 0.1
         self.add_message("> Size down")
         self.restart_command()
     def size_up(self):
-        pprint("Decreasing resolution / increasing text size")
+        logger("Decreasing resolution / increasing text size")
         self._default_os_scaling += 0.1
         self.add_message("> Size up")
         self.restart_command()
@@ -4097,7 +4071,7 @@ class Frontend:
         self.save_defaults()
     def criterion_HQ(self):
         self.checkmark_criterion_options(4)
-        pprint(f"Changed to HQIC from {self.criterion}")
+        logger(f"Changed to HQIC from {self.criterion}")
         self.criterion = "HQIC"
         self.add_message(f"\n \n> Hannan-Quinn Information Criterion HQIC selected.")
         self.add_message(f"  We define HQIC as {self.sym_chi}{sup(2)} + 2k·log(log(N)),\n"
@@ -4216,194 +4190,3 @@ def hexx(vec)  :
         hex_str += to_add if len(to_add) == 2 else f"0{to_add}"
     return hex_str
 
-class Validator:
-
-    def __init__(self):
-        self._filepath = Validator.get_package_path()
-        if sys.platform == "darwin" :
-            self._filepath += "/libdscheme.5.dylib"
-        else :
-            self._filepath += "/libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll"
-
-    @staticmethod
-    def extract_epoch_from_file(filepath)  :
-        if not os.path.exists(filepath) :
-            print("1> No file detected, exiting...")
-            return 0, f"Error code 1, exiting..."
-        try:
-            with open(filepath) as file :
-                cipher = ""
-                for line in file:
-                    if len(line) < 5 :
-                        print("2> No content, exiting...")
-                        return 0, f"Error code 2, exiting..."
-                    cipher = line
-                    break
-                if cipher == "" :
-                    print("3> No content, exiting...")
-                    return 0, f"Error code 3, exiting..."
-                message = Validator.de_crypt(cipher)
-        except FileNotFoundError :
-            print("4> No file detected, exiting...")
-            return 0, f"Error code 4, exiting..."
-
-        part = regex.split(f"<<<",message)
-        try :
-            _ , str_epoch = regex.split(f">>>",part[0])
-            _, str_transaction_ID = regex.split(f">>>", part[1])
-        except ValueError:
-            print("5> Invalid hash, exiting...")
-            return 0, f"Error code 5, exiting..."
-
-        # if the file doesn't decrypt, it's been modified
-        try :
-            secret_epoch = int(str_epoch)
-        except ValueError:
-            print("6> Invalid int, exiting...")
-            return 0, f"Error code 6, exiting..."
-
-        return secret_epoch, ""
-
-    def invalid_config(self)  :
-
-        from datetime import datetime, timezone
-
-        # when the secret was made in UTC (not signed)
-        secret_epoch, err_str = Validator.extract_epoch_from_file(self._filepath)
-        if secret_epoch < 1 or err_str != "" :
-            return err_str
-
-        print(sys.platform)
-
-        # this timing is based off the assumption that the ingliswhalen.com server signs the certificate using UTC time
-        if sys.platform == "win32" or sys.platform[:3] == "win" :
-            creation_epoch = os.path.getctime(self._filepath)  # when the file was unzipped/copied (locally signed)
-            modify_epoch = os.path.getmtime(self._filepath)    # when the file was created on the server (server signed)
-        else :
-            stat = os.stat(self._filepath)
-            try :
-                modify_epoch = stat.st_mtime
-                creation_epoch = stat.st_birthtime
-            except AttributeError :
-                pprint("11> Linux isn't supported.")
-                return f"Error code 11, exiting..."
-
-        zero_utc = datetime.fromtimestamp( 0, timezone.utc ).replace(tzinfo=None)
-        creation_utc = datetime.fromtimestamp( creation_epoch, timezone.utc ).replace(tzinfo=None)
-        modify_utc = datetime.fromtimestamp( modify_epoch )
-        secret_utc = datetime.fromtimestamp( secret_epoch, timezone.utc ).replace(tzinfo=None)
-
-        # print("Validator: create -- ",creation_utc)
-        # print("Validator: modify -- ",modify_utc)
-        # print("Validator: secret -- ",secret_utc)
-
-        # print(creation_epoch, (creation_utc-zero_utc).total_seconds() )
-        # print(modify_epoch, (modify_utc-zero_utc).total_seconds() )
-        # print(secret_epoch, (secret_utc-zero_utc).total_seconds() )
-
-        creation_epoch =  (creation_utc-zero_utc).total_seconds()
-        modify_epoch = (modify_utc-zero_utc).total_seconds()
-        secret_epoch = (secret_utc-zero_utc).total_seconds()
-
-        # print(creation_utc,modify_utc,secret_utc)
-
-        seconds_cm = (creation_utc-modify_utc).total_seconds()
-        seconds_cs = (creation_utc-secret_utc).total_seconds()
-        seconds_ms = (modify_utc-secret_utc).total_seconds()
-
-        # print(seconds_cm,seconds_cs,seconds_ms,seconds_mc)
-
-        # assume that the download (modify_epoch) to install (unzipping, creation_time) will take less than an hour
-        if abs(seconds_cm) > 60*60 + 1 :
-            # print(modify_epoch, creation_epoch)
-            pprint("7> ")  # You need to have less time between downloading and unzipping the file.
-            # return f"Error code {modify_time} / {creation_time}, exiting..."
-            return f"Error code {int(modify_epoch) + 918273645} / {int(creation_epoch) + 192837465}, exiting..."
-        # assume that the hidden secret_epoch and the modify_epoch (download) are aligned
-        if abs(seconds_ms) > 5 :
-            # print(secret_epoch, modify_epoch)
-            pprint("8>")  # The secret file has been modified.
-            # return f"Error code {secret_time} = {modify_time}, exiting..."
-            return f"Error code {int(secret_epoch) + 132457689} = {int(modify_epoch) + 978653421}, exiting..."
-        # assume that the hidden secret_epoch and the creation_time (unzipping) are less than an hour apart
-        if abs(seconds_cs) > 60*60 + 1 :
-            # print(secret_epoch, creation_epoch)
-            pprint("9>")  # You need to have less time between downloading and unzipping the file.
-            # return f"Error code {secret_time} | {creation_time}, exiting..."
-            return f"Error code {int(secret_epoch) + 123456789} | {int(creation_epoch) + 546372819}, exiting..."
-        return ""
-
-    @staticmethod
-    def invalid_popup(error_msg ):
-
-        gui = tk.Tk()
-
-        # window size and title
-        gui.geometry(
-            f"{round(gui.winfo_screenwidth() * 5 / 6)}x{round(gui.winfo_screenheight() * 5 / 6)}+5+10")
-        gui.rowconfigure(0, minsize=800, weight=1)
-
-        # icon image and window title
-        try :
-            gui.iconbitmap(f"{Validator.get_package_path()}/icon.ico")
-        except _tkinter.TclError :
-            tk.messagebox.showerror(f"Packaging error: no icon.ico located in {Validator.get_package_path()}")
-        if sys.platform == "darwin" :
-            try :
-                iconify = Image.open(f"{Validator.get_package_path()}/splash.png")
-                photo = ImageTk.PhotoImage(iconify)
-                gui.iconphoto(False,photo)
-            except _tkinter.TclError:
-                tk.messagebox.showerror(f"Packaging error: no splash.png located in {Validator.get_package_path()}")
-        gui.title("MIW's AutoFit")
-
-        # print(Validator.get_package_path())
-        tk.messagebox.showerror(f"Configuration Error in {Validator.get_package_path()}\n\n",
-                                         f"{error_msg}\n\nPlease try re-downloading this package from "
-                                         f"ingliswhalen.com/MIWs-AutoFit/AutoFit-Pro-Downloads")
-        raise SystemExit
-
-    @staticmethod
-    def de_crypt(cipher)  :
-
-        copy = [*cipher]
-        cipher_len = len(cipher)
-        jump = 61
-
-        while cipher_len % jump == 0 :
-            jump += 1
-        for idx in range(cipher_len) :
-            char_scram = ( ord(cipher[idx])-3329 ) % 256
-            while char_scram < 0 :
-                char_scram += 256
-            copy[ jump*(idx+1) % cipher_len ] = chr(char_scram)
-
-        # print("".join(copy), cipher)
-        return "".join(copy)
-
-
-
-    @staticmethod
-    def get_package_path():
-
-        try:
-            loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
-        except AttributeError:
-            filepath = os.path.abspath(__file__)
-            loc = os.path.dirname(filepath)
-            # print("It doesn't know about _MEIPASS")
-
-        # keep stepping back from the current directory until we are in the directory /autofit
-        while loc[-7:] != "autofit":
-            loc = os.path.dirname(loc)
-            if loc == os.path.dirname(loc):
-                print(f"""Validator init: python script {__file__} is not in the AutoFit package's directory.""")
-
-        if sys.platform == "darwin" :
-            if os.path.exists(f"{loc}/MIWs_AutoFit.app") :
-                loc = loc + "/MIWs_AutoFit.app/Contents/MacOS"
-        else :
-            if os.path.exists(f"{loc}/backend") :
-                loc = loc + "/backend"
-
-        return loc

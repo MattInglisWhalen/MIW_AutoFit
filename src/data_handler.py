@@ -1,7 +1,6 @@
 
 # built-in libraries
 import re as regex
-import sys, os
 
 # external libraries
 import numpy as np
@@ -9,47 +8,7 @@ from pandas import read_excel, isna
 
 # user-defined classes
 from autofit.src.datum1D import Datum1D
-
-# production print
-def pprint(*stuff) :
-    # testing
-    # pprint(stuff)
-
-    # production
-    # for istr in list(stuff) :
-    #     logger(istr)
-
-    pass
-
-def logger(logstr: str):
-    log_filepath = f"{get_package_path()}/autofit_output.log"
-    with open(file=log_filepath, mode='a+', encoding='utf-8') as log_file :
-        log_file.write(f"{logstr}\n")
-
-def get_package_path():
-
-    try:
-        loc = sys._MEIPASS  # for pyinstaller with standalone exe/app
-    except AttributeError:
-        filepath = os.path.abspath(__file__)
-        loc = os.path.dirname(filepath)
-
-    fallback = loc
-    # keep stepping back from the current directory until we are in the directory /autofit
-    while loc[-7:] != "autofit":
-        loc = os.path.dirname(loc)
-        if loc == os.path.dirname(loc):
-            loc = fallback
-            break
-
-    if sys.platform == "darwin" :
-        if os.path.exists(f"{loc}/MIWs_AutoFit.app") :
-            loc = loc + "/MIWs_AutoFit.app/Contents/MacOS"
-    else :
-        if os.path.exists(f"{loc}/backend") :
-            loc = loc + "/backend"
-
-    return loc
+from autofit.src.package import logger
 
 
 class DataHandler:
@@ -91,7 +50,7 @@ class DataHandler:
         if filepath[-4:] in [".csv",".txt"] :
             self.read_csv()
         elif filepath[-4:] in [".xls","xlsx",".ods"] :
-            pprint("Please first provide start- and end-points for data ranges")
+            logger("Please first provide start- and end-points for data ranges")
 
     @property
     def filepath(self) -> str:
@@ -141,7 +100,7 @@ class DataHandler:
 
             min_X, max_X = min( [datum.pos for datum in self._data] ), max( [datum.pos for datum in self._data] )
             if min_X <= 0 :
-                pprint("You can't log the x-data if there are negative numbers!")
+                logger("You can't log the x-data if there are negative numbers!")
                 return
             self._X0 = np.sqrt(min_X*max_X) if self.X0 > 0 else -self._X0
             for datum in self._data :
@@ -151,7 +110,7 @@ class DataHandler:
                 else:
                     datum.sigma_pos = datum.sigma_pos/datum.pos
                 datum.pos = np.log(datum.pos / self._X0)
-                # pprint(datum.pos)
+                # logger(datum.pos)
         if not new_flag and self._logx_flag :
             # we are currently logging the data, but now we want to switch it back
             if self._histogram_flag :
@@ -169,7 +128,7 @@ class DataHandler:
                     else:
                         datum.sigma_pos = datum.sigma_pos * datum.pos
         self._logx_flag = new_flag
-        pprint(f"Finished logging x with {self._X0=}")
+        logger(f"Finished logging x with {self._X0=}")
     @property
     def Y0(self) -> float:
         return self._Y0
@@ -185,7 +144,7 @@ class DataHandler:
             # we are not currently logging the data, but want to log it now
             min_Y, max_Y = min( [datum.val for datum in self._data] ), max( [datum.val for datum in self._data] )
             if min_Y <= 0 :
-                pprint("You can't log the y-data if there are zeroes or negative numbers!")
+                logger("You can't log the y-data if there are zeroes or negative numbers!")
                 return
             self._Y0 = np.sqrt(min_Y*max_Y) if self._Y0 > 0 else -self._Y0
             for datum in self._data :
@@ -197,7 +156,7 @@ class DataHandler:
                 datum.val = self._Y0 * np.exp( datum.val )
                 datum.sigma_val = datum.sigma_val*datum.val
         self._logy_flag = new_flag
-        pprint(f"Finished logging y with {self._Y0=}")
+        logger(f"Finished logging y with {self._Y0=}")
 
     @property
     def unlogged_x_data(self) -> list[float]:
@@ -270,7 +229,7 @@ class DataHandler:
         length = self.calc_num_lines()
         width = self.calc_entries_per_line(delim)
 
-        pprint(f"File is {width}x{length}")
+        logger(f"File is {width}x{length}")
 
         if (length == 1 and width > 1) or (length > 1 and width == 1) :
             self.read_as_histogram(delim)
@@ -384,15 +343,15 @@ class DataHandler:
         minval, maxval, count = min(vals), max(vals), len(vals)
 
         if minval < 0 and self._logx_flag :
-            pprint(f"Can't x-log histogram when {minval=}<0")
+            logger(f"Can't x-log histogram when {minval=}<0")
             self._logx_flag = False
 
         if minval - np.floor(minval) < 2/count :
-            # pprint("Integer bolting min")
+            # logger("Integer bolting min")
             # if it looks like the min and max vals are bolted to an integer, use the integers as a bin boundary
             minval = minval // 1
         if np.ceil(maxval) - maxval < 2/count :
-            # pprint("Integer bolting max")
+            # logger("Integer bolting max")
             maxval = maxval // 1
 
         num_bins = int( np.sqrt(count) // 1 )
@@ -400,15 +359,15 @@ class DataHandler:
         if self._logx_flag :
             hist_counts, hist_bounds = np.histogram(vals, bins=np.geomspace(minval, maxval, num=num_bins+1) )
             if min( hist_counts ) == 0 and self._logy_flag :
-                pprint("In make_histogram_data, your can't x-log for this data because you're already y-logging, "
-                      "and you can't take the log of 0.")
+                logger("In make_histogram_data, your can't x-log for this data because you're already y-logging, "
+                       "and you can't take the log of 0.")
                 self._logx_flag = False
         # this used to be         if not self.logx_flag :
         else :
             hist_counts, hist_bounds = np.histogram(vals,  bins=np.linspace(minval, maxval, num=num_bins+1) )
-        pprint(f"Made histogram with bin counts {hist_counts}")
+        logger(f"Made histogram with bin counts {hist_counts}")
         if 0 in hist_counts :
-            pprint(f"Histogram creation error with {hist_bounds=}")
+            logger(f"Histogram creation error with {hist_bounds=}")
         if self._logx_flag :
             for idx, count in enumerate(hist_counts) :
                 geom_mean = np.sqrt(hist_bounds[idx+1]*hist_bounds[idx])
@@ -432,14 +391,14 @@ class DataHandler:
             self.logy_flag = True
 
     def set_excel_args(self, x_range_str, y_range_str=None, x_error_str = None, y_error_str = None):
-        pprint(f"Thank you for providing data ranges {x_range_str} {y_range_str} {x_error_str} {y_error_str}")
+        logger(f"Thank you for providing data ranges {x_range_str} {y_range_str} {x_error_str} {y_error_str}")
         self._x_column_endpoints = x_range_str
         self._y_column_endpoints = y_range_str
         self._sigmax_column_endpoints = x_error_str
         self._sigmay_column_endpoints = y_error_str
         self.read_excel()
     def set_excel_sheet_name(self, name):
-        pprint("Thank you for providing data ranges")
+        logger("Thank you for providing data ranges")
         self._excel_sheet_name = name
 
     @staticmethod
@@ -449,16 +408,16 @@ class DataHandler:
         return False
     @staticmethod
     def excel_range_as_list_of_idx_tuples(excel_vec):
-        # pprint(f"{excel_vec} as range should be")
+        # logger(f"{excel_vec} as range should be")
         if excel_vec == "" :
             # for empty range creation, e.g. empty sigma_x range
             return []
         try:
             left, right = regex.split(f":", excel_vec)
         except ValueError :
-            pprint(f"{excel_vec=}")
+            logger(f"{excel_vec=}")
             raise ValueError
-        # pprint(f"{left=} {right=}")
+        # logger(f"{left=} {right=}")
         left_chars = regex.split( f"[0-9]", left)[0]
         left_ints = regex.split( f"[A-Z]", left)[-1]
 
@@ -508,7 +467,7 @@ class DataHandler:
 
         data_frame = read_excel(self._filepath, self._excel_sheet_name, header=None)
 
-        pprint("Excel scatter plot chosen")
+        logger("Excel scatter plot chosen")
 
         xvals = []
         for idx, loc in enumerate(DataHandler.excel_range_as_list_of_idx_tuples( self._x_column_endpoints )) :
@@ -518,12 +477,12 @@ class DataHandler:
             if idx == 0 and regex.search("[a-zA-Z]", str(val) ) :
                 self._x_label = val
             elif isna(val) :
-                pprint(f"Invalid value >{val}< encountered in excel workbook. ")
+                logger(f"Invalid value >{val}< encountered in excel workbook. ")
                 continue
             else:
                 xvals.append( val )
 
-        pprint("Done x collection")
+        logger("Done x collection")
 
         yvals = []
         for idx, loc in enumerate(DataHandler.excel_range_as_list_of_idx_tuples( self._y_column_endpoints )) :
@@ -531,12 +490,12 @@ class DataHandler:
             if idx == 0 and regex.search("[a-zA-Z]", str(val) ) :
                 self._y_label = val
             elif isna(val) :
-                pprint(f"Invalid value >{val}< encountered in excel workbook. ")
+                logger(f"Invalid value >{val}< encountered in excel workbook. ")
                 continue
             else:
                 yvals.append( val )
 
-        pprint("Done y collection")
+        logger("Done y collection")
 
         # create the data
         for x, y in zip(xvals, yvals) :
@@ -549,7 +508,7 @@ class DataHandler:
                 if idx == 0 and regex.search("[a-zA-Z]", str(val) ):
                     pass
                 elif isna(val):
-                    pprint(f"Invalid value >{val}< encountered in excel workbook. ")
+                    logger(f"Invalid value >{val}< encountered in excel workbook. ")
                     continue
                 else:
                     sigmaxvals.append(val)
@@ -561,7 +520,7 @@ class DataHandler:
                 if idx == 0 and regex.search("[a-zA-Z]", str(val) ):
                     pass
                 elif isna(val):
-                    pprint(f"Invalid value >{val}< encountered in excel workbook. ")
+                    logger(f"Invalid value >{val}< encountered in excel workbook. ")
                     continue
                 else:
                     sigmayvals.append(val)
@@ -575,7 +534,7 @@ class DataHandler:
 
         data_frame = read_excel(self._filepath, self._excel_sheet_name)
 
-        pprint("Excel histogram chosen")
+        logger("Excel histogram chosen")
 
         vals = []
         for idx, loc in enumerate(DataHandler.excel_range_as_list_of_idx_tuples( self._x_column_endpoints )) :
@@ -583,13 +542,13 @@ class DataHandler:
             if idx == 0 and regex.search("[a-zA-Z]", str(val)) :
                 self._x_label = val
             elif str(val) == "" :
-                pprint(f"Invalid value >{val}< encountered in excel workbook. ")
+                logger(f"Invalid value >{val}< encountered in excel workbook. ")
                 continue
             else:
                 self._x_label = "x"
                 vals.append( val )
         self._y_label = "N"
-        pprint(f"Excel histogram raw data is {vals}")
+        logger(f"Excel histogram raw data is {vals}")
         self.make_histogram_data_from_vals(vals)
 
     def normalize_histogram_data(self, error_handler = print) -> bool:
