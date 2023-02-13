@@ -1,6 +1,5 @@
 
 # built-in libraries
-import _tkinter
 import platform
 import sys
 import os
@@ -140,17 +139,16 @@ class Validator:
         gui.rowconfigure(0, minsize=800, weight=1)
 
         # icon image and window title
-        try :
+        if sys.platform == "win32" :
             gui.iconbitmap(f"{pkg_path()}/icon.ico")
-        except _tkinter.TclError :
-            messagebox.showerror(f"Packaging error: no icon.ico located in {pkg_path()}")
-        if sys.platform == "darwin" :
-            try :
-                iconify = Image.open(f"{pkg_path()}/splash.png")
-                photo = ImageTk.PhotoImage(iconify)
+        elif sys.platform == "darwin" :
+                photo = tk.PhotoImage(file=f"{pkg_path()}/splash.png")
                 gui.iconphoto(False,photo)
-            except _tkinter.TclError:
-                messagebox.showerror(f"Packaging error: no splash.png located in {pkg_path()}")
+        elif sys.platform == "linux" :
+            icon = Image.open(f"{pkg_path()}/icon.bmp")
+            gui.iconphoto(False,icon)
+        else :
+            messagebox.showerror("Platform Error","Your system is not compatible with MIW's AutoFit.")
         gui.title("MIW's AutoFit")
 
         # logger(pkg_path())

@@ -19,8 +19,10 @@ def logger(*stuff) -> None :
     if DEV == 1 :
         print(*stuff)
     elif DEV == 0 :
-        thing = ' '.join(list(stuff))
-        _to_append(thing)
+        statement = ""
+        for thing in stuff :
+            statement += f" {thing}"
+        _to_append(statement)
     else :
         pass
 

@@ -1253,8 +1253,6 @@ class Optimizer:
         else:
             plot_model = self._shown_model
 
-
-
         plt.close()
         fig = plt.figure()
         fig.patch.set_facecolor( (112/255, 146/255, 190/255) )

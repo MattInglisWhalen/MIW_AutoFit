@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import scipy.stats
 import scipy.special
-from PIL import ImageTk, Image
+from PIL import Image
 
 # internal classes
 from autofit.src.composite_function import CompositeFunction
@@ -32,7 +32,6 @@ from autofit.src.package import pkg_path, logger
 # Finer detail sig figs of parameters
 # Covariance matrix
 # Residuals under plot
-
 
 
 class Frontend:
@@ -101,7 +100,7 @@ class Frontend:
         # image frame
         self._curr_image_num: int = -1
         self._image_path: str = None
-        self._image: ImageTk.PhotoImage = None
+        self._image: tk.PhotoImage = None
         self._image_frame: tk.Label = None
 
         self._showing_fit_image: bool = False  # conjugate to showing data-only image
@@ -186,29 +185,39 @@ class Frontend:
         self._default_console_colour: str = None
         self._default_printout_colour: str = None
         self._default_os_scaling: float = 1
+
         if sys.platform == "darwin" :
             self._platform_offset = 4
             self._platform_scale = 1.17
             self._platform_border = 0
-            self.sym_chi = "\U000003C7"
-            self.sym_left = "\U00002190"
-            self.sym_up = "\U00002191"
-            self.sym_right = "\U00002192"
-            self.sym_down = "\U00002193"
             self._right_click = "<Button-2>"
-            self.sym_sigma = "sigma"  # "\U000003C3"  # u"\U000003C3"  # "\U000003C3".encode('utf-8')
         else :
             self._platform_offset = 0
             self._platform_scale = 0.85
             self._platform_border = 2
+            self._right_click = "<Button-3>"
+
+        if sys.platform == "win32" :
             self.sym_chi = "\U0001D6D8"
             self.sym_left = "\U0001F844"
             self.sym_up = "\U0001F845"
             self.sym_right = "\U0001F846"
             self.sym_down = "\U0001F847"
-            self._right_click = "<Button-3>"
             self.sym_sigma = "\U000003C3"
+        else :
+            self.sym_chi = "\U000003C7"
+            self.sym_left = "\U00002190"
+            self.sym_up = "\U00002191"
+            self.sym_right = "\U00002192"
+            self.sym_down = "\U00002193"
+            self.sym_sigma = "sigma"  # "\U000003C3"  # u"\U000003C3"  # "\U000003C3".encode('utf-8')
         self.sym_check = " \U00002713"
+
+        if sys.platform == "linux" :
+            self._sbf = '#d9d9d9'
+        else :
+            self._sbf = 'SystemButtonFace'
+
         self._image_r: float = 1
         self._custom_function_names: str = ""
         self._custom_function_forms: str = ""
@@ -399,7 +408,7 @@ class Frontend:
                     else :
                         self._default_console_colour = "Default"
                     if arg == "Pale":
-                        self._console_color = 'SystemButtonFace'
+                        self._console_color = self._sbf
                     elif arg == "White":
                         self._console_color = 'white'
                     else:
@@ -614,11 +623,14 @@ class Frontend:
         gui.rowconfigure(0, minsize=400, weight=1)
 
         # icon image and window title
-        gui.iconbitmap(f"{pkg_path()}/icon.ico")
-        if sys.platform == "darwin" :
-            iconify = Image.open(f"{pkg_path()}/splash.png")
-            photo = ImageTk.PhotoImage(iconify)
+        if sys.platform == "win32" :
+            gui.iconbitmap(f"{pkg_path()}/icon.ico")
+        elif sys.platform == "darwin" :
+            photo = tk.PhotoImage(file=f"{pkg_path()}/splash.png")
             gui.wm_iconphoto(False,photo)
+        elif sys.platform == "linux" :
+            iconify = Image.open(f"{pkg_path()}/icon.bmp")
+            gui.wm_iconphoto(False,iconify)
         gui.title("MIW's AutoFit")
 
         # menus
@@ -630,7 +642,6 @@ class Frontend:
         self.create_middle_panel()
         # right panel -- text output
         self.create_right_panel(hello_str="> Welcome to MIW's AutoFit!")
-
 
     # MENUS
     def create_file_menu(self):
@@ -755,7 +766,7 @@ class Frontend:
         self.create_load_data_button()
     def create_middle_panel(self):
         self._gui.columnconfigure(1, minsize=128)  # image panel
-        self._middle_panel_frame = tk.Frame(master=self._gui, bg='SystemButtonFace')
+        self._middle_panel_frame = tk.Frame(master=self._gui, bg=self._sbf)
         self._middle_panel_frame.grid(row=0, column=1, sticky='nsew')
         self.create_image_frame()  # aka image frame
         self.create_data_perusal_frame()  # aka inspect frame
@@ -800,9 +811,10 @@ class Frontend:
                 shortpath = regex.split(f"/", path)[-1]
                 logger(f"{shortpath} already loaded")
                 new_filepaths.remove(path)
-            if path[-4:] == "xlsx" :
-                if sys.platform == "darwin" :
+            elif path[-4:] == "xlsx" :
+                if sys.platform in ["darwin","linux"] :
                     self.add_message(f"\n \n> .xlsx file format not supported.")
+                    new_filepaths.remove(path)
         for path in new_filepaths[:]:
             if path[-4:] in [".xls", ".ods"] and self._new_user_stage % 23 != 0:
                 self.dialog_box_get_excel_data_ranges()
@@ -954,8 +966,12 @@ class Frontend:
         dialog_box.bind('<Return>', self.close_dialog_box_command_excel)
         dialog_box.focus_force()
 
-        explanation_label = tk.Label(master=exp_frame, text="\nThese settings will apply to all "
-                                                            ".xls, .xlsx, and .ods files")
+        if sys.platform == "win32" :
+            explanation_label = tk.Label(master=exp_frame, text="\nThese settings will apply to all "
+                                                                ".xls, .xlsx, and .ods files")
+        else :
+            explanation_label = tk.Label(master=exp_frame, text="\nThese settings will apply to all "
+                                                                ".xls and .ods files")
         explanation_label.grid(row=0, column=0, sticky='w')
 
         self._popup_window = dialog_box
@@ -999,7 +1015,7 @@ class Frontend:
 
     def show_data(self):
 
-        new_image_path = f"{pkg_path()}/plots/front_end_current_plot.png"
+        self._image_path = f"{pkg_path()}/plots/front_end_current_plot.png"
         # create a scatter plot of the first file
 
         x_points = self.data_handler.unlogged_x_data
@@ -1008,7 +1024,10 @@ class Frontend:
         sigma_y_points = self.data_handler.unlogged_sigmay_data
 
         plt.close()
-        plt.figure(facecolor=self._bg_color)
+        plt.figure(facecolor=self._bg_color,
+                   figsize=(6.4*self._image_r,4.8*self._image_r),
+                   dpi=100+int( np.log10( len(x_points) ) )
+                  )
 
         plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o',
                      color=self._dataaxes_color)
@@ -1110,10 +1129,9 @@ class Frontend:
         axes.yaxis.set_label_coords(offset_X + tx, +0.750)
 
         plt.tight_layout()
-        plt.savefig(new_image_path, facecolor=self._bg_color)
+        plt.savefig(self._image_path, facecolor=self._bg_color)
 
         # replace the splash graphic with the plot
-        self._image_path = new_image_path
         self.switch_image()
 
         # if we're showing the image, we want the optimizer to be working with this data
@@ -1842,52 +1860,52 @@ class Frontend:
 
     def create_image_frame(self):  # !frame : image only
         image_frame = tk.Frame(
-            master=self._gui.children['!frame2'], bg='SystemButtonFace'
+            master=self._gui.children['!frame2'], bg=self._sbf
         )
         image_frame.grid(row=0, column=0, sticky='w')
         self.load_splash_image()
     def create_data_perusal_frame(self):  # !frame2 : inspect, left<>right buttons
-        self._data_perusal_frame = tk.Frame(master=self._gui.children['!frame2'], bg='SystemButtonFace')
+        self._data_perusal_frame = tk.Frame(master=self._gui.children['!frame2'], bg=self._sbf)
         self._data_perusal_frame.grid(row=1, column=0, sticky='ew')
         self._data_perusal_frame.grid_columnconfigure(0, weight=1)
 
-        data_perusal_frame_left = tk.Frame(master=self._data_perusal_frame, bg='SystemButtonFace')
+        data_perusal_frame_left = tk.Frame(master=self._data_perusal_frame, bg=self._sbf)
         data_perusal_frame_left.grid(row=0, column=0, sticky='w')
 
-        data_perusal_frame_right = tk.Frame(master=self._data_perusal_frame, bg='SystemButtonFace')
+        data_perusal_frame_right = tk.Frame(master=self._data_perusal_frame, bg=self._sbf)
         data_perusal_frame_right.grid(row=0, column=1, sticky='e')
     def create_fit_options_frame(self):  # !frame3 : fit type, procedural top5, pause/go, refit
         self._fit_options_frame = tk.Frame(
-            master=self._gui.children['!frame2'], bg='SystemButtonFace'
+            master=self._gui.children['!frame2'], bg=self._sbf
         )
         self._fit_options_frame.grid(row=3, column=0, sticky='w')  # row2 is reserved for the black line
     def create_plot_options_frame(self):  # !frame4 : logx, logy, normalize
         self._gui.children['!frame2'].columnconfigure(1, minsize=50)
         self._plot_options_frame = tk.Frame(
-            master=self._gui.children['!frame2'], bg='SystemButtonFace'
+            master=self._gui.children['!frame2'], bg=self._sbf
         )
         self._plot_options_frame.grid(row=0, column=1, sticky='ns')
     # def create_linear_frame(self) : pass
     def create_polynomial_frame(self):  # !frame6 : depth of procedural fits
         self._polynomial_frame = tk.Frame(
-            master=self._gui.children['!frame2'], bg='SystemButtonFace'
+            master=self._gui.children['!frame2'], bg=self._sbf
         )
         self._polynomial_frame.grid(row=4, column=0, sticky='w')
     def create_gaussian_frame(self):  # !frame7 : depth of procedural fits
         self._gaussian_frame = tk.Frame(
-            master=self._gui.children['!frame2'], bg='SystemButtonFace'
+            master=self._gui.children['!frame2'], bg=self._sbf
         )
         self._gaussian_frame.grid(row=4, column=0, sticky='w')
     # def create_sigmoid_frame(self) : pass
     def create_procedural_frame(self):  # !frame5 : checkboxes, depth of procedural fit
         self._procedural_frame = tk.Frame(
-            master=self._gui.children['!frame2'], bg='SystemButtonFace'
+            master=self._gui.children['!frame2'], bg=self._sbf
         )
         self._procedural_frame.grid(row=4, column=0, sticky='w')
     # def create_brute_force_frame(self) : pass
     def create_manual_frame(self):  # !frame6 : depth of procedural fits
         self._manual_frame = tk.Frame(
-            master=self._gui.children['!frame2'], bg='SystemButtonFace'
+            master=self._gui.children['!frame2'], bg=self._sbf
         )
         self._manual_frame.grid(row=4, column=0, sticky='w')
 
@@ -1900,21 +1918,20 @@ class Frontend:
             self._image_r = (8/9) * self._os_height / (2*img_raw.height)
         img_resized = img_raw.resize((round(img_raw.width * self._image_r),
                                       round(img_raw.height * self._image_r)))
+        self._image_path=f"{self._image_path[:-4]}_mod.png"
+        img_resized.save(fp=self._image_path)
 
-        self._image = ImageTk.PhotoImage(img_resized)
+        self._image = tk.PhotoImage(self._image_path)
         self._image_frame = tk.Label(master=self._gui.children['!frame2'].children['!frame'],
                                      image=self._image,
-                                     relief=tk.SUNKEN, bg='SystemButtonFace')
+                                     relief=tk.SUNKEN, bg=self._sbf)
         logger(f"Created frame {self._image_frame}")
         self._image_frame.grid(row=0, column=0)
         self._image_frame.grid_propagate(True)
         self._image_frame.bind(self._right_click, self.do_colors_image_popup)
         self._image_frame.bind('<MouseWheel>', self.do_image_resize)
     def switch_image(self):
-        img_raw = Image.open(self._image_path)
-        img_resized = img_raw.resize((round(img_raw.width * self._image_r),
-                                      round(img_raw.height * self._image_r)))
-        self._image = ImageTk.PhotoImage(img_resized)
+        self._image = tk.PhotoImage(file=self._image_path)
         self._image_frame.configure(image=self._image)
     def do_image_resize(self, event):
 
@@ -1922,7 +1939,18 @@ class Frontend:
         d = event.delta / 120
         self._image_r *= (1 + d / 10)
 
-        self.switch_image()
+        if self._image_path in [f"{pkg_path()}/splash.png",f"{pkg_path()}/splash_mod.png"] :
+            raw : Image = Image.open(self._image_path)
+            resized = raw.resize(( round(raw.width*(1+d/10)), round(raw.height*(1+d/10)) ))
+            self._image_path = f"{pkg_path()}/splash_mod.png"
+            resized.save(fp=self._image_path)
+            self.switch_image()
+        if self._showing_fit_all_image :
+            self.save_show_fit_all()    # this contains switch_image()
+        elif self._showing_fit_image :
+            self.save_show_fit_image()  # this contains switch_image()
+        else :
+            self.show_data()            # this contains switch_image()
     def create_colors_image_menu(self):
 
         if self._new_user_stage % 61 == 0 :
@@ -2007,12 +2035,12 @@ class Frontend:
         count_text = tk.Label(
             master=self._gui.children['!frame2'].children['!frame2'].children['!frame'],
             text=f"{self._curr_image_num % len(self._data_handlers) + 1}/{len(self._data_handlers)}",
-            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)), bg='SystemButtonFace'
+            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)), bg=self._sbf
         )
         right_button = tk.Button(master=self._gui.children['!frame2'].children['!frame2'].children['!frame'],
                                  text=self.sym_right,
                                  bd=self._platform_border,
-                                 command=self.image_right_command, bg='SystemButtonFace'
+                                 command=self.image_right_command, bg=self._sbf
                                  )
         left_button.grid(row=0, column=1, padx=5, pady=5)
         count_text.grid(row=0, column=2)
@@ -2692,7 +2720,7 @@ class Frontend:
             self._normalize_button.configure(bg='grey90')
         else:
             self._normalize_button.configure(relief=tk.RAISED)
-            self._normalize_button.configure(bg='SystemButtonFace')
+            self._normalize_button.configure(bg=self._sbf)
 
     def update_data_select(self):
         text_label: tk.Label = self._data_perusal_frame.children['!frame'].children['!label']  # left frame
@@ -2756,8 +2784,10 @@ class Frontend:
             fit_vals = [plot_model.eval_at(xi) for xi in smooth_x_for_fit]
 
         plt.close()
-        plt.figure(facecolor=self._bg_color)
-
+        plt.figure(facecolor=self._bg_color,
+                   figsize=(6.4*self._image_r,4.8*self._image_r),
+                   dpi=100+int( np.log10( len(x_points) ) )
+                  )
         plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color=self._dataaxes_color)
 
         plt.plot(smooth_x_for_fit, fit_vals, '-', color=self._fit_color)
@@ -2883,7 +2913,10 @@ class Frontend:
         sum_len = 0
 
         plt.close()
-        plt.figure(facecolor=self._bg_color)
+        plt.figure(facecolor=self._bg_color,
+                   figsize=(6.4*self._image_r,4.8*self._image_r),
+                   dpi=100+int( np.log10( len(x_points) ) )
+                  )
         axes: plt.axes = plt.gca()
         axes.tick_params(color=self._dataaxes_color, labelcolor=self._dataaxes_color)
         axes.xaxis.label.set_color(self._dataaxes_color)
@@ -3090,7 +3123,7 @@ class Frontend:
         self._polynomial_degree_label = tk.Label(
             master=self._polynomial_frame,
             text=f"Degree: {self._polynomial_degree_tkint.get()}",
-            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)), bg='SystemButtonFace'
+            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)), bg=self._sbf
         )
         down_button = tk.Button(self._gui.children['!frame2'].children['!frame6'],
                                 text=self.sym_down,
@@ -3153,7 +3186,7 @@ class Frontend:
         self._gaussian_modal_label = tk.Label(
             master=self._gaussian_frame,
             text=f"Modes: {self._gaussian_modal_tkint.get()}",
-            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)), bg='SystemButtonFace'
+            font=('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)), bg=self._sbf
         )
         down_button = tk.Button(self._gaussian_frame,
                                 text=self.sym_down,
@@ -3230,7 +3263,7 @@ class Frontend:
                 onvalue=True,
                 offvalue=False,
                 font=my_font,
-                command=self.checkbox_on_off_command, bg='SystemButtonFace'
+                command=self.checkbox_on_off_command, bg=self._sbf
             )
             checkbox.grid(row    = idx % ( len(self._checkbox_names_list)-1),
                           column = 2 * ((idx+1)//len(self._checkbox_names_list)), sticky='w')
@@ -3254,7 +3287,7 @@ class Frontend:
         self._depth_label = tk.Label(
             master=self._procedural_frame,
             text=f"Depth: {self._max_functions_tkint.get()}",
-            font = ('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)), bg='SystemButtonFace'
+            font = ('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)), bg=self._sbf
         )
         down_button = tk.Button(self._procedural_frame,
                                 text=self.sym_down,
@@ -3425,7 +3458,7 @@ class Frontend:
 
         def_font = ('TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale))
 
-        name_label = tk.Label(master=self._manual_frame, text="Function's Name", font=def_font, bg='SystemButtonFace')
+        name_label = tk.Label(master=self._manual_frame, text="Function's Name", font=def_font, bg=self._sbf)
         name_label.grid(row=0, column=0, sticky='w')
         name_data = tk.Entry(master=self._manual_frame, width=30, font=def_font)
         name_data.insert(0, "ManualEntryFunc" if self._default_manual_name == "N/A" else self._default_manual_name)
@@ -3437,25 +3470,25 @@ class Frontend:
         # form_data.insert(0, "sin(pow1)+sin(pow1)+sin(pow1)+sin(pow1)")
         # form_data.grid(row=1, column=1, sticky='w')
 
-        long_label = tk.Label(master=self._manual_frame, text="Function's Form",font=def_font, bg='SystemButtonFace')
+        long_label = tk.Label(master=self._manual_frame, text="Function's Form",font=def_font, bg=self._sbf)
         long_label.grid(row=1, column=0, sticky='nw')
         long_data = tk.Text(master=self._manual_frame, width=55, height=5,font=def_font)
         long_data.insert('1.0', "logistic(pow1+pow0)" if self._default_manual_form == "N/A"
                                                       else self._default_manual_form)
         long_data.grid(row=1, column=1, sticky='w')
 
-        self._error_label = tk.Label(master=self._manual_frame, text=f"", fg="#EF0909", bg='SystemButtonFace')
+        self._error_label = tk.Label(master=self._manual_frame, text=f"", fg="#EF0909", bg=self._sbf)
         self._error_label.grid(row=2, column=1, sticky='w', pady=5)
 
         current_name_title_label = tk.Label(master=self._manual_frame, text=f"Current Name:",
-                                            font=def_font, bg='SystemButtonFace')
+                                            font=def_font, bg=self._sbf)
         current_name_title_label.grid(row=3, column=0, sticky='w', pady=(5,0))
-        self._current_name_label = tk.Label(master=self._manual_frame, text=f"N/A", bg='SystemButtonFace')
+        self._current_name_label = tk.Label(master=self._manual_frame, text=f"N/A", bg=self._sbf)
         self._current_name_label.grid(row=3, column=1, sticky='w', pady=(5,0))
         current_form_title_label = tk.Label(master=self._manual_frame, text=f"Current Form:",
-                                            font=def_font, bg='SystemButtonFace')
+                                            font=def_font, bg=self._sbf)
         current_form_title_label.grid(row=4, column=0, sticky='w')
-        self._current_form_label = tk.Label(master=self._manual_frame, text=f"N/A", bg='SystemButtonFace')
+        self._current_form_label = tk.Label(master=self._manual_frame, text=f"N/A", bg=self._sbf)
         self._current_form_label.grid(row=4, column=1, sticky='w')
 
         submit_button = tk.Button(
@@ -3942,7 +3975,7 @@ class Frontend:
         # self.add_message("Please restart MIW's AutoFit for these changes to take effect.")
     def console_color_pale(self):
         self._default_console_colour = "Pale"
-        self._console_color = 'SystemButtonFace'
+        self._console_color = self._sbf
         self.checkmark_printout_background_options(2)
         if self._default_printout_colour == "White" :
             self.printout_color_black()
