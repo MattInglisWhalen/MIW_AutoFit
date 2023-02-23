@@ -13,6 +13,7 @@ import scipy.stats
 from autofit.src.primitive_function import PrimitiveFunction
 from autofit.src.package import logger
 
+
 class CompositeFunction:
 
     """
@@ -38,24 +39,24 @@ class CompositeFunction:
     """
 
     """
-    This class represents the nodes of the tree. A node with no children is just a wrapper for a primitive function, 
+    This class represents the nodes of the tree. A node with no children is just a wrapper for a primitive function,
     while a node with no parent is the function tree as a whole.
     """
 
-    _built_in_comps_dict = {}
+    _built_in_comps_dict : dict[str,CompositeFunction] = {}
 
     def __init__(self,
-                 children_list : Union[list[PrimitiveFunction],list[CompositeFunction]] = None,
-                 younger_brother : Union[PrimitiveFunction,CompositeFunction] = None,
-                 parent : CompositeFunction = None,
+                 children_list : Union[None,list[PrimitiveFunction],list[CompositeFunction]] = None,
+                 younger_brother : Union[None,PrimitiveFunction,CompositeFunction] = None,
+                 parent : Union[None,CompositeFunction] = None,
                  prim_: PrimitiveFunction = PrimitiveFunction.built_in("sum"),
                  name : str = ""):
 
         # Declarations before manipulations
         self._children_list : list[CompositeFunction] = []
-        self._younger_brother : CompositeFunction = None
-        self._older_brother : CompositeFunction = None
-        self._parent : CompositeFunction = parent
+        self._younger_brother : Union[None,CompositeFunction] = None
+        self._older_brother : Union[None,CompositeFunction] = None
+        self._parent : Union[None,CompositeFunction] = parent
         self._prim : PrimitiveFunction = prim_.copy()
         self._longname : str = ""
         self._shortname : str = name
@@ -76,11 +77,11 @@ class CompositeFunction:
         # for being able to reproduce fits of zero-arg functions
         self._is_submodel : bool = False
         self._submodel_zero_index : int = -1
-        self._submodel_of : CompositeFunction = None
+        self._submodel_of : Union[None,CompositeFunction] = None
 
 
     def __repr__(self):
-        return f"{self._longname} w/ {self.dof} dof {'(submodel)' if self._is_submodel else ''}"
+        return f"{self._longname} w/ {self.dof} dof{' (submodel)' if self._is_submodel else ''}"
 
     """
     Properties
@@ -90,16 +91,16 @@ class CompositeFunction:
     def children_list(self) -> list[CompositeFunction]:
         return self._children_list
     @property
-    def younger_brother(self) -> CompositeFunction:
+    def younger_brother(self) -> Union[None,CompositeFunction]:
         return self._younger_brother
     @property
-    def older_brother(self) -> CompositeFunction:
+    def older_brother(self) -> Union[None,CompositeFunction]:
         return self._older_brother
     @older_brother.setter
-    def older_brother(self,older):
+    def older_brother(self,older: CompositeFunction):
         self._older_brother = older
     @property
-    def parent(self) -> CompositeFunction:
+    def parent(self) -> Union[None,CompositeFunction]:
         return self._parent
     @parent.setter
     def parent(self, par):
@@ -170,7 +171,7 @@ class CompositeFunction:
             assert self._submodel_of is None
         return self._submodel_zero_index
     @property
-    def submodel_of(self) -> CompositeFunction:
+    def submodel_of(self) -> Union[None,CompositeFunction]:
         return self._submodel_of
     def print_sub_facts(self):
         logger(f"{self}{'is' if self._is_submodel else 'isnt'} "
@@ -219,7 +220,7 @@ class CompositeFunction:
 
         if update_name:
             self.build_longname()
-    def copy(self):
+    def copy(self) -> CompositeFunction:
 
         new_comp = CompositeFunction(name=self._shortname, prim_=self.prim)
         for child in self._children_list:
@@ -312,7 +313,7 @@ class CompositeFunction:
 
         return all_nodes
 
-    def calculate_degrees_of_freedom(self):
+    def calculate_degrees_of_freedom(self) -> int:
 
         num_dof = 1 if self.older_brother is None else 0
         for child in self._children_list:
@@ -373,11 +374,12 @@ class CompositeFunction:
             tree_str += child.tree_as_string(buffer_chars=buffer_chars+next_buffer)
 
         if self.younger_brother is not None :
-            tree_str += buffer_chars
+            tree_str += '\n' + buffer_chars
             bro_str = self._younger_brother.tree_as_string(buffer_chars=buffer_chars)
             tree_str += bro_str
 
-        return tree_str.rstrip('\n') + "\n"
+        # return tree_str.rstrip('\n') + "\n"
+        return regex.sub(f"\n\n\n*",'\n',tree_str).rstrip('\n') + '\n'
     def tree_as_string_with_args(self, buffer_chars=""):
 
         buff_num = 19
@@ -420,11 +422,12 @@ class CompositeFunction:
             tree_str += child.tree_as_string_with_args(buffer_chars=buffer_chars+next_buffer)
 
         if self.younger_brother is not None :
-            tree_str += buffer_chars
+            tree_str += '\n' + buffer_chars
             bro_str = self._younger_brother.tree_as_string_with_args(buffer_chars=buffer_chars)
             tree_str += bro_str
 
-        return tree_str.rstrip('\n') + "\n"
+        # return tree_str.rstrip('\n') + "\n"
+        return regex.sub(f"\n\n\n*",'\n',tree_str).rstrip('\n') + '\n'
     def tree_as_string_with_dimensions(self, buffer_chars=""):
 
         buff_num = 15
@@ -467,12 +470,13 @@ class CompositeFunction:
             tree_str += child.tree_as_string_with_dimensions(buffer_chars=buffer_chars+next_buffer)
 
         if self.younger_brother is not None :
-            tree_str += buffer_chars
+            tree_str += '\n' + buffer_chars
             bro_str = self._younger_brother.tree_as_string_with_dimensions(buffer_chars=buffer_chars)
+            print(f"~~{bro_str}~~")
             tree_str += bro_str
 
-        return tree_str.rstrip('\n') + "\n"
-
+        # return tree_str.rstrip('\n') + "\n"
+        return regex.sub(f"\n\n\n*",'\n',tree_str).rstrip('\n') + '\n'
     def print_tree(self):
         logger(f"{self.name}:")
         # logger(self.tree_as_string())
@@ -748,7 +752,9 @@ class CompositeFunction:
         return all_args
 
     @staticmethod
-    def construct_model_from_str(form: str, error_handler: Callable[[str],bool], name: str = "") -> CompositeFunction:
+    def construct_model_from_str(form: str,
+                                 error_handler: Callable[[str],bool],
+                                 name: str = "") -> Union[None, CompositeFunction]:
 
         logger(f"Entering construction for {form}")
 
@@ -917,7 +923,7 @@ class CompositeFunction:
         error_handler("")
         return man_model
 
-    def submodel_without_node_idx(self, n) -> CompositeFunction:
+    def submodel_without_node_idx(self, n) -> Union[None, CompositeFunction]:
 
         if len(self._constraints) > 0 :
             logger("Reduced model of a constrained model is not yet implemented")
@@ -937,6 +943,7 @@ class CompositeFunction:
 
         reduced_model = new_model.remove_node(node=node_to_remove)
         return reduced_model
+
     def remove_node(self, node: CompositeFunction) -> CompositeFunction:
 
         # untested with siblings
@@ -1050,7 +1057,7 @@ class CompositeFunction:
         return CompositeFunction.built_in_dict()[key]
 
     @property
-    def net_function_dimension_self_and_younger_siblings(self):
+    def net_function_dimension_self_and_younger_siblings(self) -> int:
         dim = self.dimension_func
         if self._younger_brother is not None :
             dim += self._younger_brother.net_function_dimension_self_and_younger_siblings

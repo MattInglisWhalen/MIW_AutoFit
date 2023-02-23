@@ -15,6 +15,20 @@ from pandas import ExcelFile
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+if sys.platform == "linux" :
+    import matplotlib
+    matplotlib.use('TkAgg') # use this with  hiddenimports=['PIL', 'PIL._imagingtk', 'PIL._tkinter_finder']
+    # if that doesn't work, in optimizer.show_fit() change
+    #       plt.show(block=pause_on_image)
+    # to
+    # if sys.platform == "linux" :
+    #       import subprocess
+    #       plt.savefig(f"{pkg_path()}/plots/residuals", facecolor=...)
+    #       subprocess.call('xdg-open',f"{pkg_path()}/plots/residuals")
+    # else :
+    #       plt.show(block=pause_on_image)
+    #
+    # and also remove the inspect button
 import scipy.stats
 import scipy.special
 from PIL import Image
@@ -26,7 +40,12 @@ from autofit.src.data_handler import DataHandler
 from autofit.src.optimizer import Optimizer
 from autofit.src.package import pkg_path, logger
 
-# Possible todos for pro version
+
+#TODO:
+# also Ubuntu, need matplotlib.use('TkAgg').
+#         -> TkAgg doesnt work right now, but can try hiddenimports=['PIL', 'PIL._imagingtk', 'PIL._tkinter_finder']
+# THs should avoid "UserWarning: matplotlib is currently using agg, which is a non-gui backend, cannot show the figure"
+# ~ Possible todos for pro version ~
 # Copy to clipboard console
 # Reinstate logging capability
 # Finer detail sig figs of parameters
@@ -629,7 +648,7 @@ class Frontend:
             photo = tk.PhotoImage(file=f"{pkg_path()}/splash.png")
             gui.wm_iconphoto(False,photo)
         elif sys.platform == "linux" :
-            iconify = Image.open(f"{pkg_path()}/icon.bmp")
+            iconify = tk.PhotoImage(file=f"{pkg_path()}/splash.png")
             gui.wm_iconphoto(False,iconify)
         gui.title("MIW's AutoFit")
 
@@ -698,13 +717,9 @@ class Frontend:
         self._fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
         self.checkmark_fit_colour_options( self._fit_colour_labels.index( self._default_fit_colour ) )
 
-        event_up = tk.Event()
-        event_up.delta = 120
-        event_down = tk.Event()
-        event_down.delta = -120
         image_size_menu = tk.Menu(master=appearance_menu, tearoff=0)
-        image_size_menu.add_command(label="Up", command= partial(self.do_image_resize,event_up))
-        image_size_menu.add_command(label="Down", command=partial(self.do_image_resize,event_down))
+        image_size_menu.add_command(label="Up", command=self.mouse_wheel_up)
+        image_size_menu.add_command(label="Down", command=self.mouse_wheel_down)
 
         self._printout_background_menu = tk.Menu(master=appearance_menu, tearoff=0)
         self._printout_background_menu.add_command(label="Default", command=self.console_color_default)
@@ -722,8 +737,6 @@ class Frontend:
         gui_resolution_menu = tk.Menu(master=appearance_menu, tearoff=0)
         gui_resolution_menu.add_command(label="Up", command=self.size_up)
         gui_resolution_menu.add_command(label="Down", command=self.size_down)
-
-
 
         settings_menu.add_cascade(label="Appearance", menu=appearance_menu)
         appearance_menu.add_cascade(label="Image Background", menu=self._background_menu)
@@ -908,7 +921,16 @@ class Frontend:
         dialog_box = tk.Toplevel()
         dialog_box.geometry(f"{int(self._image_frame.winfo_width()*4/5)}x{int(self._image_frame.winfo_height()*6/10)}")
         dialog_box.title("Spreadsheet Input Options")
-        dialog_box.iconbitmap(f"{pkg_path()}/icon.ico")
+        if sys.platform == "win32" :
+            dialog_box.iconbitmap(f"{pkg_path()}/icon.ico")
+        elif sys.platform == "darwin" :
+            photo = tk.PhotoImage(file=f"{pkg_path()}/splash.png")
+            dialog_box.iconphoto(False,photo)
+        elif sys.platform == "linux" :
+            icon = tk.PhotoImage(file=f"{pkg_path()}/icon.png")
+            dialog_box.iconphoto(False,icon)
+        else :
+            pass
 
         data_frame = tk.Frame(master=dialog_box)
         data_frame.grid(row=0, column=0, sticky='ew')
@@ -1457,7 +1479,16 @@ class Frontend:
         dialog_box = tk.Toplevel()
         dialog_box.geometry(f"{round(self._os_width / 4)}x{round(self._os_height / 4)}")
         dialog_box.title("New Custom Function")
-        dialog_box.iconbitmap(f"{pkg_path()}/icon.ico")
+        if sys.platform == "win32" :
+            dialog_box.iconbitmap(f"{pkg_path()}/icon.ico")
+        elif sys.platform == "darwin" :
+            photo = tk.PhotoImage(file=f"{pkg_path()}/splash.png")
+            dialog_box.iconphoto(False,photo)
+        elif sys.platform == "linux" :
+            icon = tk.PhotoImage(file=f"{pkg_path()}/icon.png")
+            dialog_box.iconphoto(False,icon)
+        else :
+            pass
 
         data_frame = tk.Frame(master=dialog_box)
         data_frame.grid(row=0, column=0, sticky='ew')
@@ -1921,7 +1952,7 @@ class Frontend:
         self._image_path=f"{self._image_path[:-4]}_mod.png"
         img_resized.save(fp=self._image_path)
 
-        self._image = tk.PhotoImage(self._image_path)
+        self._image = tk.PhotoImage(file=self._image_path)
         self._image_frame = tk.Label(master=self._gui.children['!frame2'].children['!frame'],
                                      image=self._image,
                                      relief=tk.SUNKEN, bg=self._sbf)
@@ -1930,9 +1961,21 @@ class Frontend:
         self._image_frame.grid_propagate(True)
         self._image_frame.bind(self._right_click, self.do_colors_image_popup)
         self._image_frame.bind('<MouseWheel>', self.do_image_resize)
+        if sys.platform == "linux" :
+            self._image_frame.bind('<Button-4>', self.mouse_wheel_up)
+            self._image_frame.bind('<Button-5>', self.mouse_wheel_down)
+
     def switch_image(self):
         self._image = tk.PhotoImage(file=self._image_path)
         self._image_frame.configure(image=self._image)
+    def mouse_wheel_up(self,event):
+        up = tk.Event()
+        up.delta = +120
+        self.do_image_resize(event=up)
+    def mouse_wheel_down(self,event):
+        down = tk.Event()
+        down.delta = -120
+        self.do_image_resize(event=down)
     def do_image_resize(self, event):
 
         # logger(type(event))
@@ -1940,11 +1983,12 @@ class Frontend:
         self._image_r *= (1 + d / 10)
 
         if self._image_path in [f"{pkg_path()}/splash.png",f"{pkg_path()}/splash_mod.png"] :
-            raw : Image = Image.open(self._image_path)
-            resized = raw.resize(( round(raw.width*(1+d/10)), round(raw.height*(1+d/10)) ))
+            raw : Image = Image.open(f"{pkg_path()}/splash.png")
+            resized = raw.resize(( round(raw.width*self._image_r), round(raw.height*self._image_r) ))
             self._image_path = f"{pkg_path()}/splash_mod.png"
             resized.save(fp=self._image_path)
             self.switch_image()
+            return
         if self._showing_fit_all_image :
             self.save_show_fit_all()    # this contains switch_image()
         elif self._showing_fit_image :

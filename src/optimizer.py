@@ -1230,7 +1230,7 @@ class Optimizer:
                     xmul = ( 2*np.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
                 else:  # misassigned cosine frequency
                     xmul = ( 2*np.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
-            logger(f"{xmul=} {self._sin_freq_list} {slope_at_zero*2*np.pi}")
+            print(f"{xmul=} {self._sin_freq_list} {slope_at_zero*2*np.pi}")
         composite.prim.arg = xmul * ymul
 
         return composite.get_args()

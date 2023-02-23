@@ -7,21 +7,21 @@ import sys
 # internal classes
 
 PACKAGE_PATH : str = ""
-DEV = 0  # 1 = print, 0 = log file, -1 = /dev/null
+DEV = 1  # 1 = print, 0 = log file, -1 = /dev/null
 
 def pkg_path():
     if PACKAGE_PATH == "" :
         _set_package_path()
     return PACKAGE_PATH
 
-def logger(*stuff) -> None :
+def logger(*args) -> None :
 
     if DEV == 1 :
-        print(*stuff)
+        print(*args)
     elif DEV == 0 :
         statement = ""
-        for thing in stuff :
-            statement += f" {thing}"
+        for idx, arg in enumerate(args) :
+            statement += f" {arg}" if idx > 0 else f"{arg}"
         _to_append(statement)
     else :
         pass

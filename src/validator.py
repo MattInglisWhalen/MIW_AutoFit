@@ -19,6 +19,8 @@ class Validator:
         self._filepath = pkg_path()
         if sys.platform == "darwin" :
             self._filepath += "/libdscheme.5.dylib"
+        elif sys.platform == "linux" :
+            self._filepath += "/libdscheme.so.2"
         else :
             self._filepath += "/libdscheme.H3UN78J69H7J8K9JAS76KP8KLFSAHT.gfortran-win_amd64.dll"
 
@@ -80,8 +82,12 @@ class Validator:
                 modify_epoch = stat.st_mtime
                 creation_epoch = stat.st_birthtime
             except AttributeError :
-                logger("11> Linux isn't supported.")
-                return f"Error code 11, exiting..."
+                try:
+                    creation_epoch = os.path.getctime(self._filepath)
+                    modify_epoch = os.path.getmtime(self._filepath)
+                except AttributeError :
+                    logger("11> Linux isn't supported.")
+                    return f"Error code 11, exiting..."
 
         zero_utc = datetime.fromtimestamp( 0, timezone.utc ).replace(tzinfo=None)
         creation_utc = datetime.fromtimestamp( creation_epoch, timezone.utc ).replace(tzinfo=None)
@@ -142,10 +148,10 @@ class Validator:
         if sys.platform == "win32" :
             gui.iconbitmap(f"{pkg_path()}/icon.ico")
         elif sys.platform == "darwin" :
-                photo = tk.PhotoImage(file=f"{pkg_path()}/splash.png")
-                gui.iconphoto(False,photo)
+            photo = tk.PhotoImage(file=f"{pkg_path()}/splash.png")
+            gui.iconphoto(False,photo)
         elif sys.platform == "linux" :
-            icon = Image.open(f"{pkg_path()}/icon.bmp")
+            icon = tk.PhotoImage(file=f"{pkg_path()}/icon.png")
             gui.iconphoto(False,icon)
         else :
             messagebox.showerror("Platform Error","Your system is not compatible with MIW's AutoFit.")

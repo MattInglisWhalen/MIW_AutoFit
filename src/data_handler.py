@@ -1,6 +1,7 @@
 
 # built-in libraries
 import re as regex
+from typing import  Union
 
 # external libraries
 import numpy as np
@@ -20,8 +21,8 @@ class DataHandler:
         # csv variables
         self._num_lines = 0
         self._line_width = 0
-        self._x_label = None
-        self._y_label = None
+        self._x_label : Union[None, str] = None
+        self._y_label : Union[None, str] = None
         self._header_flag = 0
         self._delim = ','
 
@@ -216,9 +217,10 @@ class DataHandler:
                     raise AttributeError
 
                 return self._line_width
+        return 0
 
     @ staticmethod
-    def cleaned_line_as_str_list(line, delim) -> str:
+    def cleaned_line_as_str_list(line, delim) -> list[str]:
         data = regex.split(f"\s*{delim}\s*", line[:-1])
         while data[-1] == "":
             data = data[:-1]
@@ -327,11 +329,13 @@ class DataHandler:
 
     def bin_width(self) -> float:
         if not self.histogram_flag :
-            return -1
+            return -1.
         if self.logx_flag :
-            return -1
-        if len(self._data) > 1 :
-            return self._data[1].pos - self._data[0].pos
+            return -1.
+        if len(self._data) < 2 :
+            return 1.
+        return self._data[1].pos - self._data[0].pos
+
     def recalculate_bins(self):
         self._data = []
         if self._filepath[-4:] in [".xsl", "xlsx", ".ods" ]:

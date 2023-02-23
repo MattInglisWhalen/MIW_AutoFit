@@ -19,18 +19,17 @@ class PrimitiveFunction:
     Instance variables
 
     _name : string
-    _func : a callable function with the form f(x, arg), e.g. A*x^2
+    _func : a callable function with the form f(x, arg), e.g. def quad(x, arg): return arg*x^2
     _arg  : the argument for the function
-    _deriv : another PrimitiveFunction which is the derivative of self.
-                    If left as None, it will be found numerically when required
+    _callable_1_param : a callable function of the form f(x), e.g. np.exp(x). This is then converted into a _func
 
     Static Variables
 
-    _func_list : a list of all possible
+    _built_in_prims_dict : a dictionary of all usable primitives
 
     """
 
-    _built_in_prims_dict = {}
+    _built_in_prims_dict : dict[str,PrimitiveFunction] = {}
 
     def __init__(self, func : Callable[[float,float],float] = None,
                  name : str = "", arg : float = 1., other_callable : Callable[[float],float] = None):
@@ -51,8 +50,8 @@ class PrimitiveFunction:
 
     def __repr__(self):
         if self._callable_1param is not None :
-            return f"Function {self._name} uses {self._callable_1param.__name__}(x,arg) with coefficient {self._arg}"
-        return f"Function {self._name} uses {self._func.__name__}(x,arg) with coefficient {self._arg}"
+            return f"Prim {self._name} uses arg*{self._callable_1param.__name__}(x) with coefficient {self._arg}"
+        return f"Prim {self._name} uses {self._func.__name__}(x,arg) with coefficient {self._arg}"
 
 
     @property
@@ -64,10 +63,10 @@ class PrimitiveFunction:
     def func(self) -> Callable[[float,float],float]:
         return self._func
     @func.setter
-    def func(self, other):
+    def func(self, other: Callable[[float,float],float]):
         self._func = other
 
-    def callable_2param(self,x,arg) -> float :
+    def callable_2param(self, x, arg: float) -> float :
         try :
             return arg*self._callable_1param(x)
         except ValueError :
@@ -136,33 +135,19 @@ class PrimitiveFunction:
         return arg*np.log(x)
 
 
-    #
-    # @staticmethod
-    # def pow1_fpos(x, arg) -> float:  # to delete
-    #     return arg*x if arg > 0 else 1e5
-    # @staticmethod
-    # def pow1_fneg(x, arg) -> float:  # to delete
-    #     return arg*x if arg < 0 else 1e5
-    # @staticmethod
-    # def pow_neg1_fpos(x, arg) -> float:  # to delete
-    #     return arg/x if arg > 0 else 1e5
-    # @staticmethod
-    # def pow2_fneg(x, arg) -> float:  # to delete
-    #     return arg*x*x if arg < 0 else 1e5
-
-    # dim 2 specials
+    # special callables for composite functions
     @staticmethod
-    def dim0_pow2(x,arg):  # for Gaussian
+    def dim0_pow2(x,arg):  # for Gaussian Composite
         return -x**2/(2*arg**2) if arg > 0 else 1e5
     # dim 1 specials
     @staticmethod
-    def pow1_shift(x,arg):  # for Sigmoid
+    def pow1_shift(x,arg):  # for Sigmoid Composite
         return x-arg
     @staticmethod
-    def exp_dim1(x,arg) -> float:  # for Sigmoid
+    def exp_dim1(x,arg) -> float:  # for Sigmoid Composite
         return np.exp(-x/arg) if arg > 0 else 0
     @staticmethod
-    def n_exp_dim2(x,arg) -> float:  # for Normal
+    def n_exp_dim2(x,arg) -> float:  # for Normal Composite
         return np.exp(-x**2/(2*arg**2) )/np.sqrt(2*np.pi*arg**2) if arg > 0 else 1e5
 
 
@@ -180,25 +165,17 @@ class PrimitiveFunction:
 
         # Powers
         prim_pow_neg1 = PrimitiveFunction(func=PrimitiveFunction.pow_neg1 )
-        # prim_pow_neg1_fpos = PrimitiveFunction(func=PrimitiveFunction.pow_neg1_fpos)
         prim_pow0 = PrimitiveFunction(func=PrimitiveFunction.pow0 )
         prim_pow1 = PrimitiveFunction(func=PrimitiveFunction.pow1 )
-        # prim_pow1_fpos = PrimitiveFunction(func=PrimitiveFunction.pow1_fpos )
-        # prim_pow1_fneg = PrimitiveFunction(func=PrimitiveFunction.pow1_fneg )
         prim_pow2 = PrimitiveFunction(func=PrimitiveFunction.pow2 )
-        # prim_pow2_fneg = PrimitiveFunction(func=PrimitiveFunction.pow2_fneg)
         prim_pow3 = PrimitiveFunction(func=PrimitiveFunction.pow3 )
         prim_pow4 = PrimitiveFunction(func=PrimitiveFunction.pow4 )
         prim_sum = PrimitiveFunction(func=PrimitiveFunction.sum_)
 
         PrimitiveFunction._built_in_prims_dict["pow_neg1"] = prim_pow_neg1
-        # PrimitiveFunction._built_in_prims_dict["pow_neg1_fpos"] = prim_pow_neg1_fpos
         PrimitiveFunction._built_in_prims_dict["pow0"] = prim_pow0
         PrimitiveFunction._built_in_prims_dict["pow1"] = prim_pow1
-        # PrimitiveFunction._built_in_prims_dict["pow1_fpos"] = prim_pow1_fpos
-        # PrimitiveFunction._built_in_prims_dict["pow1_fneg"] = prim_pow1_fneg
         PrimitiveFunction._built_in_prims_dict["pow2"] = prim_pow2
-        # PrimitiveFunction._built_in_prims_dict["pow2_fneg"] = prim_pow2_fneg
         PrimitiveFunction._built_in_prims_dict["pow3"] = prim_pow3
         PrimitiveFunction._built_in_prims_dict["pow4"] = prim_pow4
         PrimitiveFunction._built_in_prims_dict["sum"] = prim_sum
@@ -217,6 +194,7 @@ class PrimitiveFunction:
         PrimitiveFunction._built_in_prims_dict["exp"] = prim_exp
         PrimitiveFunction._built_in_prims_dict["log"] = prim_log
 
+        # special
         prim_shift = PrimitiveFunction(func=PrimitiveFunction.pow1_shift)
         PrimitiveFunction._built_in_prims_dict["pow1_shift"] = prim_shift
 
@@ -249,11 +227,4 @@ class PrimitiveFunction:
 
         return PrimitiveFunction._built_in_prims_dict[key]
 
-def do_new_things():
 
-    pass
-
-
-if __name__ == "__main__" :
-
-    do_new_things()
