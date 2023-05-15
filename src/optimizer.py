@@ -858,15 +858,14 @@ class Optimizer:
             # make the submodel realize it's a submodel
             fitted_model.set_submodel_of_zero_idx(model_.submodel_of, model_.submodel_zero_index)
 
-        if ( #np.any(np.isinf( fitted_cov )) and
+        if ( np.any(np.isinf( fitted_cov )) and
                 self._try_harder) :
             try:
                 better_cov = np.diagflat(self.try_harder_for_cov(fitted_model))
             except OverflowError:
                 pass
             else :
-                pass
-                # fitted_cov = better_cov
+                fitted_cov = better_cov
 
         if change_shown :
             self._shown_model = fitted_model
@@ -884,10 +883,11 @@ class Optimizer:
         opt_args = model.args.copy()
         target = opt_chisqr+1
 
+        its = 0
+        it_limit = 20
         sigmas = []
         for i, arg in enumerate(opt_args) :
 
-            print(f"Arg {i}")
             left_args = opt_args.copy()
             mid_args = opt_args.copy()
             right_args = opt_args.copy()
@@ -911,6 +911,9 @@ class Optimizer:
                 left_x = right_x
                 right_x += 2 * diff
                 diff = right_x - left_x
+                its += 1
+                if its > it_limit :
+                    break
 
             while diff > 1e-3:
 
@@ -925,6 +928,10 @@ class Optimizer:
                 else :
                     right_x = mid_x
                     diff = right_x - left_x
+
+                its += 1
+                if its > it_limit :
+                    break
 
             sigmas.append( ((right_x+left_x)/2 - arg)**2 )
         print(sigmas)
