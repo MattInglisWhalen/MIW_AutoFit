@@ -1,7 +1,7 @@
 
 # default libraries
 import re as regex
-from typing import Callable
+from typing import Callable, Union, Iterator
 
 # external libraries
 from scipy.optimize import curve_fit
@@ -40,7 +40,7 @@ class Optimizer:
 
         # fit results
         self._shown_model : CompositeFunction = None          # a CompositeFunction
-        self._shown_covariance : np.ndarray = None
+        self._shown_covariance : Union[None,np.ndarray] = None
         self._shown_rchisqr : float = 1e5
 
         # top 5 models and their data
@@ -54,11 +54,11 @@ class Optimizer:
         self._primitive_names_list : list[str] = []
 
         # useful auxiliary varibles
-        self._temp_function : CompositeFunction = None      # for ?
-        self._cos_freq_list : list[float] = None
-        self._sin_freq_list : list[float] = None
-        self._cos_freq_list_dup : list[float] = None
-        self._sin_freq_list_dup : list[float] = None
+        self._temp_function : Union[None,CompositeFunction] = None      # for ?
+        self._cos_freq_list : list[float] = []
+        self._sin_freq_list : list[float] = []
+        self._cos_freq_list_dup : list[float] = []
+        self._sin_freq_list_dup : list[float] = []
 
         if data is not None :
             self._data = sorted(data)  # list of Datum1D. Sort makes the data monotone increasing in x-value
@@ -70,10 +70,10 @@ class Optimizer:
         self.load_non_defaults_to_primitive_function_list()
 
         self._composite_function_list = []
-        self._composite_generator = None
+        self._composite_generator : Union[None,Iterator[CompositeFunction]] = None
         self._gen_idx = -1
 
-        self._criterion : Callable[[CompositeFunction],float] = None
+        self._criterion : Callable[[CompositeFunction],float] = self.reduced_chi_squared_of_fit
         if criterion == "AIC" :
             self._criterion = self.Akaike_criterion
         elif criterion == "AICc" :
@@ -82,10 +82,9 @@ class Optimizer:
             self._criterion = self.Bayes_criterion
         elif criterion == "HQIC" :
             self._criterion = self.HannanQuinn_criterion
-        else :
-            self._criterion = self.reduced_chi_squared_of_fit
 
         self._regen_composite_flag = regen
+        self._try_harder = True
 
     def __repr__(self):
         return f"Optimizer with {self._max_functions} m.f."
@@ -94,28 +93,30 @@ class Optimizer:
     def shown_model(self) -> CompositeFunction:
         return self._shown_model
     @shown_model.setter
-    def shown_model(self, other):
+    def shown_model(self, other: CompositeFunction):
         self._shown_model = other
     @property
     def shown_parameters(self) -> list[float]:
         return self._shown_model.args
     @shown_parameters.setter
-    def shown_parameters(self, args_list):
+    def shown_parameters(self, args_list: list[float]):
         self._shown_model.args = args_list
     @property
     def shown_uncertainties(self) -> list[float]:
+        if self._shown_covariance is None :
+            raise RuntimeError
         return list(np.sqrt(np.diagonal(self._shown_covariance)))
     @property
-    def shown_covariance(self):
+    def shown_covariance(self) -> np.ndarray:
         return self._shown_covariance
     @shown_covariance.setter
-    def shown_covariance(self, cov_np):
+    def shown_covariance(self, cov_np: np.ndarray):
         self._shown_covariance = cov_np
     @property
     def shown_rchisqr(self) -> float:
         return self._shown_rchisqr
     @shown_rchisqr.setter
-    def shown_rchisqr(self, val):
+    def shown_rchisqr(self, val: float):
         self._shown_rchisqr = val
     @property
     def shown_cc(self) -> np.ndarray:
@@ -340,7 +341,7 @@ class Optimizer:
     #         self.query_add_to_top5(model=model,covariance=cov)
 
 
-    def composite_function_generator(self, depth, regen_built_ins = True):
+    def composite_function_generator(self, depth, regen_built_ins = True) -> Iterator[CompositeFunction]:
 
         self._primitive_names_list = [iprim.name for iprim in self._primitive_function_list]
 
@@ -388,13 +389,13 @@ class Optimizer:
                             else :
                                 mul_node.add_younger_brother(iprim, update_name=True)
                                 yield new_mul
-    def valid_composite_function_generator(self, depth):
+    def valid_composite_function_generator(self, depth) -> Iterator[CompositeFunction]:
 
         all_comps_at_depth = self.composite_function_generator(depth)
         for icomp in all_comps_at_depth :
             if not self.fails_rules(icomp):
                 yield icomp
-    def all_valid_composites_generator(self):
+    def all_valid_composites_generator(self) -> Iterator[CompositeFunction]:
         for idepth in range(7):
             for icomp in self.valid_composite_function_generator(depth=idepth):
                 self._gen_idx += 1
@@ -419,7 +420,7 @@ class Optimizer:
 
         last_list = self._composite_function_list
         for depth in range(self._max_functions-1) :
-            new_list = []
+            new_list : list[CompositeFunction] = []
             for icomp in last_list:
                 status_bar.configure(text=f"   Stage 1/3: {len(last_list)+len(new_list):>10} naive models generated,"
                                           f" {0:>10} models fit.")
@@ -549,15 +550,15 @@ class Optimizer:
 
 
         # composition of a constant function is wrong
-        if regex.search(f"pow0\(", name):
+        if regex.search(r'pow0\(', name):
             return 2
-        if regex.search(f"\(pow0\)", name):
+        if regex.search(r'\(pow0\)', name):
             return 3
         # composition of powers with no sum is wrong -- not strictly true -- think of log^2(Ax+B)
-        if regex.search(f"pow[0-9]\(pow[a-z0-9_·]*\)", name):
+        if regex.search(r'pow[0-9]\(pow[a-z0-9_·]*\)', name):
             return 5
         # trivial reciprocal is wrong
-        if regex.search(f"pow_neg1\(pow1\)", name):
+        if regex.search(r'pow_neg1\(pow1\)', name):
             return 11
 
         # sum of the same function (without further composition) is wrong
@@ -566,8 +567,8 @@ class Optimizer:
                 return 23
 
         # pow0+log(...) is a duplicate since A + Blog( Cf(x) ) = B log( exp(A/B) Cf(x) ) = log(f)
-        if regex.search(f"pow0\+my_log\([a-z0-9_]*\)", name) \
-                or regex.search(f"my_log\([a-z0-9_]*\)\+pow0", name):
+        if regex.search(r'pow0\+my_log\([a-z0-9_]*\)', name) \
+                or regex.search(r'my_log\([a-z0-9_]*\)\+pow0', name):
             return 37
 
         # more more exp algebra: Alog( Bexp(Cx) ) = AlogB + ACx = pow0+pow1
@@ -582,7 +583,7 @@ class Optimizer:
         #     return 73
 
         # pow3(exp(...)) is just exp(3...)
-        if regex.search(f"pow[a-z0-9_]*\(my_exp\([a-z0-9_+]*\)\)", name):
+        if regex.search(r'pow[a-z0-9_]*\(my_exp\([a-z0-9_+]*\)\)', name):
             return 83
 
         """
@@ -653,7 +654,7 @@ class Optimizer:
 
         # logger(f"\n{name} {functional_form}")
         if regex.search("\\\\",functional_form) or regex.search("\n",functional_form)\
-                or regex.search("\s",functional_form) :
+                or regex.search(r'\s',functional_form) :
             return "Stop trying to inject code"
 
 
@@ -857,12 +858,79 @@ class Optimizer:
             # make the submodel realize it's a submodel
             fitted_model.set_submodel_of_zero_idx(model_.submodel_of, model_.submodel_zero_index)
 
+        if ( #np.any(np.isinf( fitted_cov )) and
+                self._try_harder) :
+            try:
+                better_cov = np.diagflat(self.try_harder_for_cov(fitted_model))
+            except OverflowError:
+                pass
+            else :
+                pass
+                # fitted_cov = better_cov
+
         if change_shown :
             self._shown_model = fitted_model
             self._shown_covariance = fitted_cov
             self._shown_rchisqr = fitted_rchisqr
 
+
+
         return fitted_model, fitted_cov
+
+    def try_harder_for_cov(self, model: CompositeFunction):
+
+        tmp_model = model.copy()
+        opt_chisqr = self.chi_squared_of_fit(model)
+        opt_args = model.args.copy()
+        target = opt_chisqr+1
+
+        sigmas = []
+        for i, arg in enumerate(opt_args) :
+
+            print(f"Arg {i}")
+            left_args = opt_args.copy()
+            mid_args = opt_args.copy()
+            right_args = opt_args.copy()
+
+            # find the arg1 when rchisqr = opt_plus_one
+
+            left_x = arg
+            right_x = arg+max(abs(arg),1e-5)
+            diff = right_x-left_x
+
+            # find domain of x that produces a range containing target
+            while True :
+                left_args[i] = left_x
+                right_args[i] = right_x
+
+                tmp_model.args = right_args
+                right_chisqr = self.chi_squared_of_fit(tmp_model)
+                if right_chisqr > target:
+                    break
+
+                left_x = right_x
+                right_x += 2 * diff
+                diff = right_x - left_x
+
+            while diff > 1e-3:
+
+                mid_x = (left_x + right_x) / 2
+                mid_args[i]   = mid_x
+                tmp_model.args = mid_args
+                mid_chisqr = self.chi_squared_of_fit(tmp_model)
+
+                if mid_chisqr < target :
+                    left_x = mid_x
+                    diff = right_x - left_x
+                else :
+                    right_x = mid_x
+                    diff = right_x - left_x
+
+            sigmas.append( ((right_x+left_x)/2 - arg)**2 )
+        print(sigmas)
+        return sigmas
+
+
 
     # changes top5
     # does not change _shown variables
@@ -934,7 +1002,7 @@ class Optimizer:
 
         status = ""
         if start:
-            self._composite_generator = self.all_valid_composites_generator()
+            self._composite_generator  = self.all_valid_composites_generator()
 
         x_points, y_points, sigma_points, use_errors = self.fit_setup(fourier_condition=start)
 
@@ -1062,7 +1130,7 @@ class Optimizer:
             argmax = np.argmax([np.abs(Ynu) for Ynu in pos_Ynu])
 
             best_rchisqr = 1e50
-            best_freq = None
+            best_freq = 0.
             is_sin = True
 
             # try nearby frequencies, explicitly with the data, to see whether sin or cosine is better
@@ -1147,7 +1215,7 @@ class Optimizer:
 
         # tests each of the +/- combinations for the best fit
         # also keep running sums of weigthed points, to try their average at the end
-        weighted_point = [ 0 for _ in scaling_args_no_sign ]
+        weighted_point = [ 0. for _ in scaling_args_no_sign ]
         weighted_norm = 0
         for point in scaling_args_sign_list:
             model.set_args( *point )
@@ -1172,8 +1240,6 @@ class Optimizer:
 
         return best_grid_point
     def find_set_initial_guess_scaling(self, composite: CompositeFunction):
-
-        logger(composite, self._sin_freq_list_dup, self._cos_freq_list_dup)
 
         for child in reversed(composite.children_list) :
             # reverse to bias towards more complicated

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # built-in libraries
 import inspect
-from typing import Callable
+from typing import Callable, Union
 
 # external libraries
 import numpy as np
@@ -31,16 +31,16 @@ class PrimitiveFunction:
 
     _built_in_prims_dict : dict[str,PrimitiveFunction] = {}
 
-    def __init__(self, func : Callable[[float,float],float] = None,
-                 name : str = "", arg : float = 1., other_callable : Callable[[float],float] = None):
+    def __init__(self, func: Union[None, Callable[[float,float],float]] = None,
+                 name: str = "", arg : float = 1., other_callable: Union[None,Callable[[float],float]] = None):
 
-        self._callable_1param : Callable[[float],float] = other_callable
-        self._func : Callable[[float,float],float] = func  # valid functions must all be of the type f(x,arg)
+        self._callable_1param: Union[None,Callable[[float],float]] = other_callable
         if func is None:
             if other_callable is not None :
-                self._func = self.callable_2param
+                func = self.callable_2param
             else :
-                self._func = PrimitiveFunction.pow1
+                func = PrimitiveFunction.pow1
+        self._func: Callable[[float,float],float] = func  # valid functions must all be of the type f(x,arg)
 
         self._name : str = name
         if name == "" :
@@ -67,6 +67,8 @@ class PrimitiveFunction:
         self._func = other
 
     def callable_2param(self, x, arg: float) -> float :
+        if self._callable_1param is None :
+            return 0
         try :
             return arg*self._callable_1param(x)
         except ValueError :
@@ -100,38 +102,38 @@ class PrimitiveFunction:
     """
 
     @staticmethod
-    def pow_neg1(x, arg) -> float:
+    def pow_neg1(x, arg: float) -> float:
         try:
             return arg/x
         except ZeroDivisionError :
             return 1e5
     @staticmethod
-    def pow0(x, arg) -> float:
+    def pow0(x, arg: float) -> float:
         return arg*x**0
     @staticmethod
-    def pow1(x, arg) -> float:
+    def pow1(x, arg: float) -> float:
         return arg*x
     @staticmethod
-    def pow2(x, arg) -> float:
+    def pow2(x, arg: float) -> float:
         return arg*x*x
     @staticmethod
-    def pow3(x, arg) -> float:
+    def pow3(x, arg: float) -> float:
         return arg*x*x*x
     @staticmethod
-    def pow4(x, arg) -> float:
+    def pow4(x, arg: float) -> float:
         return arg*x*x*x*x
 
     @staticmethod
-    def my_sin(x, arg) -> float:
+    def my_sin(x, arg: float) -> float:
         return arg*np.sin(x)
     @staticmethod
-    def my_cos(x, arg) -> float:
+    def my_cos(x, arg: float) -> float:
         return arg*np.cos(x)
     @staticmethod
-    def my_exp(x, arg) -> float:
+    def my_exp(x, arg: float) -> float:
         return arg*np.exp(x)
     @staticmethod
-    def my_log(x, arg) -> float:
+    def my_log(x, arg: float) -> float:
         return arg*np.log(x)
 
 

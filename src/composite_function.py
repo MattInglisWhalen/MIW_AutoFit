@@ -18,29 +18,31 @@ class CompositeFunction:
 
     """
     A composite function is represented as a tree.
-          f
-      |      |
-      5     13
-    |  |      |
-    2  3     11
-    Leaves sharing the same parent node are summed together, and are used as input
-    for functional composition in the parent node.
-    E.g. f(x) = f5( f2(x) + f3(x) ) + f13( f11(x) )
+             sin
+          /     \   \
+       1 . 4     6   8
+      /\    \     \
+     2  3   5      7
+    Branches (children) sharing the same parent node are summed together and leaves (brothers) sharing the same branch
+    are multiplied together. All brothers on a branch know their parent, but the parent only knows the oldest brother
+    on each branch. Branches and leaves on the tree implement and model functional composition stemming from
+    the parent node. E.g., with reference to the above tree
+    E.g. f(x) = sin[ f1( f2(x) + f3(x) ) * f4( f5(x) ) + f6( f7(x) ) + f8(x)]
     """
     """
-    The tree for the sigmoid function 1/(1+e^(-x)) is then
-                f(x)
-                /
-           neg_pow1(x,1)
+    The tree for the sigmoid function 2/(3+4e^(-5x)) is then
+           neg_pow1(x)
            /        \
-      my_exp(x,1)  pow0(x,1)
+      my_exp(x)  pow0(x)
         /
-    pow1(x,-1)
+    pow1(x)
+
+    with args (2,4,-5,3)
     """
 
     """
-    This class represents the nodes of the tree. A node with no children is just a wrapper for a primitive function,
-    while a node with no parent is the function tree as a whole.
+    This class represents the nodes of the tree. A node with no children is just a wrapper for a primitive function, 
+    while a node with no parent or older brothers is the function tree as a whole.
     """
 
     _built_in_comps_dict : dict[str,CompositeFunction] = {}
@@ -163,12 +165,6 @@ class CompositeFunction:
         return self._is_submodel
     @property
     def submodel_zero_index(self) -> int:
-        if self._is_submodel :
-            assert self._submodel_zero_index is not None
-            assert self._submodel_of is not None
-        else :
-            assert self._submodel_zero_index is None
-            assert self._submodel_of is None
         return self._submodel_zero_index
     @property
     def submodel_of(self) -> Union[None,CompositeFunction]:
@@ -472,7 +468,6 @@ class CompositeFunction:
         if self.younger_brother is not None :
             tree_str += '\n' + buffer_chars
             bro_str = self._younger_brother.tree_as_string_with_dimensions(buffer_chars=buffer_chars)
-            print(f"~~{bro_str}~~")
             tree_str += bro_str
 
         # return tree_str.rstrip('\n') + "\n"
@@ -706,7 +701,10 @@ class CompositeFunction:
             args_as_list[idx_constrained] = func( args_as_list[idx_other] )
 
         if self.older_brother is None and self._prim.name != "sum_" :
-            self._prim.arg = args_as_list[it]
+            try:
+                self._prim.arg = args_as_list[it]
+            except IndexError :
+                print(f"Index {it} error for {self}")
             it += 1
         else :
             self._prim.arg = 1

@@ -19,30 +19,30 @@ class DataHandler:
         self._filepath = filepath
 
         # csv variables
-        self._num_lines = 0
-        self._line_width = 0
-        self._x_label : Union[None, str] = None
-        self._y_label : Union[None, str] = None
-        self._header_flag = 0
-        self._delim = ','
+        self._num_lines: int = 0
+        self._line_width: int = 0
+        self._x_label: str = ""
+        self._y_label: str = ""
+        self._header_flag: int = 0
+        self._delim: str = ','
 
         # excel variables
-        self._excel_sheet_name = 0
-        self._x_column_endpoints = None
-        self._sigmax_column_endpoints = None
-        self._y_column_endpoints = None
-        self._sigmay_column_endpoints = None
+        self._excel_sheet_name: int = 0
+        self._x_column_endpoints: str = ""
+        self._sigmax_column_endpoints: str = ""
+        self._y_column_endpoints: str = ""
+        self._sigmay_column_endpoints: str = ""
 
         # data
-        self._data = []
-        self._histogram_flag = False
-        self._normalized_histogram_flag = False
+        self._data: list[Datum1D] = []
+        self._histogram_flag: bool = False
+        self._normalized_histogram_flag: bool = False
 
         # logarithmic handling and view
-        self._logx_flag = False
-        self._X0 = 1.
-        self._logy_flag = False
-        self._Y0 = 1.
+        self._logx_flag: bool = False
+        self._X0: float = 1.
+        self._logy_flag: float = False
+        self._Y0: float = 1.
 
         # TODO:
         # consider adding an optimizer instance to the DataHandler class, so that each file's optimization can only
@@ -193,7 +193,6 @@ class DataHandler:
             return [datum.sigma_val * self._Y0 * np.exp(datum.val) for datum in self._data]
         # else
         return [datum.sigma_val for datum in self._data]
-
 
 
     def calc_num_lines(self) -> int:
@@ -394,7 +393,7 @@ class DataHandler:
             self._logy_flag = False
             self.logy_flag = True
 
-    def set_excel_args(self, x_range_str, y_range_str=None, x_error_str = None, y_error_str = None):
+    def set_excel_args(self, x_range_str, y_range_str="", x_error_str = "", y_error_str = ""):
         logger(f"Thank you for providing data ranges {x_range_str} {y_range_str} {x_error_str} {y_error_str}")
         self._x_column_endpoints = x_range_str
         self._y_column_endpoints = y_range_str
@@ -406,8 +405,10 @@ class DataHandler:
         self._excel_sheet_name = name
 
     @staticmethod
-    def valid_excel_endpoints(excel_range_str) -> bool:
-        if regex.match("[A-Z][A-Z]*[0-9][0-9]*:[A-Z][A-Z]*[0-9][0-9]*]", excel_range_str) :
+    def valid_excel_endpoints(excel_range_str: str) -> bool:
+        if excel_range_str == "":
+            return True
+        if regex.match("[A-Z][A-Z]*[0-9][0-9]*:[A-Z][A-Z]*[0-9][0-9]*", excel_range_str) :
             return True
         return False
     @staticmethod
@@ -462,11 +463,13 @@ class DataHandler:
         return int(ints)-1
 
     def read_excel(self):
+
         if self._y_column_endpoints == "" :
             self.read_excel_as_histogram()
             self._histogram_flag = True
         else:
             self.read_excel_as_scatter()
+
     def read_excel_as_scatter(self):
 
         data_frame = read_excel(self._filepath, self._excel_sheet_name, header=None)
@@ -475,9 +478,11 @@ class DataHandler:
 
         xvals = []
         for idx, loc in enumerate(DataHandler.excel_range_as_list_of_idx_tuples( self._x_column_endpoints )) :
-
-            val = data_frame.iloc[loc[0],loc[1]]
-
+            try:
+                val = data_frame.iloc[loc[0],loc[1]]
+            except IndexError:
+                print(data_frame)
+                logger("Provided spreadsheet range is too large for provided spreadsheet.")
             if idx == 0 and regex.search("[a-zA-Z]", str(val) ) :
                 self._x_label = val
             elif isna(val) :
@@ -490,7 +495,11 @@ class DataHandler:
 
         yvals = []
         for idx, loc in enumerate(DataHandler.excel_range_as_list_of_idx_tuples( self._y_column_endpoints )) :
-            val = data_frame.iloc[loc[0],loc[1]]
+            try:
+                val = data_frame.iloc[loc[0],loc[1]]
+            except IndexError:
+                print(data_frame)
+                logger("Provided spreadsheet range is too large for provided spreadsheet.")
             if idx == 0 and regex.search("[a-zA-Z]", str(val) ) :
                 self._y_label = val
             elif isna(val) :
@@ -508,7 +517,11 @@ class DataHandler:
         sigmaxvals = []
         if DataHandler.valid_excel_endpoints(self._sigmax_column_endpoints):
             for idx, loc in enumerate(DataHandler.excel_range_as_list_of_idx_tuples( self._sigmax_column_endpoints )):
-                val = data_frame.iloc[loc[0],loc[1]]
+                try:
+                    val = data_frame.iloc[loc[0], loc[1]]
+                except IndexError:
+                    print(data_frame)
+                    logger("Provided spreadsheet range is too large for provided spreadsheet.")
                 if idx == 0 and regex.search("[a-zA-Z]", str(val) ):
                     pass
                 elif isna(val):
@@ -520,7 +533,11 @@ class DataHandler:
         sigmayvals = []
         if DataHandler.valid_excel_endpoints(self._sigmay_column_endpoints):
             for idx, loc in enumerate(DataHandler.excel_range_as_list_of_idx_tuples( self._sigmay_column_endpoints )):
-                val = data_frame.iloc[loc[0],loc[1]]
+                try:
+                    val = data_frame.iloc[loc[0], loc[1]]
+                except IndexError:
+                    print(data_frame)
+                    logger("Provided spreadsheet range is too large for provided spreadsheet.")
                 if idx == 0 and regex.search("[a-zA-Z]", str(val) ):
                     pass
                 elif isna(val):
@@ -536,13 +553,18 @@ class DataHandler:
             self._data[idx].sigma_val = err
     def read_excel_as_histogram(self):
 
-        data_frame = read_excel(self._filepath, self._excel_sheet_name)
+        data_frame = read_excel(self._filepath, self._excel_sheet_name, header=None)
 
         logger("Excel histogram chosen")
 
         vals = []
+
         for idx, loc in enumerate(DataHandler.excel_range_as_list_of_idx_tuples( self._x_column_endpoints )) :
-            val = data_frame.iloc[loc[0],loc[1]]
+            try:
+                val = data_frame.iloc[loc[0],loc[1]]
+            except IndexError:
+                print(data_frame)
+                logger("Provided spreadsheet range is too large for provided spreadsheet.")
             if idx == 0 and regex.search("[a-zA-Z]", str(val)) :
                 self._x_label = val
             elif str(val) == "" :

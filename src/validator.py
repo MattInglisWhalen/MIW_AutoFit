@@ -73,21 +73,23 @@ class Validator:
             return err_str
 
         # this timing is based off the assumption that the ingliswhalen.com server signs the certificate using UTC time
-        if platform.system() == "Windows" :
+        if sys.platform == "win32" :
             creation_epoch = os.path.getctime(self._filepath)  # when the file was unzipped/copied (locally signed)
             modify_epoch = os.path.getmtime(self._filepath)    # when the file was created on the server (server signed)
-        else :
+        elif sys.platform == "darwin" :
             stat = os.stat(self._filepath)
-            try :
-                modify_epoch = stat.st_mtime
-                creation_epoch = stat.st_birthtime
+            modify_epoch = stat.st_mtime
+            creation_epoch = stat.st_birthtime
+        elif sys.platform == "linux":
+            try:
+                creation_epoch = os.path.getctime(self._filepath)
+                modify_epoch = os.path.getmtime(self._filepath)
             except AttributeError :
-                try:
-                    creation_epoch = os.path.getctime(self._filepath)
-                    modify_epoch = os.path.getmtime(self._filepath)
-                except AttributeError :
-                    logger("11> Linux isn't supported.")
-                    return f"Error code 11, exiting..."
+                logger("11> Your linux version isn't supported.")
+                return f"Error code 11, exiting..."
+        else :
+            logger(f"29> Your system {platform.system()} isn't supported.")
+            return f"Error code 29, {platform.system()}, exiting..."
 
         zero_utc = datetime.fromtimestamp( 0, timezone.utc ).replace(tzinfo=None)
         creation_utc = datetime.fromtimestamp( creation_epoch, timezone.utc ).replace(tzinfo=None)
@@ -102,9 +104,9 @@ class Validator:
         # logger(modify_epoch, (modify_utc-zero_utc).total_seconds() )
         # logger(secret_epoch, (secret_utc-zero_utc).total_seconds() )
 
-        creation_epoch =  (creation_utc-zero_utc).total_seconds()
-        modify_epoch = (modify_utc-zero_utc).total_seconds()
-        secret_epoch = (secret_utc-zero_utc).total_seconds()
+        creation_epoch_sec =  (creation_utc-zero_utc).total_seconds()
+        modify_epoch_sec = (modify_utc-zero_utc).total_seconds()
+        secret_epoch_sec = (secret_utc-zero_utc).total_seconds()
 
         # logger(creation_utc,modify_utc,secret_utc)
 
@@ -119,19 +121,19 @@ class Validator:
             # logger(modify_epoch, creation_epoch)
             logger("7> ")  # You need to have less time between downloading and unzipping the file.
             # return f"Error code {modify_time} / {creation_time}, exiting..."
-            return f"Error code {int(modify_epoch) + 918273645} / {int(creation_epoch) + 192837465}, exiting..."
+            return f"Error code {int(modify_epoch_sec) + 918273645} / {int(creation_epoch_sec) + 192837465}, exiting..."
         # assume that the hidden secret_epoch and the modify_epoch (download) are aligned
         if abs(seconds_ms) > 5 :
             # logger(secret_epoch, modify_epoch)
             logger("8>")  # The secret file has been modified.
             # return f"Error code {secret_time} = {modify_time}, exiting..."
-            return f"Error code {int(secret_epoch) + 132457689} = {int(modify_epoch) + 978653421}, exiting..."
+            return f"Error code {int(secret_epoch_sec) + 132457689} = {int(modify_epoch_sec) + 978653421}, exiting..."
         # assume that the hidden secret_epoch and the creation_time (unzipping) are less than an hour apart
         if abs(seconds_cs) > 60*60 + 1 :
             # logger(secret_epoch, creation_epoch)
             logger("9>")  # You need to have less time between downloading and unzipping the file.
             # return f"Error code {secret_time} | {creation_time}, exiting..."
-            return f"Error code {int(secret_epoch) + 123456789} | {int(creation_epoch) + 546372819}, exiting..."
+            return f"Error code {int(secret_epoch_sec) + 123456789} | {int(creation_epoch_sec) + 546372819}, exiting..."
         return ""
 
     @staticmethod

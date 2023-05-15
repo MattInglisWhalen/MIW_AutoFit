@@ -1,4 +1,6 @@
 # default libraries
+# import _tkinter
+
 import sys
 import os.path as ospath
 import re as regex
@@ -6,7 +8,6 @@ from functools import partial
 from typing import Union
 
 # external libraries
-import _tkinter
 import tkinter as tk
 import tkinter.filedialog as fd
 
@@ -15,6 +16,7 @@ from pandas import ExcelFile
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+
 
 if sys.platform == "linux":
     import matplotlib
@@ -39,6 +41,8 @@ from PIL import Image
 from autofit.src.composite_function import CompositeFunction
 from autofit.src.primitive_function import PrimitiveFunction
 from autofit.src.data_handler import DataHandler
+# from autofit.src.image_handler import ImageHandler
+
 from autofit.src.optimizer import Optimizer
 from autofit.src.package import pkg_path, logger
 
@@ -117,22 +121,35 @@ class Frontend:
 
         # image frame
         self._curr_image_num: int = -1
-        self._image_path: str = ""
-        self._image: Union[None, tk.PhotoImage] = None
         self._image_frame: Union[None, tk.Label] = None
 
         self._showing_fit_image: bool = False  # conjugate to showing data-only image
         self._showing_fit_all_image: bool = False
+
+        self._color_name_tkstr: tk.StringVar = tk.StringVar(value="Colour")
+        self._colors_image_menu: Union[None, tk.Menu] = None
+
+        self._image_r: float = 1
+        self._image_path: str = ""
+        self._image: Union[None, tk.PhotoImage] = None
+
+        self._background_labels = ["Default", "White", "Dark", "Black"]
+        self._dataaxis_labels = ["Default", "White"]
+        self._fit_colour_labels = ["Default", "White", "Black"]
+
+        self._default_bg_colour: str = "Default"
+        self._default_dataaxes_colour: str = "Default"
+        self._default_fit_colour: str = "Default"
+
         self._bg_color: tuple[float, float, float] = (112 / 255, 146 / 255, 190 / 255)
         self._fit_color: tuple[float, float, float] = (1., 0., 0.)
         self._dataaxes_color: tuple[float, float, float] = (1., 1., 1.)
-        self._color_name_tkstr: tk.StringVar = tk.StringVar(value="Colour")
-        self._colors_image_menu: Union[None, tk.Menu] = None
+
+        self._show_error_bands = 0
 
         # data perusal frame
         self._residuals_button: Union[None, tk.Button] = None
         self._error_bands_button: Union[None, tk.Button] = None
-        self._show_error_bands = 0
 
         # fit options frame
         self._model_name_tkstr: tk.StringVar = tk.StringVar(value="")
@@ -180,12 +197,10 @@ class Frontend:
         self._library_numpy: Union[None, tk.Button] = None
         self._library_special: Union[None, tk.Button] = None
         self._library_stats: Union[None, tk.Button] = None
-        # self._library_math: tk.Button = None
         self._library_autofit: Union[None, tk.Button] = None
         self._error_label: Union[None, tk.Label] = None
         self._current_name_label: Union[None, tk.Label] = None
         self._current_form_label: Union[None, tk.Label] = None
-        self._slider_frame : Union[None, tk.Frame] = None
 
         # defaults config --------------------------------------------------------------------------------------------->
         self._default_gui_width = 0
@@ -198,9 +213,7 @@ class Frontend:
         self._default_excel_sigmax_range: str = ""
         self._default_excel_sigmay_range: str = ""
         self._default_load_file_loc: str = ""
-        self._default_bg_colour: str = "Default"
-        self._default_dataaxes_colour: str = "Default"
-        self._default_fit_colour: str = "Default"
+
         self._default_console_colour: str = "Default"
         self._default_printout_colour: str = "Default"
         self._default_os_scaling: float = 1
@@ -237,7 +250,6 @@ class Frontend:
         else:
             self._sbf = 'SystemButtonFace'
 
-        self._image_r: float = 1
         self._custom_function_names: str = ""
         self._custom_function_forms: str = ""
         self._default_manual_name: str = "N/A"
@@ -247,9 +259,7 @@ class Frontend:
         self._criterion = "rchisqr"  # other opts AIC, AICc, BICc, HQIC
 
         self._background_menu, self._dataaxis_menu, self._fit_colour_menu = None, None, None
-        self._background_labels = ["Default", "White", "Dark", "Black"]
-        self._dataaxis_labels = ["Default", "White"]
-        self._fit_colour_labels = ["Default", "White", "Black"]
+
         self._printout_background_menu, self._printout_menu = None, None
         self._printout_background_labels = ["Default", "White", "Pale"]
         self._printout_labels = ["Default", "White", "Black"]
@@ -400,15 +410,7 @@ class Frontend:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
                     if arg == "" or arg[0] == "#":
                         arg = "Default"
-
-                    if self._default_bg_colour == "White" and arg == "White":
-                        # prevent data from also being white
-                        arg = "Default"
-                    if self._default_bg_colour == "Black" and arg == "Default":
-                        # prevent data from also being black
-                        arg = "White"
-
-                    if arg in ["Default","White"] :
+                    if arg in ["Default", "White"]:
                         self._default_dataaxes_colour = arg
                     else:
                         self._default_dataaxes_colour = "Default"
@@ -418,16 +420,8 @@ class Frontend:
                         self._dataaxes_color = (0., 0., 0.)
                 elif "#FIT_COLOUR" in line:
                     arg = regex.split(" ", line.rstrip("\n \t"))[-1]
-                    if arg == "" or arg[0] == "#" :
+                    if arg == "" or arg[0] == "#":
                         arg = "Default"
-
-                    if self._default_bg_colour == "White" and arg == "White":
-                        # prevent fit from also being white
-                        arg = "Default"
-                    if self._default_bg_colour == "Black" and arg == "Black":
-                        # prevent fit from also being black
-                        arg = "White"
-
                     if arg in ["Default", "Black", "White"]:
                         self._default_fit_colour = arg
                     else:
@@ -645,18 +639,18 @@ class Frontend:
         gui = self._gui
 
         # window size and title
-        if self._default_gui_width <= self._os_width / 4 + 1:
+        if self._default_gui_width <= self._os_width // 4 + 1:
             logger(f"Undersized width {self._default_gui_width} {self._os_width}")
             self._default_gui_width = self._os_width * 3 // 4
         else:
-            logger(f"Fine width {self._default_gui_width} {self._os_width * 7 / 6}")
+            logger(f"Fine width {self._default_gui_width} {self._os_width * 7 // 6}")
             self._default_gui_width = min(self._default_gui_width, self._os_width * 7 // 6)
 
-        if self._default_gui_height <= self._os_height / 4 + 1:
+        if self._default_gui_height <= self._os_height // 4 + 1:
             logger(f"Undersized height {self._default_gui_height} {self._os_height}")
             self._default_gui_height = self._os_height * 3 // 4
         else:
-            logger(f"Fine height {self._default_gui_height} {self._os_height * 7 / 6}")
+            logger(f"Fine height {self._default_gui_height} {self._os_height * 7 // 6}")
             self._default_gui_height = min(self._default_gui_height, self._os_height * 7 // 6)
 
         gui.geometry(f"{self._default_gui_width}x{self._default_gui_height}"
@@ -724,18 +718,24 @@ class Frontend:
         self._background_menu.add_command(label="White", command=self.bg_color_white)
         self._background_menu.add_command(label="Dark", command=self.bg_color_dark)
         self._background_menu.add_command(label="Black", command=self.bg_color_black)
-        self.checkmark_background_options(self._background_labels.index(self._default_bg_colour))
+        self.checkmark_background_options(
+            self._background_labels.index(self._default_bg_colour)
+        )
 
         self._dataaxis_menu = tk.Menu(master=appearance_menu, tearoff=0)
         self._dataaxis_menu.add_command(label="Default", command=self.dataaxes_color_default)
         self._dataaxis_menu.add_command(label="White", command=self.dataaxes_color_white)
-        self.checkmark_dataaxis_options(self._dataaxis_labels.index(self._default_dataaxes_colour))
+        self.checkmark_dataaxis_options(
+            self._dataaxis_labels.index(self._default_dataaxes_colour)
+        )
 
         self._fit_colour_menu = tk.Menu(master=appearance_menu, tearoff=0)
         self._fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
         self._fit_colour_menu.add_command(label="White", command=self.fit_color_white)
         self._fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
-        self.checkmark_fit_colour_options(self._fit_colour_labels.index(self._default_fit_colour))
+        self.checkmark_fit_colour_options(
+            self._fit_colour_labels.index(self._default_fit_colour)
+        )
 
         image_size_menu = tk.Menu(master=appearance_menu, tearoff=0)
         image_size_menu.add_command(label="Up", command=self.mouse_wheel_up)
@@ -852,7 +852,7 @@ class Frontend:
                     self.add_message(f"\n \n> .xlsx file format not supported.")
                     new_filepaths.remove(path)
         for path in new_filepaths[:]:
-            if path[-4:] in [".xls", ".ods","xlsx"] and self._new_user_stage % 23 != 0:
+            if path[-4:] in [".xls", ".ods", "xlsx"] and self._new_user_stage % 23 != 0:
                 self.dialog_box_get_excel_data_ranges()
                 logger(f"{self._excel_x_range=} {self._excel_y_range=}")
                 if self._excel_x_range == "":
@@ -915,9 +915,8 @@ class Frontend:
         # update dropdown with new chi_sqrs for the current top 5 models, but according to the original parameters
         if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"]:
             self.update_top5_chisqrs()
-            logger("If refit on button, this should make refit_button appear")
+
             if len(self._data_handlers) > 1:
-                logger("If refit on button, this should make refit_button appear")
                 self.show_refit_button()
 
         if self._model_name_tkstr.get() in ["Procedural", "Brute-Force", "Manual"]:
@@ -943,7 +942,7 @@ class Frontend:
 
         dialog_box = tk.Toplevel()
         dialog_box.geometry(
-            f"{self._image_frame.winfo_width() * 4 // 5}x{self._image_frame.winfo_height() * 6 // 10}")
+            f"{int(self._image_frame.winfo_width() * 4 / 5)}x{int(self._image_frame.winfo_height() * 6 / 10)}")
         dialog_box.title("Spreadsheet Input Options")
         if sys.platform == "win32":
             dialog_box.iconbitmap(f"{pkg_path()}/icon.ico")
@@ -1088,8 +1087,8 @@ class Frontend:
                    dpi=100 + int(np.log10(len(x_points)))
                    )
 
-        plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points,
-                     fmt='o', color=self._dataaxes_color)
+        plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o',
+                     color=self._dataaxes_color)
         plt.xlabel(self.data_handler.x_label)
         plt.ylabel(self.data_handler.y_label)
         axes = plt.gca()
@@ -1176,22 +1175,19 @@ class Frontend:
                 axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}"))
         axes.set_facecolor(self._bg_color)
 
-        self.fix_axes_labels(axes, min(x_points), max(x_points),
-                             min(y_points), max(y_points), self.data_handler.x_label)
-        # min_X, max_X = min(x_points), max(x_points)
-        # min_Y, max_Y = min(y_points), max(y_points)
-        # #  proportion between xmin and xmax where the zero lies
-        # # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
-        # tx = max(0., -min_X / (max_X - min_X))
-        # ty = max(0., -min_Y / (max(max_Y - min_Y, 1e-5)))
-        # offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
-        #
-        # axes.xaxis.set_label_coords(1.050, offset_Y + ty)
-        # axes.yaxis.set_label_coords(offset_X + tx, +0.750)
-        #
-        # plt.tight_layout()
-        plt.savefig(self._image_path, facecolor=self._bg_color)
+        min_X, max_X = min(x_points), max(x_points)
+        min_Y, max_Y = min(y_points), max(y_points)
+        #  proportion between xmin and xmax where the zero lies
+        # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
+        tx = max(0., -min_X / (max_X - min_X))
+        ty = max(0., -min_Y / (max(max_Y - min_Y, 1e-5)))
+        offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
 
+        axes.xaxis.set_label_coords(1.050, offset_Y + ty)
+        axes.yaxis.set_label_coords(offset_X + tx, +0.750)
+
+        plt.tight_layout()
+        plt.savefig(self._image_path, facecolor=self._bg_color)
         # replace the splash graphic with the plot
         self.switch_image()
 
@@ -2017,7 +2013,7 @@ class Frontend:
         self._image_frame = tk.Label(master=self._gui.children['!frame2'].children['!frame'],
                                      image=self._image,
                                      relief=tk.SUNKEN, bg=self._sbf)
-        logger(f"Created frame {self._image_frame}")
+
         self._image_frame.grid(row=0, column=0)
         self._image_frame.grid_propagate(True)
         self._image_frame.bind(self._right_click, self.do_colors_image_popup)
@@ -2030,13 +2026,11 @@ class Frontend:
         self._image = tk.PhotoImage(file=self._image_path)
         self._image_frame.configure(image=self._image)
 
-    # noinspection PyUnusedLocal
     def mouse_wheel_up(self, event):
         up = tk.Event()
         up.delta = +120
         self.do_image_resize(event=up)
 
-    # noinspection PyUnusedLocal
     def mouse_wheel_down(self, event):
         down = tk.Event()
         down.delta = -120
@@ -2044,7 +2038,6 @@ class Frontend:
 
     def do_image_resize(self, event):
 
-        # logger(type(event))
         d = event.delta / 120
         self._image_r *= (1 + d / 10)
 
@@ -2055,9 +2048,10 @@ class Frontend:
             resized.save(fp=self._image_path)
             self.switch_image()
             return
+
         if self._showing_fit_all_image:
             self.fit_all_command()
-            # self.save_show_fit_all()  # this contains switch_image()
+            # self.save_show_fit_all()    # this contains switch_image()
         elif self._showing_fit_image:
             self.save_show_fit_image()  # this contains switch_image()
         else:
@@ -2125,7 +2119,7 @@ class Frontend:
 
     def inspect_command(self):
 
-        plt.show()
+        self._image_handeler.show()
 
         # TODO: find a way to show() again without rerunning fits
 
@@ -2897,24 +2891,6 @@ class Frontend:
                 partial_V_partial += par_derivs[i] * self.current_covariance[i, j] * par_derivs[j]
         return np.sqrt(partial_V_partial)
 
-    @staticmethod
-    def fix_axes_labels(axes, xmin, xmax, ymin, ymax, xlabel):
-
-        #  proportion between xmin and xmax where the zero lies
-        # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
-        tx = max(0., -xmin / (xmax - xmin))
-        ty = max(0., -ymin / (max(ymax - ymin, 1e-5)))
-        offset_X, offset_Y = -0.07, -0.04  # how much of the screen is taken by the x and y spines
-
-        axes.xaxis.set_label_coords(1.050 - 0.005 * len(xlabel), offset_Y + ty)
-
-        # if ymin < 0 :
-        # else :
-        #     axes.xaxis.set_label_coords(0.5, offset_Y + ty)
-        #     # plt.tight_layout()
-
-        axes.yaxis.set_label_coords(offset_X + tx, +0.750)
-
     def save_show_fit_image(self):
 
         plot_model = self.current_model.copy()
@@ -2925,11 +2901,8 @@ class Frontend:
         y_points = handler.unlogged_y_data
         sigma_x_points = handler.unlogged_sigmax_data
         sigma_y_points = handler.unlogged_sigmay_data
-        upper_bar = [ y+dy for y, dy in zip(y_points, sigma_y_points)]
-        lower_bar = [ y-dy for y, dy in zip(y_points, sigma_y_points)]
 
-
-        smooth_x_for_fit = np.linspace( min(x_points), max(x_points), 4 * len(x_points))
+        smooth_x_for_fit = np.linspace(x_points[0], x_points[-1], 4 * len(x_points))
 
         if handler.logx_flag and handler.logy_flag:
             fit_vals = [plot_model.eval_at(xi, X0=self.data_handler.X0, Y0=self.data_handler.Y0)
@@ -2954,18 +2927,15 @@ class Frontend:
             upper_error_vals = [val + unc for val, unc in zip(fit_vals, unc_list)]
             lower_error_vals = [val - unc for val, unc in zip(fit_vals, unc_list)]
 
-            # plt.plot(smooth_x_for_fit, upper_error_vals, '--', color=self._fit_color)
-            # plt.plot(smooth_x_for_fit, lower_error_vals, '--', color=self._fit_color)
-            plt.fill_between(smooth_x_for_fit, lower_error_vals, upper_error_vals, color=self._fit_color, alpha=0.5)
-
+            plt.plot(smooth_x_for_fit, upper_error_vals, '--', color=self._fit_color)
+            plt.plot(smooth_x_for_fit, lower_error_vals, '--', color=self._fit_color)
         if self._show_error_bands in [2, 3]:
             unc_list = [self.y_uncertainty(xi) for xi in smooth_x_for_fit]
             upper_2error_vals = [val + 2 * unc for val, unc in zip(fit_vals, unc_list)]
             lower_2error_vals = [val - 2 * unc for val, unc in zip(fit_vals, unc_list)]
 
-            plt.fill_between(smooth_x_for_fit, lower_2error_vals, upper_2error_vals, color=self._fit_color, alpha=0.5)
-            # plt.plot(smooth_x_for_fit, upper_2error_vals, ':', color=self._fit_color)
-            # plt.plot(smooth_x_for_fit, lower_2error_vals, ':', color=self._fit_color)
+            plt.plot(smooth_x_for_fit, upper_2error_vals, ':', color=self._fit_color)
+            plt.plot(smooth_x_for_fit, lower_2error_vals, ':', color=self._fit_color)
 
         plt.xlabel(handler.x_label)
         plt.ylabel(handler.y_label)
@@ -3045,22 +3015,19 @@ class Frontend:
                 axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}"))
         axes.set_facecolor(self._bg_color)
 
-        self.fix_axes_labels(axes, min(x_points), max(x_points),
-                             min(lower_bar), max(upper_bar), self.data_handler.x_label)
-        # min_X, max_X = min(x_points), max(x_points)
-        # min_Y, max_Y = min(y_points), max(y_points)
-        # #  tx is the proportion between xmin and xmax where the zero lies
-        # # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
-        # tx = max(0., -min_X / (max_X - min_X))
-        # ty = max(0., -min_Y / (max_Y - min_Y))
-        # offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
-        #
-        # axes.xaxis.set_label_coords(1.050, offset_Y + ty)
-        # axes.yaxis.set_label_coords(offset_X + tx, +0.750)
-        #
-        # plt.tight_layout()
-        plt.savefig(self._image_path, facecolor=self._bg_color)
+        min_X, max_X = min(x_points), max(x_points)
+        min_Y, max_Y = min(y_points), max(y_points)
+        #  tx is the proportion between xmin and xmax where the zero lies
+        # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
+        tx = max(0., -min_X / (max_X - min_X))
+        ty = max(0., -min_Y / (max_Y - min_Y))
+        offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
 
+        axes.xaxis.set_label_coords(1.050, offset_Y + ty)
+        axes.yaxis.set_label_coords(offset_X + tx, +0.750)
+
+        plt.tight_layout()
+        plt.savefig(self._image_path, facecolor=self._bg_color)
         # change the view to show the fit as well
         self.switch_image()
         self._showing_fit_image = True
@@ -3239,17 +3206,16 @@ class Frontend:
                 axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}"))
         axes.set_facecolor(self._bg_color)
 
-        self.fix_axes_labels(axes, abs_minX, abs_maxX, abs_minY, abs_maxY, self.data_handler.x_label)
-        # #  tx is the proportion between xmin and xmax where the zero lies
-        # # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
-        # tx = max(0., -abs_minX / (abs_maxX - abs_minX))
-        # ty = max(0., -abs_minY / (abs_maxY - abs_minY))
-        # offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
-        #
-        # axes.xaxis.set_label_coords(1.050, offset_Y + ty)
-        # axes.yaxis.set_label_coords(offset_X + tx, +0.750)
-        #
-        # plt.tight_layout()
+        #  tx is the proportion between xmin and xmax where the zero lies
+        # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
+        tx = max(0., -abs_minX / (abs_maxX - abs_minX))
+        ty = max(0., -abs_minY / (abs_maxY - abs_minY))
+        offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
+
+        axes.xaxis.set_label_coords(1.050, offset_Y + ty)
+        axes.yaxis.set_label_coords(offset_X + tx, +0.750)
+
+        plt.tight_layout()
         plt.savefig(self._image_path, facecolor=self._bg_color)
 
         # change the view to show the fit as well
@@ -3506,7 +3472,6 @@ class Frontend:
 
     def create_custom_remove_menu(self):
 
-        logger("In create custom remove menu")
         head_menu = tk.Menu(master=self._gui, tearoff=0)
 
         names_menu = tk.Menu(master=head_menu, tearoff=0)
@@ -3601,10 +3566,9 @@ class Frontend:
                                        text="Pause",
                                        width=6 - self._platform_offset,
                                        font=(
-                                               'TkDefaultFont',
-                                               int(12 * self._default_os_scaling * self._platform_scale)),
-                                               bd=self._platform_border,
-                                               command=self.pause_command
+                                       'TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+                                       bd=self._platform_border,
+                                       command=self.pause_command
                                        )
         self._pause_button.grid(row=0, column=2, padx=(5, 0), sticky='nw')
 
@@ -3666,7 +3630,7 @@ class Frontend:
         long_label.grid(row=1, column=0, sticky='nw')
         long_data = tk.Text(master=self._manual_frame, width=55, height=5, font=def_font)
         long_data.insert('1.0', "logistic(pow1+pow0)" if self._default_manual_form == "N/A"
-                                                      else self._default_manual_form)
+        else self._default_manual_form)
         long_data.grid(row=1, column=1, sticky='w')
 
         self._error_label = tk.Label(master=self._manual_frame, text=f"", fg="#EF0909", bg=self._sbf)
@@ -3819,31 +3783,31 @@ class Frontend:
 
         self._library_numpy = tk.Button(self._fit_options_frame,
                                         text="<numpy>",
-                                        font=(  'TkDefaultFont',
-                                                int(12 * self._default_os_scaling * self._platform_scale)),
-                                                width=common_width,
-                                                bd=self._platform_border,
-                                                command=self.print_numpy_library
+                                        font=(
+                                        'TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+                                        width=common_width,
+                                        bd=self._platform_border,
+                                        command=self.print_numpy_library
                                         )
         self._library_numpy.grid(row=0, column=1, padx=(5, 0), sticky='w')
 
         self._library_special = tk.Button(self._fit_options_frame,
                                           text="<special>",
-                                          font=('TkDefaultFont',
-                                                int(12 * self._default_os_scaling * self._platform_scale)),
-                                                width=common_width,
-                                                bd=self._platform_border,
-                                                command=self.print_special_library
+                                          font=(
+                                          'TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+                                          width=common_width,
+                                          bd=self._platform_border,
+                                          command=self.print_special_library
                                           )
         self._library_special.grid(row=0, column=2, sticky='w')
 
         self._library_stats = tk.Button(self._fit_options_frame,
                                         text="<stats>",
-                                        font=('TkDefaultFont',
-                                              int(12 * self._default_os_scaling * self._platform_scale)),
-                                                width=common_width,
-                                                bd=self._platform_border,
-                                                command=self.print_stats_library
+                                        font=(
+                                        'TkDefaultFont', int(12 * self._default_os_scaling * self._platform_scale)),
+                                        width=common_width,
+                                        bd=self._platform_border,
+                                        command=self.print_stats_library
                                         )
         self._library_stats.grid(row=0, column=3, sticky='w')
 
@@ -3998,7 +3962,6 @@ class Frontend:
             slider.grid_forget()
             slider_label.grid_forget()
 
-    # noinspection PyUnusedLocal
     def observe_sliders(self, *args):
         self.current_model.args = self.get_slider_args()
 
@@ -4029,6 +3992,8 @@ class Frontend:
         self.save_show_fit_image()
         self.switch_image()
         self._already_queued = False
+
+    # Would be a good idea to ask for initial guesses here -- sliders are cool!
 
     """
 
@@ -4196,7 +4161,7 @@ class Frontend:
         self._default_dataaxes_colour = "Default"
         self._dataaxes_color = (0., 0., 0.)
         self.checkmark_dataaxis_options(0)
-        if self._default_bg_colour == "Black":  # should allow black on black in case they don't want axes
+        if self._default_bg_colour == "Black":
             self.bg_color_white(do_update_image=False)
         if do_update_image:
             self.update_image()
@@ -4206,7 +4171,7 @@ class Frontend:
         self._default_dataaxes_colour = "White"
         self._dataaxes_color = (1., 1., 1.)
         self.checkmark_dataaxis_options(1)
-        if self._default_bg_colour == "White":  # should allow white on white in case they don't want axes
+        if self._default_bg_colour == "White":
             self.bg_color_black(do_update_image=False)
         if do_update_image:
             self.update_image()
@@ -4529,3 +4494,4 @@ def hexx(vec) -> str:
         to_add = f"{int(c255):x}"
         hex_str += to_add if len(to_add) == 2 else f"0{to_add}"
     return hex_str
+
