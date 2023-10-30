@@ -12,10 +12,9 @@ from autofit.src.package import logger
 
 
 class PrimitiveFunction:
+    """A wrapper for basic single-variable functions with one parameter"""
 
     """
-    A wrapper for basic single-variable functions with one parameter
-
     Instance variables
 
     _name : string

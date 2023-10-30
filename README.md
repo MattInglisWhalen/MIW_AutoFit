@@ -2,6 +2,8 @@
    ![coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/MattInglisWhalen/4fb351291438ee5d4f772ff9966f06d3/raw/covbadge_windows.json) ![coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/MattInglisWhalen/4fb351291438ee5d4f772ff9966f06d3/raw/covbadge_macos.json) ![coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/MattInglisWhalen/4fb351291438ee5d4f772ff9966f06d3/raw/covbadge_ubuntu.json)
 # MIW's AutoFit
  
-!["MIW's AutoFit splash image"](autofit/splash.png "Splash image")
+!["MIW's AutoFit splash image"](images/splash.png "Splash image")
 
-This repository contains the code to run a GUI for fitting 1D data when you don't know which functional model would work best.
+ Have data but don't know how to fit it? This tool will automatically 
+ tell you the best fit function, along with the best-fit parameters and uncertainties.
+

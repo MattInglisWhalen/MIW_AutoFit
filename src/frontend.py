@@ -56,6 +56,7 @@ from autofit.src.package import pkg_path, logger
 
 
 class Frontend:
+    """The singleton class for MIW's AutFit GUI"""
     _meipass_flag = True
 
     def __init__(self):
@@ -572,9 +573,7 @@ class Frontend:
             log_on = int(self._use_func_dict_name_tkbool["log(x)"].get())
             pow_neg1_on = int(self._use_func_dict_name_tkbool["1/x"].get())
             custom_on = int(self._use_func_dict_name_tkbool["custom"].get())
-            if (cos_on and sin_on and exp_on and log_on and pow_neg1_on
-                    # and pow2_on and pow3_on and pow4_on
-                    and custom_on):
+            if cos_on and sin_on and exp_on and log_on and pow_neg1_on and custom_on:
                 logger("You shouldn't have all functions turned on for a procedural fit. Use brute-force instead.")
                 logger(f" {self.brute_forcing=} {self._default_fit_type=}")
             file.write(f"#COS_ON {cos_on}\n")
@@ -582,9 +581,6 @@ class Frontend:
             file.write(f"#EXP_ON {exp_on}\n")
             file.write(f"#LOG_ON {log_on}\n")
             file.write(f"#POW_NEG1_ON {pow_neg1_on}\n")
-            # file.write(f"#POW2_ON {pow2_on}\n")
-            # file.write(f"#POW3_ON {pow3_on}\n")
-            # file.write(f"#POW4_ON {pow4_on}\n")
             file.write(f"#CUSTOM_ON {custom_on}\n")
             file.write(f"#CUSTOM_NAMES {self._custom_function_names}\n")
             file.write(f"#CUSTOM_FORMS {self._custom_function_forms}\n")
@@ -617,18 +613,12 @@ class Frontend:
         exp_on = int(self._use_func_dict_name_tkbool["exp(x)"].get())
         log_on = int(self._use_func_dict_name_tkbool["log(x)"].get())
         pow_neg1_on = int(self._use_func_dict_name_tkbool["1/x"].get())
-        # pow2_on = int(self._use_func_dict_name_tkVar["x\U000000B2"].get())
-        # pow3_on = int(self._use_func_dict_name_tkVar["x\U000000B3"].get())
-        # pow4_on = int(self._use_func_dict_name_tkVar["x\U00002074"].get())
         custom_on = int(self._use_func_dict_name_tkbool["custom"].get())
         logger(f"Procedural cos(x) >{cos_on}<")
         logger(f"Procedural sin(x) >{sin_on}<")
         logger(f"Procedural exp(x) >{exp_on}<")
         logger(f"Procedural log(x) >{log_on}<")
         logger(f"Procedural 1/x >{pow_neg1_on}<")
-        # logger(f"Procedural x\U000000B2 >{pow2_on}<")
-        # logger(f"Procedural x\U000000B3 >{pow3_on}<")
-        # logger(f"Procedural x\U00002074 >{pow4_on}<")
         logger(f"Procedural custom >{custom_on}<")
         logger(f"Custom function names >{self._custom_function_names}<")
         logger(f"Custom function forms >{self._custom_function_forms}<")
@@ -665,12 +655,12 @@ class Frontend:
 
         # icon image and window title
         if sys.platform == "win32":
-            gui.iconbitmap(f"{pkg_path()}/icon.ico")
+            gui.iconbitmap(f"{pkg_path()}/images/icon.ico")
         elif sys.platform == "darwin":
-            photo = tk.PhotoImage(file=f"{pkg_path()}/splash.png")
+            photo = tk.PhotoImage(file=f"{pkg_path()}/images/splash.png")
             gui.wm_iconphoto(False, photo)
         elif sys.platform == "linux":
-            iconify = tk.PhotoImage(file=f"{pkg_path()}/splash.png")
+            iconify = tk.PhotoImage(file=f"{pkg_path()}/images/splash.png")
             gui.wm_iconphoto(False, iconify)
         gui.title("MIW's AutoFit")
 
@@ -946,12 +936,12 @@ class Frontend:
             f"{self._image_frame.winfo_width() * 4 // 5}x{self._image_frame.winfo_height() * 6 // 10}")
         dialog_box.title("Spreadsheet Input Options")
         if sys.platform == "win32":
-            dialog_box.iconbitmap(f"{pkg_path()}/icon.ico")
+            dialog_box.iconbitmap(f"{pkg_path()}/images/icon.ico")
         elif sys.platform == "darwin":
-            photo = tk.PhotoImage(file=f"{pkg_path()}/splash.png")
+            photo = tk.PhotoImage(file=f"{pkg_path()}/images/splash.png")
             dialog_box.iconphoto(False, photo)
         elif sys.platform == "linux":
-            icon = tk.PhotoImage(file=f"{pkg_path()}/icon.png")
+            icon = tk.PhotoImage(file=f"{pkg_path()}/images/icon.png")
             dialog_box.iconphoto(False, icon)
         else:
             pass
@@ -1531,12 +1521,12 @@ class Frontend:
         dialog_box.geometry(f"{round(self._os_width / 4)}x{round(self._os_height / 4)}")
         dialog_box.title("New Custom Function")
         if sys.platform == "win32":
-            dialog_box.iconbitmap(f"{pkg_path()}/icon.ico")
+            dialog_box.iconbitmap(f"{pkg_path()}/images/icon.ico")
         elif sys.platform == "darwin":
-            photo = tk.PhotoImage(file=f"{pkg_path()}/splash.png")
+            photo = tk.PhotoImage(file=f"{pkg_path()}/images/splash.png")
             dialog_box.iconphoto(False, photo)
         elif sys.platform == "linux":
-            icon = tk.PhotoImage(file=f"{pkg_path()}/icon.png")
+            icon = tk.PhotoImage(file=f"{pkg_path()}/images/icon.png")
             dialog_box.iconphoto(False, icon)
         else:
             pass
@@ -2003,7 +1993,7 @@ class Frontend:
 
     # IMAGE frame ----------------------------------------------------------------------------------------------------->
     def load_splash_image(self):
-        self._image_path = f"{pkg_path()}/splash.png"
+        self._image_path = f"{pkg_path()}/images/splash.png"
 
         img_raw = Image.open(self._image_path)
         if self._default_gui_width < 2 and self._image_r == 1:
@@ -2048,8 +2038,8 @@ class Frontend:
         d = event.delta / 120
         self._image_r *= (1 + d / 10)
 
-        if self._image_path in [f"{pkg_path()}/splash.png", f"{pkg_path()}/splash_mod.png"]:
-            raw: Image = Image.open(f"{pkg_path()}/splash.png")
+        if self._image_path in [f"{pkg_path()}/images/splash.png", f"{pkg_path()}/images/splash_mod.png"]:
+            raw: Image = Image.open(f"{pkg_path()}/images/splash.png")
             resized = raw.resize((round(raw.width * self._image_r), round(raw.height * self._image_r)))
             self._image_path = f"{pkg_path()}/splash_mod.png"
             resized.save(fp=self._image_path)
@@ -4048,7 +4038,7 @@ class Frontend:
         elif self._showing_fit_image:
             self.show_current_data_with_fit()
         else:
-            if self._image_path != f"{pkg_path()}/splash.png":
+            if self._image_path != f"{pkg_path()}/images/splash.png":
                 self.show_current_data()
 
     @property
@@ -4501,8 +4491,6 @@ def sup(s: int):
     for char in s_str:
         ret_str += subs_dict[char]
     return ret_str
-
-
 def sub(s: int):
     subs_dict = {'0': '\U00002080',
                  '1': '\U00002081',
@@ -4519,8 +4507,6 @@ def sub(s: int):
     for char in s_str:
         ret_str += subs_dict[char]
     return ret_str
-
-
 def hexx(vec) -> str:
     if isinstance(vec, str):
         return vec

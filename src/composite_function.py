@@ -754,7 +754,7 @@ class CompositeFunction:
                                  error_handler: Callable[[str],bool],
                                  name: str = "") -> Union[None, CompositeFunction]:
 
-        logger(f"Entering construction for {form}")
+        # logger(f"Entering construction for {form}")
 
         # get all the names of the primitives used
         split_form = regex.split(f"[·+()*]", form)
@@ -801,7 +801,8 @@ class CompositeFunction:
 
             if not valid :
                 logger(PrimitiveFunction.built_in_dict())
-                error_handler(f"Couldn't find a valid version of \"{prim}\" in the list of known functions.")
+                error_handler(f"CompositeFunction.construct_model_from_str(): Couldn't find a valid version of "
+                              f"\"{prim}\" in the list of known functions.")
                 # error_handler(f"  You can try creating it yourself using the Custom Function button.")
                 # noinspection PyTypeChecker
                 return None

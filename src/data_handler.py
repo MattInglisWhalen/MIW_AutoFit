@@ -482,7 +482,7 @@ class DataHandler:
                 val = data_frame.iloc[loc[0],loc[1]]
             except IndexError:
                 print(data_frame)
-                logger("Provided spreadsheet range is too large for provided spreadsheet.")
+                logger(f"Provided spreadsheet range is invalid for spreadsheet at {self._filepath}.")
             if idx == 0 and regex.search("[a-zA-Z]", str(val) ) :
                 self._x_label = val
             elif isna(val) :
@@ -499,7 +499,7 @@ class DataHandler:
                 val = data_frame.iloc[loc[0],loc[1]]
             except IndexError:
                 print(data_frame)
-                logger("Provided spreadsheet range is too large for provided spreadsheet.")
+                logger(f"Provided spreadsheet range is invalid for spreadsheet at {self._filepath}.")
             if idx == 0 and regex.search("[a-zA-Z]", str(val) ) :
                 self._y_label = val
             elif isna(val) :
@@ -521,7 +521,7 @@ class DataHandler:
                     val = data_frame.iloc[loc[0], loc[1]]
                 except IndexError:
                     print(data_frame)
-                    logger("Provided spreadsheet range is too large for provided spreadsheet.")
+                    logger(f"Provided spreadsheet range is invalid for spreadsheet at {self._filepath}.")
                 if idx == 0 and regex.search("[a-zA-Z]", str(val) ):
                     pass
                 elif isna(val):
@@ -537,7 +537,7 @@ class DataHandler:
                     val = data_frame.iloc[loc[0], loc[1]]
                 except IndexError:
                     print(data_frame)
-                    logger("Provided spreadsheet range is too large for provided spreadsheet.")
+                    logger(f"Provided spreadsheet range is invalid for spreadsheet at {self._filepath}.")
                 if idx == 0 and regex.search("[a-zA-Z]", str(val) ):
                     pass
                 elif isna(val):
@@ -564,7 +564,7 @@ class DataHandler:
                 val = data_frame.iloc[loc[0],loc[1]]
             except IndexError:
                 print(data_frame)
-                logger("Provided spreadsheet range is too large for provided spreadsheet.")
+                logger(f"Provided spreadsheet range is invalid for spreadsheet at {self._filepath}.")
             if idx == 0 and regex.search("[a-zA-Z]", str(val)) :
                 self._x_label = val
             elif str(val) == "" :

@@ -645,7 +645,7 @@ class Optimizer:
         return remove_flag
 
     def add_primitive_to_list(self, name: str, functional_form: str) -> str:
-        # For adding one's own Primitive Functions to the built-in list
+        """For adding one's own Primitive Functions to the built-in list"""
 
         if self._use_functions_dict["custom"] != 1 :
             return ""
@@ -670,9 +670,9 @@ class Optimizer:
             return f"Corrupted custom function {name} " \
                    f"with form={functional_form}, returning to blank slate."
 
-        logger("add_primitive_to...")
+        logger("Optimizer.add_primitive_to() listing built-in dict items...")
         for key, val in PrimitiveFunction.built_in_dict().items() :
-            logger(f"{key}, {val}")
+            logger(f"Key: {key} Val: {val}")
 
         try :
             PrimitiveFunction.built_in(name).eval_at(np.pi/4)
@@ -786,7 +786,7 @@ class Optimizer:
                     logger(f"On model {model} max_fev reached")
                     # raise RuntimeError
                 model.args = list(np_pars)
-                logger(f"Now with effective variance: {np_pars} +- {np.sqrt(np.diagonal(np_cov))}")
+                logger(f"Now after {it+1} refits, with effective variance: {np_pars} +- {np.sqrt(np.diagonal(np_cov))}")
 
         return model, np_cov
 
@@ -858,7 +858,8 @@ class Optimizer:
             # make the submodel realize it's a submodel
             fitted_model.set_submodel_of_zero_idx(model_.submodel_of, model_.submodel_zero_index)
 
-        if ( np.any(np.isinf( fitted_cov )) and
+
+        if True or ( np.any(np.isinf( fitted_cov )) and
                 self._try_harder) :
             try:
                 print(f"{fitted_cov=} so trying harder")
@@ -869,7 +870,7 @@ class Optimizer:
                 pass
                 # fitted_cov = better_cov
 
-        self.show_likelihood_across_parameter(fitted_model, 1, num_sigmas=10)
+            self.show_likelihood_across_parameter(fitted_model, 1, num_sigmas=10)
 
         if change_shown :
             self._shown_model = fitted_model
@@ -881,10 +882,14 @@ class Optimizer:
         return fitted_model, fitted_cov
 
     def try_harder_for_cov(self, model: CompositeFunction) -> np.ndarray:
+        """When uncertainty can't be ascertained with scipy.curve_fit, have to resort to numerical mathods"""
+
+        # Should benchmark this with exact linear least squares formulae
+        # in https://123.physics.ucdavis.edu/week_0_files/taylor_181-199.pdf
 
         uncs_y = [datum.sigma_val for datum in self._data]
         if any( [unc == 0 for unc in uncs_y] ) :
-            logger("Setting implied error bars")
+            logger("Optimizer.try_harder_for_cov(): Setting implied error bars")
             xvals = [datum.pos for datum in self._data]
             yvals = [datum.val for datum in self._data]
 
@@ -896,7 +901,8 @@ class Optimizer:
             est_std = np.sqrt( ss_resids/(len(resids) - model.dof) )
             for datum in self._data:
                 datum.sigma_val = est_std
-            print(f"Estimating std as {est_std} from {ss_resids} and {len(resids) - model.dof}")
+            print(f"Optimizer.try_harder_for_cov() Estimating std as {est_std} from "
+                  f"SSresiduals = {ss_resids} and Ndof = {len(resids) - model.dof}")
 
 
         tmp_model = model.copy()
@@ -907,7 +913,7 @@ class Optimizer:
         it_limit = 30
         sigmas = []
 
-        # find the diagonals
+        # find the diagonals using bisection algorithm
         invV = np.ndarray( (len(opt_args),len(opt_args)) )
         for i, arg in enumerate(opt_args) :
 
@@ -937,7 +943,7 @@ class Optimizer:
                 diff = right_x - left_x
                 its += 1
                 if its > it_limit :
-                    print("IT LIMIT REACHED")
+                    print("try_harder_for_cov: ITERATION LIMIT REACHED v1")
                     break
 
             its = 0
@@ -950,19 +956,28 @@ class Optimizer:
 
                 if mid_chisqr < target :
                     left_x = mid_x
-                    diff = right_x - left_x
                 else :
                     right_x = mid_x
-                    diff = right_x - left_x
+                diff = right_x - left_x
 
                 its += 1
                 if its > it_limit :
                     break
 
+            # the interval left_x < x < right_x contain the point where chi^2 = chi0^2 + 1, which is the definition
+            # of a 1-sigma uncertainty in the MaxLikelihood model, since chi^2 ~ exp[ -(x-x0)Vinv(x-x0)/2 ]
             sigmas.append( ((right_x+left_x)/2 - arg) )
             invV[i,i] = 1/((right_x+left_x)/2 - arg)**2
 
-        # find the off-diagonal
+        # find the off-diagonal. This is based off chi^2 = chi0^2 + delta.Vinv.delta. When chi^2 - chi0^ = 1, then
+        # delta.Vinv.delta = 1. Knowing already the diagonals of Vinv, we can pick out the offdiagonals by choosing
+        # delta = |D|(ei + ej). Then delta.Vinv.delta = |D|^2 (Vinv_ii + Vinv_jj + 2Vinv_ij) === 1
+        #
+        # Possible issues:
+        #     --  if (ei+ej) is an eigenvector of Vinv then this method fails
+        #     --  it is very "wishful" that the likelihood along a particular parameter p follows the
+        #         model L ~ exp(-(p-p0)^2/2sigmap^2 ). The step funtion is an easy counterexample
+
         for i, argi in enumerate(opt_args):
             for j, argj in enumerate(opt_args):
 
@@ -995,7 +1010,7 @@ class Optimizer:
                     outer_delta += 2 * outer_delta
                     its += 1
                     if its > it_limit:
-                        print("IT LIMIT REACHED")
+                        print("try_harder_for_cov: ITERATION LIMIT REACHED v2")
                         break
 
                 diff = outer_delta - inner_delta
@@ -1010,10 +1025,9 @@ class Optimizer:
 
                     if mid_chisqr < target:
                         inner_delta = mid_delta
-                        diff = outer_delta - inner_delta
                     else:
                         outer_delta = mid_delta
-                        diff = outer_delta - inner_delta
+                    diff = outer_delta - inner_delta
 
                     its += 1
                     if its > it_limit:
@@ -1024,9 +1038,9 @@ class Optimizer:
                 invV[j, i] = invCovIJ
 
         cov = np.linalg.inv(invV)
-        print(invV)
-        print(cov)
-        print(f"Harder sigmas: {np.sqrt(np.diag(cov))}")
+        print("Optimizer.try_harder_for_cov(), invV=\n",invV)
+        print("Optimizer.try_harder_for_cov(), cov=\n",cov)
+        print(f"Optimizer.try_harder_for_cov(), recalculated sigmas = {np.sqrt(np.diag(cov))}")
         return cov
 
     def show_likelihood_across_parameter(self, model, par_idx, num_sigmas=4):
@@ -1039,6 +1053,7 @@ class Optimizer:
         yvals = [ self.likelihood_with_modified_par(model,par_idx,xval) for xval in xvals ]
 
         plt.close()
+        plt.title("Likelihood across parameter")
         plt.scatter(xvals,yvals)
         plt.show()
 
@@ -1457,7 +1472,7 @@ class Optimizer:
 
         if any( [datum.sigma_val < 1e-5 for datum in self._data] ) :
             sumsqr = sum([ (model.eval_at(datum.pos)-datum.val)**2 for datum in self._data ])
-            print(f"No given yerr so using {self.inferred_error_bar_size()}")
+            print(f"Optimizer.chi_squared_of_fit(): No given yerr so using {self.inferred_error_bar_size()}")
             return sumsqr / self.inferred_error_bar_size()**2
 
         # print(f"chisqr of fit: {[datum.sigma_val for datum in self._data]}")
