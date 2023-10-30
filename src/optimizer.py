@@ -861,11 +861,15 @@ class Optimizer:
         if ( np.any(np.isinf( fitted_cov )) and
                 self._try_harder) :
             try:
-                better_cov = np.diagflat(self.try_harder_for_cov(fitted_model))
+                print(f"{fitted_cov=} so trying harder")
+                better_cov = self.try_harder_for_cov(fitted_model)
             except OverflowError:
                 pass
             else :
-                fitted_cov = better_cov
+                pass
+                # fitted_cov = better_cov
+
+        self.show_likelihood_across_parameter(fitted_model, 1, num_sigmas=10)
 
         if change_shown :
             self._shown_model = fitted_model
@@ -876,16 +880,35 @@ class Optimizer:
 
         return fitted_model, fitted_cov
 
-    def try_harder_for_cov(self, model: CompositeFunction):
+    def try_harder_for_cov(self, model: CompositeFunction) -> np.ndarray:
+
+        uncs_y = [datum.sigma_val for datum in self._data]
+        if any( [unc == 0 for unc in uncs_y] ) :
+            logger("Setting implied error bars")
+            xvals = [datum.pos for datum in self._data]
+            yvals = [datum.val for datum in self._data]
+
+            yhats = [ model.eval_at(x) for x in xvals]
+            resids = [ y-yhat for y, yhat in zip(yvals, yhats)]
+            print(resids)
+
+            ss_resids = sum([ res*res for res in resids ])
+            est_std = np.sqrt( ss_resids/(len(resids) - model.dof) )
+            for datum in self._data:
+                datum.sigma_val = est_std
+            print(f"Estimating std as {est_std} from {ss_resids} and {len(resids) - model.dof}")
+
 
         tmp_model = model.copy()
         opt_chisqr = self.chi_squared_of_fit(model)
         opt_args = model.args.copy()
         target = opt_chisqr+1
 
-        its = 0
-        it_limit = 20
+        it_limit = 30
         sigmas = []
+
+        # find the diagonals
+        invV = np.ndarray( (len(opt_args),len(opt_args)) )
         for i, arg in enumerate(opt_args) :
 
             left_args = opt_args.copy()
@@ -899,6 +922,7 @@ class Optimizer:
             diff = right_x-left_x
 
             # find domain of x that produces a range containing target
+            its = 0
             while True :
                 left_args[i] = left_x
                 right_args[i] = right_x
@@ -913,12 +937,14 @@ class Optimizer:
                 diff = right_x - left_x
                 its += 1
                 if its > it_limit :
+                    print("IT LIMIT REACHED")
                     break
 
-            while diff > 1e-3:
+            its = 0
+            while diff > 1e-5:
 
                 mid_x = (left_x + right_x) / 2
-                mid_args[i]   = mid_x
+                mid_args[i] = mid_x
                 tmp_model.args = mid_args
                 mid_chisqr = self.chi_squared_of_fit(tmp_model)
 
@@ -933,9 +959,88 @@ class Optimizer:
                 if its > it_limit :
                     break
 
-            sigmas.append( ((right_x+left_x)/2 - arg)**2 )
-        print(sigmas)
-        return sigmas
+            sigmas.append( ((right_x+left_x)/2 - arg) )
+            invV[i,i] = 1/((right_x+left_x)/2 - arg)**2
+
+        # find the off-diagonal
+        for i, argi in enumerate(opt_args):
+            for j, argj in enumerate(opt_args):
+
+                if i >= j :
+                    continue
+
+                # find window
+                left_args = opt_args.copy()
+                mid_args = opt_args.copy()
+                right_args = opt_args.copy()
+
+                inner_delta = 0
+                outer_delta = max(abs(argi), abs(argj), 1e-5)
+
+                # find domain of x that produces a range containing target
+                its = 0
+                while True:
+                    left_args[i] = argi + inner_delta
+                    left_args[j] = argj + inner_delta
+
+                    right_args[i] = argi + outer_delta
+                    right_args[j] = argj + outer_delta
+
+                    tmp_model.args = right_args
+                    right_chisqr = self.chi_squared_of_fit(tmp_model)
+                    if right_chisqr > target:
+                        break
+
+                    inner_delta = outer_delta
+                    outer_delta += 2 * outer_delta
+                    its += 1
+                    if its > it_limit:
+                        print("IT LIMIT REACHED")
+                        break
+
+                diff = outer_delta - inner_delta
+                its = 0
+                while diff > 1e-5:
+
+                    mid_delta = (inner_delta + outer_delta) / 2
+                    mid_args[i] = argi + mid_delta
+                    mid_args[j] = argj + mid_delta
+                    tmp_model.args = mid_args
+                    mid_chisqr = self.chi_squared_of_fit(tmp_model)
+
+                    if mid_chisqr < target:
+                        inner_delta = mid_delta
+                        diff = outer_delta - inner_delta
+                    else:
+                        outer_delta = mid_delta
+                        diff = outer_delta - inner_delta
+
+                    its += 1
+                    if its > it_limit:
+                        break
+
+                invCovIJ = 0.5*(1/mid_delta**2 - invV[i,i] - invV[j,j])
+                invV[i, j] = invCovIJ
+                invV[j, i] = invCovIJ
+
+        cov = np.linalg.inv(invV)
+        print(invV)
+        print(cov)
+        print(f"Harder sigmas: {np.sqrt(np.diag(cov))}")
+        return cov
+
+    def show_likelihood_across_parameter(self, model, par_idx, num_sigmas=4):
+
+        mu = model.args[par_idx]
+        cov = self.try_harder_for_cov(model)
+        sigma = np.sqrt(cov[par_idx,par_idx])
+
+        xvals = [ mu+(i-num_sigmas*10)*sigma/10 for i in range(num_sigmas*20)]
+        yvals = [ self.likelihood_with_modified_par(model,par_idx,xval) for xval in xvals ]
+
+        plt.close()
+        plt.scatter(xvals,yvals)
+        plt.show()
 
 
 
@@ -1303,7 +1408,7 @@ class Optimizer:
                     xmul = ( 2*np.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
                 else:  # misassigned cosine frequency
                     xmul = ( 2*np.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
-            print(f"{xmul=} {self._sin_freq_list} {slope_at_zero*2*np.pi}")
+            print(f"find_set_initial_guess: {xmul=} {self._sin_freq_list} {slope_at_zero*2*np.pi}")
         composite.prim.arg = xmul * ymul
 
         return composite.get_args()
@@ -1348,12 +1453,26 @@ class Optimizer:
     def inferred_error_bar_size(self) -> float:
         return ( max([datum.val for datum in self._data]) - min([datum.val for datum in self._data]) )/10
         # return np.array([datum.val - model.eval_at(datum.pos) for datum in self._data]).std()
-    def chi_squared_of_fit(self,model) -> float:
+    def chi_squared_of_fit(self,model: CompositeFunction) -> float:
+
         if any( [datum.sigma_val < 1e-5 for datum in self._data] ) :
             sumsqr = sum([ (model.eval_at(datum.pos)-datum.val)**2 for datum in self._data ])
+            print(f"No given yerr so using {self.inferred_error_bar_size()}")
             return sumsqr / self.inferred_error_bar_size()**2
 
+        # print(f"chisqr of fit: {[datum.sigma_val for datum in self._data]}")
         return sum([ (model.eval_at(datum.pos)-datum.val)**2 / datum.sigma_val**2 for datum in self._data ])
+    def likelihood(self, model: CompositeFunction) -> float:
+        return np.exp( -self.chi_squared_of_fit(model)/2 )
+    def likelihood_with_modified_par(self, model: CompositeFunction, par_idx: int, new_par: float) -> float :
+        tmp_model = model.copy()
+        tmp_pars = tmp_model.args
+        tmp_pars[par_idx] = new_par
+        tmp_model.args = tmp_pars
+        lhood = self.likelihood(tmp_model)
+        # print(f"likelihood w modified: {par_idx=} {new_par}, {lhood}")
+        return lhood
+
     def reduced_chi_squared_of_fit(self,model) -> float:
         k = model.dof
         N = len(self._data)
