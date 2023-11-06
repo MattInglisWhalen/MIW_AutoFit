@@ -147,7 +147,8 @@ class PrimitiveFunction:
         return x-arg
     @staticmethod
     def exp_dim1(x,arg) -> float:  # for Sigmoid Composite
-        return np.exp(-x/arg) if arg > 0 else 0
+        y = np.clip(x/arg, a_min=-709.78271289338399673, a_max=None)
+        return np.exp(-y) if arg > 0 else 0
     @staticmethod
     def n_exp_dim2(x,arg) -> float:  # for Normal Composite
         return np.exp(-x**2/(2*arg**2) )/np.sqrt(2*np.pi*arg**2) if arg > 0 else 1e5

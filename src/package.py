@@ -26,6 +26,12 @@ def logger(*args) -> None :
     else :
         pass
 
+def debug(*args) -> None :
+    if DEV == 1 :
+        print(*args)
+    else :
+        pass
+
 def _to_append(logstr: str) -> None:
     if PACKAGE_PATH == "" :
         _set_package_path()

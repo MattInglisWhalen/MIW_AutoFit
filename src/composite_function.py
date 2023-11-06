@@ -682,11 +682,17 @@ class CompositeFunction:
             if self._younger_brother is not None:
                 y *= self._younger_brother.eval_at(x)
         return y
+    def eval_smoothed_at(self, x, dx, Nsmooth, X0=0, Y0=0):
+        smooth_sum = 0
+        Nsmooth = max(Nsmooth,1)
+        for i in range(Nsmooth+1) :
+            N_choose_i = np.math.factorial(Nsmooth) / (np.math.factorial(Nsmooth-i) * np.math.factorial(i))
+            smooth_sum += N_choose_i * self.eval_at(x - (Nsmooth-i)*dx + i*dx, X0, Y0)
+        return smooth_sum / 2**Nsmooth
     def eval_deriv_at(self,x):
         # simple symmetric difference. If exact derivative is needed, can add that later
         delta = 1e-5
         return (self.eval_at(x + delta) - self.eval_at(x - delta)) / (2 * delta)
-
 
     def set_args(self, *args):
 
@@ -725,7 +731,15 @@ class CompositeFunction:
         if it != len(args_as_list) :
             logger(f"Trying to set {args_as_list=} in {self.name}")
             raise RuntimeError
-    def get_args(self, skip_flag=0) -> list[float]:
+    def set_arg_i(self, i: int, val: float):
+        tmp_args = self.args
+        if 0 <= i < len(tmp_args) :
+            tmp_args[i] = val
+        else :
+            raise IndexError
+        self.set_args(*tmp_args)
+
+    def get_args(self, skip_flag: int = 0) -> list[float]:
         # get all arguments normally, then pop off the ones with constraints once we get to the head
         all_args = []
         if skip_flag or self._prim.name == "sum_":
@@ -748,6 +762,12 @@ class CompositeFunction:
             del all_args[idx_constrained]
 
         return all_args
+    def get_arg_i(self, i: int) -> float:
+        tmp_args = self.args
+        if 0 <= i < len(tmp_args) :
+            return tmp_args[i]
+        else :
+            raise IndexError
 
     @staticmethod
     def construct_model_from_str(form: str,
@@ -963,6 +983,9 @@ class CompositeFunction:
     def scipy_func(self, x, *args):
         self.set_args(*args)
         return self.eval_at(x)
+    def scipy_func_smoothed(self, x, *args):
+        self.set_args(*args)
+        return self.eval_smoothed_at(x, dx=1e-1, Nsmooth=40)
 
     @staticmethod
     def build_built_in_dict() -> None:
@@ -1128,14 +1151,6 @@ class CompositeFunction:
     def dimension(self) -> int:
         return self.dimension_arg + self.net_function_dimension_self_and_younger_siblings
 
-
-# def sameness_constraint(x):  # to delete
-#     return x
-# # Normalization of A exp[ B(x+C)^2 ] requires A=sqrt(1 / 2 pi sigma^2) and B= - 1 / 2 sigma^2
-# def gaussian_normalization_constraint1(x):  # to delete
-#     return np.sqrt(np.abs(x)/np.pi)
-# def gaussian_normalization_constraint(x):  # to delete
-#     return -np.pi*np.power(x,2)
 
 
 def do_new_things():

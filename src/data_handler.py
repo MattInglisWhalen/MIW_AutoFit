@@ -13,7 +13,9 @@ from autofit.src.package import logger
 
 
 class DataHandler:
-
+    """
+    Each dataset is provided a DataHandler instance to do I/O reading and writing
+    """
     def __init__(self, filepath):
 
         self._filepath = filepath

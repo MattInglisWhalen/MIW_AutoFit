@@ -1622,8 +1622,8 @@ class Frontend:
         self.save_defaults()
         self._popup_window.destroy()
 
-        logger(f"close_dialog: >{self._custom_function_names}<")
-        logger(f"close_dialog: >{self._custom_function_forms}<")
+        logger(f"Frontend.close_dialog(): custom names: >{self._custom_function_names}<")
+        logger(f"Frontend.close_dialog(): custom defns: >{self._custom_function_forms}<")
 
     # RIGHT PANEL FUNCTIONS ------------------------------------------------------------------------------------------->
 
@@ -4462,18 +4462,6 @@ class Frontend:
 
         new_frontend = Frontend()
         new_frontend.exist()
-
-    # def update_currents(self):
-    #     if self._optimizer is None :
-    #         return
-    #     if self._optimizer.shown_model is None :
-    #         return
-    #     self._current_model = self._optimizer.shown_model
-    #     # used to be optimizer.parameters
-    #     self._current_args = self._current_model.get_args()
-    #     self._current_uncs = self._optimizer.shown_uncertainties
-    #     self._curr_best_red_chi_sqr = self._optimizer.shown_rchisqr
-
 
 def sup(s: int):
     subs_dict = {'0': '\U00002070',

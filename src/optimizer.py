@@ -18,17 +18,20 @@ from autofit.src.datum1D import Datum1D
 from autofit.src.primitive_function import PrimitiveFunction
 from autofit.src.composite_function import CompositeFunction
 from autofit.src.package import logger
-
-"""
-This Optimizer class creates a list of possible fit functions. 
-Using scipy's curve-fit function, each of the possible fit functions are fit to the data provided.
-This class will then determine which of the functions is the best model for the data, using the reduced chi^2 statistic
-as a discriminator. The model which achieves the lowest reduced chi-squared is chosen to be the "best" model
-"""
+from autofit.src.algorithms import find_window_left, find_window_right, bisect
 
 
 class Optimizer:
+    """
+    Finds the top5 models for the current dataset. When a new dataset is provided, it can either generate a new
+    set of top5 models, or evaluate those top5 models on the new dataset. The list of potential models is generated
+    here from compositions/sums/products of primitive functions, with a host of rules to trim the list down
+     to a manageable number.
 
+    The models are ranked on a particular criterion (reduced chi-squared/AIC/BIC/HQIC). Fitting is done using
+    scipy.optimize.curve-fit. Initial parameters are determined through a combination of scaling arguments,
+    Fourier series coefficients, and smoothed peak finding.
+    """
     # noinspection PyTypeChecker
     def __init__(self, data=None, use_functions_dict = None, max_functions=3, regen=True, criterion="rchisqr"):
 
@@ -657,6 +660,15 @@ class Optimizer:
                 or regex.search(r'\s',functional_form) :
             return "Stop trying to inject code"
 
+        # search for autofit-specific strings inside the functional form
+        # this allows chaining of user-defined primitives
+        for key, val in PrimitiveFunction.built_in_dict().items() :
+            # raise NotImplementedError
+            pattern = f"{key}\("
+            functional_form_regexed = regex.sub(pattern,
+                                                f"""PrimitiveFunction.built_in("{key}").eval_at(""", functional_form)
+            if functional_form_regexed != functional_form :
+                functional_form = functional_form_regexed
 
         code_str  = f"def {name}(x,arg):\n"
         code_str += f"    return arg*({functional_form})\n"
@@ -670,7 +682,7 @@ class Optimizer:
             return f"Corrupted custom function {name} " \
                    f"with form={functional_form}, returning to blank slate."
 
-        logger("Optimizer.add_primitive_to() listing built-in dict items...")
+        logger("Optimizer.add_primitive_to(): listing built-in dict items...")
         for key, val in PrimitiveFunction.built_in_dict().items() :
             logger(f"Key: {key} Val: {val}")
 
@@ -745,7 +757,7 @@ class Optimizer:
         # Unintuitively, this helps. Tight error bars flatten the gradients away from the global minimum,
         # and so relaxed error bars help point towards global minima
         try:
-            better_guess, better_cov = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
+            better_guess, better_cov = curve_fit(model.scipy_func_smoothed, xdata=x_points, ydata=y_points,
                                                  p0=initial_guess, maxfev=5000, method='lm')
             if any( [x < 0 for x in np.diagonal(better_cov)] ) :
                 logger("Negative variance encountered")
@@ -859,27 +871,41 @@ class Optimizer:
             fitted_model.set_submodel_of_zero_idx(model_.submodel_of, model_.submodel_zero_index)
 
 
-        if True or ( np.any(np.isinf( fitted_cov )) and
-                self._try_harder) :
+        if np.any(np.isinf( fitted_cov )) and self._try_harder and halved < 1 :
             try:
-                print(f"{fitted_cov=} so trying harder")
+                logger(f"{fitted_cov=} so trying harder")
                 better_cov = self.try_harder_for_cov(fitted_model)
             except OverflowError:
                 pass
             else :
-                pass
-                # fitted_cov = better_cov
+                # pass
+                fitted_cov = better_cov
 
-            self.show_likelihood_across_parameter(fitted_model, 1, num_sigmas=10)
+            # self.show_likelihood_across_parameter(fitted_model, 1, num_sigmas=10)
 
         if change_shown :
             self._shown_model = fitted_model
             self._shown_covariance = fitted_cov
             self._shown_rchisqr = fitted_rchisqr
 
-
-
         return fitted_model, fitted_cov
+
+    def set_estimated_std(self, model: CompositeFunction):
+        logger("Optimizer.set_estimated_std(): Setting implied error bars. Resids below.")
+        resids = [datum.val - model.eval_at(datum.pos) for datum in self._data]
+        logger(resids)
+
+        ss_resids = sum([res * res for res in resids])
+        est_std = np.sqrt(ss_resids / (len(resids) - model.dof))
+        for datum in self._data:
+            datum.sigma_val = est_std
+
+        logger(f"{np.finfo(np.float64).max} Optimizer.set_estimated_std() Estimating std as {est_std} from "
+               f"SSresiduals = {ss_resids} and Ndof = {len(resids) - model.dof}")
+
+    def reset_estimated_std(self, uncs: list[float]):
+        for datum, unc in zip(self._data, uncs):
+            datum.sigma_val = unc
 
     def try_harder_for_cov(self, model: CompositeFunction) -> np.ndarray:
         """When uncertainty can't be ascertained with scipy.curve_fit, have to resort to numerical mathods"""
@@ -888,120 +914,77 @@ class Optimizer:
         # in https://123.physics.ucdavis.edu/week_0_files/taylor_181-199.pdf
 
         uncs_y = [datum.sigma_val for datum in self._data]
-        if any( [unc == 0 for unc in uncs_y] ) :
-            logger("Optimizer.try_harder_for_cov(): Setting implied error bars")
-            xvals = [datum.pos for datum in self._data]
-            yvals = [datum.val for datum in self._data]
+        if any([unc / (abs(datum.val) + 1e-5) < 1e-5 for unc, datum in zip(uncs_y, self._data)]):
+            self.set_estimated_std(model)
 
-            yhats = [ model.eval_at(x) for x in xvals]
-            resids = [ y-yhat for y, yhat in zip(yvals, yhats)]
-            print(resids)
-
-            ss_resids = sum([ res*res for res in resids ])
-            est_std = np.sqrt( ss_resids/(len(resids) - model.dof) )
-            for datum in self._data:
-                datum.sigma_val = est_std
-            print(f"Optimizer.try_harder_for_cov() Estimating std as {est_std} from "
-                  f"SSresiduals = {ss_resids} and Ndof = {len(resids) - model.dof}")
-
-
-        tmp_model = model.copy()
-        opt_chisqr = self.chi_squared_of_fit(model)
-        opt_args = model.args.copy()
-        target = opt_chisqr+1
+        # to be determined
+        invV = np.ndarray( (len(model.args), len(model.args)) )
 
         it_limit = 30
-        sigmas = []
+        # find the diagonals of invV using the bisection algorithm
+        while True :
+            dir_bigger = []
+            opt_chisqr = self.chi_squared_of_fit(model)
+            opt_args = model.args.copy()
+            target = opt_chisqr + 1
+            for idx, arg in enumerate(opt_args) :
 
-        # find the diagonals using bisection algorithm
-        invV = np.ndarray( (len(opt_args),len(opt_args)) )
-        for i, arg in enumerate(opt_args) :
-
-            left_args = opt_args.copy()
-            mid_args = opt_args.copy()
-            right_args = opt_args.copy()
-
-            # find the arg1 when rchisqr = opt_plus_one
-
-            left_x = arg
-            right_x = arg+max(abs(arg),1e-5)
-            diff = right_x-left_x
-
-            # find domain of x that produces a range containing target
-            its = 0
-            while True :
-                left_args[i] = left_x
-                right_args[i] = right_x
-
-                tmp_model.args = right_args
-                right_chisqr = self.chi_squared_of_fit(tmp_model)
-                if right_chisqr > target:
+                diff_R, better_arg_R = find_window_right(self.chi_squared_of_fit, target, model, idx)
+                if diff_R < 0 :
+                    model.set_arg_i(idx, better_arg_R)
                     break
 
-                left_x = right_x
-                right_x += 2 * diff
-                diff = right_x - left_x
-                its += 1
-                if its > it_limit :
-                    print("try_harder_for_cov: ITERATION LIMIT REACHED v1")
+                diff_L, better_arg_L =  find_window_left(self.chi_squared_of_fit, target, model, idx)
+                if diff_L < 0 :
+                    model.set_arg_i(idx, better_arg_L)
                     break
 
-            its = 0
-            while diff > 1e-5:
-
-                mid_x = (left_x + right_x) / 2
-                mid_args[i] = mid_x
-                tmp_model.args = mid_args
-                mid_chisqr = self.chi_squared_of_fit(tmp_model)
-
-                if mid_chisqr < target :
-                    left_x = mid_x
-                else :
-                    right_x = mid_x
-                diff = right_x - left_x
-
-                its += 1
-                if its > it_limit :
+                outer_R, error_R, better_arg_R = bisect(self.chi_squared_of_fit, target, model, idx,
+                                                        left_x=arg, right_x=arg+diff_R)
+                if error_R > 0 :
+                    model.set_arg_i(idx, better_arg_R)
                     break
 
-            # the interval left_x < x < right_x contain the point where chi^2 = chi0^2 + 1, which is the definition
-            # of a 1-sigma uncertainty in the MaxLikelihood model, since chi^2 ~ exp[ -(x-x0)Vinv(x-x0)/2 ]
-            sigmas.append( ((right_x+left_x)/2 - arg) )
-            invV[i,i] = 1/((right_x+left_x)/2 - arg)**2
+                outer_L, error_L, better_arg_L = bisect(self.chi_squared_of_fit, target, model, idx,
+                                                        left_x=arg-diff_L, right_x=arg)
+                if error_L > 0 :
+                    model.set_arg_i(idx, better_arg_L)
+                    break
+
+                sigma_L, sigma_R = arg - outer_L, outer_R-arg
+                # sigma = 2*sigma_L*sigma_R/(sigma_L+sigma_R)
+                sigma = sigma_R if sigma_R < sigma_L else sigma_L
+                dir_bigger.append(1 if sigma_R < sigma_L else -1)
+                # the interval left_x < x < right_x contain the point where chi^2 = chi0^2 + 1, which is the definition
+                # of a 1-sigma uncertainty in the MaxLikelihood model, since chi^2 ~ exp[ -(x-x0)Vinv(x-x0)/2 ]
+                invV[idx,idx] = 1/sigma**2
+            else :
+                break
 
         # find the off-diagonal. This is based off chi^2 = chi0^2 + delta.Vinv.delta. When chi^2 - chi0^ = 1, then
         # delta.Vinv.delta = 1. Knowing already the diagonals of Vinv, we can pick out the offdiagonals by choosing
         # delta = |D|(ei + ej). Then delta.Vinv.delta = |D|^2 (Vinv_ii + Vinv_jj + 2Vinv_ij) === 1
         #
         # Possible issues:
-        #     --  if (ei+ej) is an eigenvector of Vinv then this method fails
         #     --  it is very "wishful" that the likelihood along a particular parameter p follows the
-        #         model L ~ exp(-(p-p0)^2/2sigmap^2 ). The step funtion is an easy counterexample
-
+        #         model L ~ exp(-(p-p0)^2/2sigmap^2 ). The likelihood for a step function fit is an easy counterexample
         for i, argi in enumerate(opt_args):
             for j, argj in enumerate(opt_args):
 
                 if i >= j :
                     continue
 
-                # find window
-                left_args = opt_args.copy()
-                mid_args = opt_args.copy()
-                right_args = opt_args.copy()
-
+                tmp_model = model.copy()
                 inner_delta = 0
-                outer_delta = max(abs(argi), abs(argj), 1e-5)
+                outer_delta = max(abs(argi/2)+1e-5, abs(argj/2)+1e-5, 1e-5)
 
                 # find domain of x that produces a range containing target
                 its = 0
                 while True:
-                    left_args[i] = argi + inner_delta
-                    left_args[j] = argj + inner_delta
 
-                    right_args[i] = argi + outer_delta
-                    right_args[j] = argj + outer_delta
+                    tmp_model.set_arg_i(i, argi + dir_bigger[i]*outer_delta)
+                    tmp_model.set_arg_i(j, argj + dir_bigger[j]*outer_delta)
 
-                    tmp_model.args = right_args
                     right_chisqr = self.chi_squared_of_fit(tmp_model)
                     if right_chisqr > target:
                         break
@@ -1010,7 +993,7 @@ class Optimizer:
                     outer_delta += 2 * outer_delta
                     its += 1
                     if its > it_limit:
-                        print("try_harder_for_cov: ITERATION LIMIT REACHED v2")
+                        logger("try_harder_for_cov: ITERATION LIMIT REACHED v2")
                         break
 
                 diff = outer_delta - inner_delta
@@ -1018,9 +1001,9 @@ class Optimizer:
                 while diff > 1e-5:
 
                     mid_delta = (inner_delta + outer_delta) / 2
-                    mid_args[i] = argi + mid_delta
-                    mid_args[j] = argj + mid_delta
-                    tmp_model.args = mid_args
+
+                    tmp_model.set_arg_i(i, argi+dir_bigger[i]*mid_delta)
+                    tmp_model.set_arg_i(j, argj+dir_bigger[j]*mid_delta)
                     mid_chisqr = self.chi_squared_of_fit(tmp_model)
 
                     if mid_chisqr < target:
@@ -1033,14 +1016,19 @@ class Optimizer:
                     if its > it_limit:
                         break
 
-                invCovIJ = 0.5*(1/mid_delta**2 - invV[i,i] - invV[j,j])
+                mid_delta = (inner_delta + outer_delta) / 2
+                invCovIJ = dir_bigger[i]*dir_bigger[j]*0.5*(1/mid_delta**2 - invV[i,i] - invV[j,j])
                 invV[i, j] = invCovIJ
                 invV[j, i] = invCovIJ
 
         cov = np.linalg.inv(invV)
-        print("Optimizer.try_harder_for_cov(), invV=\n",invV)
-        print("Optimizer.try_harder_for_cov(), cov=\n",cov)
-        print(f"Optimizer.try_harder_for_cov(), recalculated sigmas = {np.sqrt(np.diag(cov))}")
+        logger("Optimizer.try_harder_for_cov(), invV=\n",invV)
+        logger("Optimizer.try_harder_for_cov(), cov=\n",cov)
+        logger(f"Optimizer.try_harder_for_cov(), recalculated sigmas = {np.sqrt(np.diag(cov))}")
+
+        if any([unc / (abs(datum.val) + 1e-5) < 1e-5 for unc, datum in zip(uncs_y, self._data)]):
+            self.reset_estimated_std(uncs_y)
+
         return cov
 
     def show_likelihood_across_parameter(self, model, par_idx, num_sigmas=4):
@@ -1056,8 +1044,6 @@ class Optimizer:
         plt.title("Likelihood across parameter")
         plt.scatter(xvals,yvals)
         plt.show()
-
-
 
     # changes top5
     # does not change _shown variables
@@ -1423,7 +1409,7 @@ class Optimizer:
                     xmul = ( 2*np.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
                 else:  # misassigned cosine frequency
                     xmul = ( 2*np.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
-            print(f"find_set_initial_guess: {xmul=} {self._sin_freq_list} {slope_at_zero*2*np.pi}")
+            logger(f"find_set_initial_guess: {xmul=} {self._sin_freq_list} {slope_at_zero*2*np.pi}")
         composite.prim.arg = xmul * ymul
 
         return composite.get_args()
@@ -1466,16 +1452,16 @@ class Optimizer:
         plt.show(block=pause_on_image)
 
     def inferred_error_bar_size(self) -> float:
-        return ( max([datum.val for datum in self._data]) - min([datum.val for datum in self._data]) )/10
+        return 1
+        # return ( max([datum.val for datum in self._data]) - min([datum.val for datum in self._data]) )/10
         # return np.array([datum.val - model.eval_at(datum.pos) for datum in self._data]).std()
+
     def chi_squared_of_fit(self,model: CompositeFunction) -> float:
 
         if any( [datum.sigma_val < 1e-5 for datum in self._data] ) :
             sumsqr = sum([ (model.eval_at(datum.pos)-datum.val)**2 for datum in self._data ])
-            print(f"Optimizer.chi_squared_of_fit(): No given yerr so using {self.inferred_error_bar_size()}")
             return sumsqr / self.inferred_error_bar_size()**2
 
-        # print(f"chisqr of fit: {[datum.sigma_val for datum in self._data]}")
         return sum([ (model.eval_at(datum.pos)-datum.val)**2 / datum.sigma_val**2 for datum in self._data ])
     def likelihood(self, model: CompositeFunction) -> float:
         return np.exp( -self.chi_squared_of_fit(model)/2 )
@@ -1485,7 +1471,6 @@ class Optimizer:
         tmp_pars[par_idx] = new_par
         tmp_model.args = tmp_pars
         lhood = self.likelihood(tmp_model)
-        # print(f"likelihood w modified: {par_idx=} {new_par}, {lhood}")
         return lhood
 
     def reduced_chi_squared_of_fit(self,model) -> float:
