@@ -130,3 +130,11 @@ def bisect(evaluator: Callable[[CompositeFunction],float], target: float,
     # debug(f"algorithms.bisect(): ended with midx={mid_x} for arg {idx}")
     return mid_x, 0, 0
 
+
+if __name__ == "__main__" :
+
+    import numpy as np
+
+    print(np.inf)
+    print(1+np.inf)
+    print(1/(1+np.inf))
