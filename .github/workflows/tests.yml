@@ -76,7 +76,7 @@ jobs:
         with:
           # GIST_TOKEN is a GitHub personal access token with scope "gist".
           auth: ${{ secrets.GIST_TOKEN }}
-          gistID: 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   # replace with your real Gist id.
+          gistID: 4fb351291438ee5d4f772ff9966f06d3   # alphanumeric part, file https://gist.github.com/MattInglisWhalen/
           filename: covbadge_windows.json
           label: Windows
           message: ${{ env.PERCENTAGE_WIN }}%
@@ -90,7 +90,7 @@ jobs:
         with:
           # GIST_TOKEN is a GitHub personal access token with scope "gist".
           auth: ${{ secrets.GIST_TOKEN }}
-          gistID: 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   # replace with your real Gist id.
+          gistID: 4fb351291438ee5d4f772ff9966f06d3   # alphanumeric part, file https://gist.github.com/MattInglisWhalen/
           filename: covbadge_ubuntu.json
           label: Ubuntu
           message: ${{ env.PERCENTAGE_UBUNTU }}%
@@ -104,8 +104,7 @@ jobs:
         with:
           # GIST_TOKEN is a GitHub personal access token with scope "gist".
           auth: ${{ secrets.GIST_TOKEN }}
-          # gistID: 4fb351291438ee5d4f772ff9966f06d3   # replace with your real Gist id.
-          gistID: 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   # replace with your real Gist id.
+          gistID: 4fb351291438ee5d4f772ff9966f06d3   # alphanumeric part, file https://gist.github.com/MattInglisWhalen/
           filename: covbadge_macos.json
           label: MacOSX
           message: ${{ env.PERCENTAGE_MACOS }}%
