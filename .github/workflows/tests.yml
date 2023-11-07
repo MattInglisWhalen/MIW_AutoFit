@@ -22,7 +22,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: Install dependencies 
         run: |
           python -m pip install --upgrade pip
           pip install tox tox-gh-actions
@@ -72,11 +72,11 @@ jobs:
 
       - name: Make badge (windows)
         if: matrix.os == 'windows-latest'
-        uses: schneegans/dynamic-badges-action@v1.6.0
+        uses: schneegans/dynamic-badges-action@v1.7.0
         with:
           # GIST_TOKEN is a GitHub personal access token with scope "gist".
           auth: ${{ secrets.GIST_TOKEN }}
-          gistID: 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   # replace with your real Gist id.
+          gistID: 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   # replace with your real Gist id.
           filename: covbadge_windows.json
           label: Windows
           message: ${{ env.PERCENTAGE_WIN }}%
@@ -86,11 +86,11 @@ jobs:
 
       - name: Make badge (ubuntu)
         if: matrix.os == 'ubuntu-latest'
-        uses: schneegans/dynamic-badges-action@v1.6.0
+        uses: schneegans/dynamic-badges-action@v1.7.0
         with:
           # GIST_TOKEN is a GitHub personal access token with scope "gist".
           auth: ${{ secrets.GIST_TOKEN }}
-          gistID: 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   # replace with your real Gist id.
+          gistID: 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   # replace with your real Gist id.
           filename: covbadge_ubuntu.json
           label: Ubuntu
           message: ${{ env.PERCENTAGE_UBUNTU }}%
@@ -100,12 +100,12 @@ jobs:
 
       - name: Make badge (macos)
         if: matrix.os == 'macos-latest'
-        uses: schneegans/dynamic-badges-action@v1.6.0
+        uses: schneegans/dynamic-badges-action@v1.7.0
         with:
           # GIST_TOKEN is a GitHub personal access token with scope "gist".
           auth: ${{ secrets.GIST_TOKEN }}
           # gistID: 4fb351291438ee5d4f772ff9966f06d3   # replace with your real Gist id.
-          gistID: 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   # replace with your real Gist id.
+          gistID: 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   # replace with your real Gist id.
           filename: covbadge_macos.json
           label: MacOSX
           message: ${{ env.PERCENTAGE_MACOS }}%
