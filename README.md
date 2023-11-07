@@ -1,4 +1,4 @@
-![Tests](https://github.com/MattInglisWhalen/MIWs_AutoFit/actions/workflows/tests.yml/badge.svg) 
+![Tests](https://github.com/MattInglisWhalen/MIWs_AutoFit/actions/workflows/tests/badge.svg) 
    ![coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/MattInglisWhalen/4fb351291438ee5d4f772ff9966f06d3/raw/covbadge_windows.json) ![coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/MattInglisWhalen/4fb351291438ee5d4f772ff9966f06d3/raw/covbadge_macos.json) ![coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/MattInglisWhalen/4fb351291438ee5d4f772ff9966f06d3/raw/covbadge_ubuntu.json)
 # MIW's AutoFit
  
