@@ -31,18 +31,17 @@ A model in MIW's AutoFit is a treelike structure where each node represents a pr
 or multiplication. A 'parent' node can have 'children' nodes, so that the output $f(x)$ of 
 evaluating the parent at a particular input $x$ is given by 
 
-$$f(x) = \mathrm{parent}(\mathrm{child}_1(x)+\mathrm{child}2(x)+\ldots)$$.
+$$f(x) = \mathrm{parent}(\mathrm{child}_1(x)+\mathrm{child}_2(x)+\ldots)$$
 
 Therefore, parents compose
 with the set of their children, and children of the same parent each represent terms in a summation.
 Meanwhile, each 'child' actually represents a set of 'brothers', so that 
 
-$$\child(x) = \mathrm{brother}_1(x)\cdot\mathrm{brother}_2(x)\cdot\ldots$$.
+$$\mathrm{child}(x) = \mathrm{brother}_1(x)\cdot\mathrm{brother}_2(x)\cdot\ldots$$
 
-In this way, multiplications
-are implented in each term of a composition.
+In this way, multiplications are implemented in each term of a composition.
 
-!["MIW's AutoFit Tree Structure"](/autofit/images/splash.png "Hierarchy image")
+!["MIW's AutoFit Tree Structure"](/autofit/images/hierarchy.png "Hierarchy image")
 
 For example, the above image represented the model
 
