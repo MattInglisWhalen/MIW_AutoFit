@@ -45,7 +45,7 @@ In this way, multiplications are implemented in each term of a summation.
 
 For example, the above image represented the model
 
-$$f(x) = A\cos(Bx+C) \cdot \sin(D\exp(x)\log(x)+Ex^2)$$
+$$f(x) = A\cos(Bx+C) \cdot \sin(D\exp(x)\cdot\log(x)+Ex^2)$$
 
 ## Contributions
 
