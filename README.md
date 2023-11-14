@@ -41,7 +41,7 @@ $$\mathrm{child}(x) = \mathrm{brother}_1(x)\cdot\mathrm{brother}_2(x)\cdot\ldots
 
 In this way, multiplications are implemented in each term of a summation. 
 
-!["MIW's AutoFit Tree Structure"](/autofit/images/hierarchy.png "Hierarchy image")
+!["MIW's AutoFit Tree Structure"](/autofit/images/hierarchy.jpg "Hierarchy image")
 
 For example, the above image represented the model
 
