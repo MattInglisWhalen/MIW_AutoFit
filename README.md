@@ -43,7 +43,7 @@ In this way, multiplications are implemented in each term of a summation.
 
 !["MIW's AutoFit Tree Structure"](/autofit/images/hierarchy.jpg "Hierarchy image")
 
-For example, the above image represented the model
+For example, the above image represents the model
 
 $$f(x) = A\cos(Bx+C) \cdot \sin(D\exp(x)\cdot\log(x)+Ex^2)$$
 
