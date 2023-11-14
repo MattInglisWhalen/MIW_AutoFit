@@ -23,7 +23,7 @@ See the [tutorials pages here](https://mattingliswhalen.github.io/MIWs_AutoFit_T
 
 ## Outline
 
-MIW's AutoFit is the result of pigheadedly generating as many functional models as you'll let it, 
+MIW's AutoFit  is the result of pigheadedly generating as many functional models as you'll let it, 
 then ranking each one based on its goodness of fit.
 
 A model in MIW's AutoFit is a treelike structure where each node represents a primitive functions 
