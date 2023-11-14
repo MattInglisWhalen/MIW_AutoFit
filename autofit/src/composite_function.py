@@ -710,7 +710,7 @@ class CompositeFunction:
             try:
                 self._prim.arg = args_as_list[it]
             except IndexError :
-                print(f"Index {it} error for {self}")
+                logger(f"CompositeFunctions.set_args(): Index {it} error for {self}")
             it += 1
         else :
             self._prim.arg = 1
@@ -820,7 +820,8 @@ class CompositeFunction:
                         valid = True
 
             if not valid :
-                logger(PrimitiveFunction.built_in_dict())
+                logger(f"CompositeFunction.construct_model_from_str(): dict=",PrimitiveFunction.built_in_dict().keys())
+                logger(f"CompositeFunction.construct_model_from_str(): >{split_form}<", f"{prim_names}")
                 error_handler(f"CompositeFunction.construct_model_from_str(): Couldn't find a valid version of "
                               f"\"{prim}\" in the list of known functions.")
                 # error_handler(f"  You can try creating it yourself using the Custom Function button.")
@@ -985,7 +986,7 @@ class CompositeFunction:
         return self.eval_at(x)
     def scipy_func_smoothed(self, x, *args):
         self.set_args(*args)
-        return self.eval_smoothed_at(x, dx=1e-1, Nsmooth=40)
+        return self.eval_smoothed_at(x, dx=1e-1, Nsmooth=20)
 
     @staticmethod
     def build_built_in_dict() -> None:
@@ -1157,11 +1158,11 @@ def do_new_things():
 
     import random as rng
     sigma = 0.1
-    positions = np.arange(-20,20,0.4)
-    values = [ rng.normalvariate( mu=5/(1+np.exp(-(x-3)/7))-2.5, sigma=sigma) for x in positions]
+    positions = np.arange(0,20,0.6)
+    values = [ rng.normalvariate( mu=3.14159*scipy.special.jv(0,1.618*x), sigma=sigma) for x in positions]
 
     for pos, val in zip(positions,values) :
-        logger(f"{pos:.2F}, {val:.2F}, {sigma}")
+        print(f"{pos:.2F}, {val:.2F}, {sigma}")
 
 
 

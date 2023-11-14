@@ -682,9 +682,9 @@ class Optimizer:
             return f"Corrupted custom function {name} " \
                    f"with form={functional_form}, returning to blank slate."
 
-        logger("Optimizer.add_primitive_to(): listing built-in dict items...")
-        for key, val in PrimitiveFunction.built_in_dict().items() :
-            logger(f"Key: {key} Val: {val}")
+        # logger("Optimizer.add_primitive_to(): listing built-in dict items...")
+        # for key, val in PrimitiveFunction.built_in_dict().items() :
+        #     logger(f"Key: {key} Val: {val}")
 
         try :
             PrimitiveFunction.built_in(name).eval_at(np.pi/4)
@@ -758,7 +758,7 @@ class Optimizer:
         # and so relaxed error bars help point towards global minima
         try:
             better_guess, better_cov = curve_fit(model.scipy_func_smoothed, xdata=x_points, ydata=y_points,
-                                                 p0=initial_guess, maxfev=5000, method='lm')
+                                                 p0=initial_guess, maxfev=500, method='lm')
             if any( [x < 0 for x in np.diagonal(better_cov)] ) :
                 logger("Negative variance encountered")
                 raise RuntimeError
@@ -773,7 +773,7 @@ class Optimizer:
         try:
             np_pars, np_cov = curve_fit(model.scipy_func, xdata=x_points, ydata=y_points,
                                         sigma=sigma_points, absolute_sigma=use_errors,
-                                        p0=better_guess, maxfev=5000)
+                                        p0=better_guess, maxfev=1000)
             if any([x < 0 for x in np.diagonal(np_cov)]):
                 logger("Negative variance encountered")
                 raise RuntimeError
@@ -1362,13 +1362,17 @@ class Optimizer:
         # use knowledge of scaling to guess parameter sizes from the characteristic sizes in the data
         # charAvY = (max([datum.val for datum in self._data]) + min([datum.val for datum in self._data])) / 2
         charDiffY = (max([datum.val for datum in self._data]) - min([datum.val for datum in self._data])) / 2
-        charAvX = ( max( [datum.pos for datum in self._data] ) + min( [datum.pos for datum in self._data] ) ) / 2
-        charDiffX =  (max([datum.pos for datum in self._data]) - min([datum.pos for datum in self._data])) / 2
+        sorted_X = sorted([datum.pos for datum in self._data])
+        charAvX =      (sorted_X[-1] + sorted_X[0]) / 2
+        charDiffX =    (sorted_X[-1] - sorted_X[0]) / 2
+        charSpacingX =  sorted_X[1]  - sorted_X[0]
         if composite.prim.name == "pow0" :
             # this typically represents a shift, so the average X is more important than the range of x-values
             charX = charAvX
         else :
-            charX = charDiffX
+            # if the grid spacing of data is small, there's usually an important reason such a small size is chosen
+            charX = charDiffX * (charSpacingX/charDiffX)**(1/6)
+            # charX = charDiffX
 
         # defaults
         xmul = charX**composite.dimension_arg if charX > 0 else charDiffX**composite.dimension_arg
@@ -1390,26 +1394,31 @@ class Optimizer:
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / (1e-5 * composite.prim.arg)
             if abs(slope_at_zero) > 1e-5 :
                 if len(self._cos_freq_list_dup) > 0 :
-                    logger(f"Using cosine frequency {2*np.pi*self._cos_freq_list_dup[0]}")
+                    logger(f"Using cosine ang. frequency {2*np.pi*self._cos_freq_list_dup[0]}")
                     xmul = ( 2*np.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
+                    logger(f"   so with {slope_at_zero=}, {xmul=}")
+
                 else:  # misassigned cosine frequency
-                    try:
-                        xmul = ( 2*np.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
-                    except TypeError :
-                        logger("find_set_initial_guess_scaling TypeError",self._sin_freq_list_dup)
-                        logger("find_set_initial_guess_scaling TypeError",self._sin_freq_list)
-                        logger("find_set_initial_guess_scaling TypeError",self._cos_freq_list_dup)
-                        logger("find_set_initial_guess_scaling TypeError",self._cos_freq_list)
-                        raise SystemExit
+                    xmul = (2 * np.pi * self._sin_freq_list_dup.pop(0)) / slope_at_zero
+                    # to be removed
+                    # try:
+                    #     xmul = ( 2*np.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
+                    # except TypeError :
+                    #     logger("find_set_initial_guess_scaling TypeError",self._sin_freq_list_dup)
+                    #     logger("find_set_initial_guess_scaling TypeError",self._sin_freq_list)
+                    #     logger("find_set_initial_guess_scaling TypeError",self._cos_freq_list_dup)
+                    #     logger("find_set_initial_guess_scaling TypeError",self._cos_freq_list)
+                    #     raise SystemExit
         elif "sin" in composite.parent.prim.name :
             slope_at_zero = (composite.eval_at(2e-5)-composite.eval_at(1e-5) ) / (1e-5 * composite.prim.arg)
             if abs(slope_at_zero) > 1e-5 :
                 if len(self._sin_freq_list_dup) > 0 :
-                    logger(f"Using sine frequency {2*np.pi*self._sin_freq_list_dup[0]}")
+                    logger(f"Using sine ang. frequency {2*np.pi*self._sin_freq_list_dup[0]}")
                     xmul = ( 2*np.pi*self._sin_freq_list_dup.pop(0) ) / slope_at_zero
+                    logger(f"   so with {slope_at_zero=}, {xmul=}")
                 else:  # misassigned cosine frequency
                     xmul = ( 2*np.pi*self._cos_freq_list_dup.pop(0) ) / slope_at_zero
-            logger(f"find_set_initial_guess: {xmul=} {self._sin_freq_list} {slope_at_zero*2*np.pi}")
+
         composite.prim.arg = xmul * ymul
 
         return composite.get_args()

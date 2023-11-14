@@ -5,5 +5,43 @@
 !["MIW's AutoFit splash image"](images/splash.png "Splash image")
 
  Have data but don't know how to fit it? This tool will automatically 
- tell you the best fit function, along with the best-fit parameters and uncertainties.
+ tell you the best function to model your data, along with the best-fit parameters and uncertainties.
+
+---
+
+### Executables / Apps 
+
+Windows: [Version 0.3⭳](https://ingliswhalen.files.wordpress.com/2023/11/d6098-miw_autofit_03.zip)
+
+MacOSX: [Version 0.3⭳](https://ingliswhalen.files.wordpress.com/2023/11/dc42b-miw_autofit_03_osx.zip)
+
+Ubuntu: [Version 0.3⭳](https://ingliswhalen.files.wordpress.com/2023/11/48ae5-miw_autofit_03_linux.zip)
+
+### Tutorials
+
+See the [tutorials pages here](https://mattingliswhalen.github.io/MIWs_AutoFit_Tutorial_1/).
+
+## Outline
+
+MIW's AutoFit is the result of pigheadedly generating as many functional models as you'll let it, 
+then ranking each one based on its goodness of fit.
+
+A model in MIW's AutoFit is a treelike structure where each node represents a primitive functions 
+(like $$\cos(x)$$ or $$x^2$$), and the relations between each node can indicate composition, summation,
+or multiplication. A 'parent' node can have 'children' nodes, so that the output $$f(x)$$ of 
+evaluating the parent at a particular input $$x$$ is given by 
+$$f(x) = \mathrm{parent}(\mathrm{child}_1(x)+\mathrm{child}2(x)+\ldots)$$. Therefore, parents compose
+with the set of their children, and children of the same parent each represent terms in a summation.
+Meanwhile, each 'child' actually represents a set of 'brothers', so that 
+$$\child(x) = \mathrm{brother}_1(x)\cdot\mathrm{brother}_2(x)\cdot\ldots$$. In this way, multiplications
+are implented in each term of a composition.
+
+!["MIW's AutoFit splash image"](images/hierarchy.jpg "Splash image")
+
+## Contributions
+
+MIW's AutoFit is no longer being actively developed, but engagement through comments and suggestions are
+likely to renew my interest in this project.
+
+
 

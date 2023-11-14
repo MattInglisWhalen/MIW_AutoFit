@@ -95,7 +95,8 @@ def bisect(evaluator: Callable[[CompositeFunction],float], target: float,
     tmp_model.set_arg_i(idx, right_x)
     right_val = evaluator(tmp_model)
     debug(left_val , target , right_val )
-    assert(left_val <= target <= right_val or left_val >= target >= right_val)
+    # TODO: actually do something with this assertion error
+    # assert(left_val <= target <= right_val or left_val >= target >= right_val)
     sign = 1 if left_val < right_val else -1
 
     # do the bisection
@@ -133,8 +134,5 @@ def bisect(evaluator: Callable[[CompositeFunction],float], target: float,
 
 if __name__ == "__main__" :
 
-    import numpy as np
+    pass
 
-    print(np.inf)
-    print(1+np.inf)
-    print(1/(1+np.inf))

@@ -1287,14 +1287,16 @@ class Frontend:
             if self._manual_model is not None:
                 logger(f"Fitting data to {self._manual_model.name} model.")
                 try:
+
                     if self.get_slider_args() and (len(self.get_slider_args()) == self._manual_model.dof):
                         self.optimizer.fit_this_and_get_model_and_covariance(model_=self._manual_model,
                                                                              initial_guess=self.get_slider_args())
                     else:
-                        print(f"Fit data command: manual fit: misaligned slider number"
-                              f" {len(self.get_slider_args()) if self.get_slider_args() else 0} "
-                              f"and model dof {self._manual_model.dof}")
+                        logger(f"Fit data command: manual fit: misaligned slider number"
+                               f" {len(self.get_slider_args()) if self.get_slider_args() else 0} "
+                               f"and model dof {self._manual_model.dof}")
                         self.optimizer.fit_this_and_get_model_and_covariance(model_=self._manual_model)
+                        self.update_sliders()
                 except ValueError:
                     self.add_message("\n \n> It is likely that the domain of your manual function\n"
                                      "  is incompatible with the data.")
@@ -3684,7 +3686,7 @@ class Frontend:
         submit_button.grid(row=1, column=10, padx=5, pady=0, sticky='s')
         self.create_library_options()
 
-        if self._default_manual_name != "N/A":
+        if self._default_manual_name != "N/A" and self._optimizer is not None:
             logger(self._default_manual_form)
             manual_model = CompositeFunction.construct_model_from_str(form=self._default_manual_form,
                                                                       error_handler=self.add_message,
@@ -3791,9 +3793,11 @@ class Frontend:
         self._current_name_label.configure(text=self._default_manual_name)
         self._current_form_label.configure(text=self._default_manual_form)
         manual_model.print_tree()
+        self.add_message(f"\n \n  Successfully validated! Tree below: \n{manual_model.tree_as_string()}")
         logger(manual_model.tree_as_string_with_dimensions())
         self._manual_model = manual_model
         self.save_defaults()
+
         return True
 
     def error_handling(self, error_msg: str) -> bool:
@@ -3980,6 +3984,19 @@ class Frontend:
         for idx, (slider, slider_label) in enumerate(zip(self._sliders, self._slider_labels)):
             slider_label.grid(row=5, column=idx, sticky='w')
             slider.grid(row=6, column=idx, sticky='w')
+
+    def update_sliders(self):
+        if self._new_user_stage % 71 != 0 :
+            return
+
+        # self._slider_frame.grid_forget()
+        for slider in self._sliders :
+            slider.destroy()
+        self._slider_frame.destroy()
+        self._new_user_stage /= 71
+        self._sliders = []
+        self._slider_labels = []
+        self.create_sliders()
 
     def hide_sliders(self):
         if self._new_user_stage % 71 != 0:
