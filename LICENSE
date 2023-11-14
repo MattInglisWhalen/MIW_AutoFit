@@ -1,14 +1,16 @@
 /------------------------ MIW's AutoFit -------------------------------/
 
-Copyright (c) 2022 Matthew Inglis-Whalen -- All Rights Reserved
+Copyright (c) 2023 Matthew Inglis-Whalen -- All Rights Reserved
 
-The executable files in this repository (.exe) may not be
-distributed or modified except by the author and his
-distribution partner, ingliswhalen.com.
+The zip archives in this repository contain executable files which
+may not be distributed or modified except by the author.
 
-Packages and binaries included in any subdirectories are the
+Packages and binaries included in the zipped archives are the
 intellectual property of their respective
 creators, and have their own licensing permissions.
+
+The code in this repository is free to use and
+modify, but may not be distributed except by the author.
 
 THIS SOFTWARE IS PROVIDED BY THE AUTHOR "AS IS" AND ANY EXPRESS
 OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -22,5 +24,5 @@ IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-Written by Matthew Inglis-Whalen <mingliswhalen@gmail.com>, December 2022
+Written by Matthew Inglis-Whalen <mingliswhalen@gmail.com>, Nov. 2023
 

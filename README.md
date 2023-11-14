@@ -33,13 +33,13 @@ evaluating the parent at a particular input $x$ is given by
 
 $$f(x) = \mathrm{parent}(\mathrm{child}_1(x)+\mathrm{child}_2(x)+\ldots)$$
 
-Therefore, parents compose
-with the set of their children, and children of the same parent each represent terms in a summation.
+Therefore, parents compose with the sum of their children, where each child represents 
+one term in the summation.
 Meanwhile, each 'child' actually represents a set of 'brothers', so that 
 
 $$\mathrm{child}(x) = \mathrm{brother}_1(x)\cdot\mathrm{brother}_2(x)\cdot\ldots$$
 
-In this way, multiplications are implemented in each term of a composition.
+In this way, multiplications are implemented in each term of a summation. 
 
 !["MIW's AutoFit Tree Structure"](/autofit/images/hierarchy.png "Hierarchy image")
 
