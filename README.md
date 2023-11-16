@@ -41,11 +41,11 @@ $$\mathrm{child}(x) = \mathrm{brother}_1(x)\cdot\mathrm{brother}_2(x)\cdot\ldots
 
 In this way, multiplications are implemented in each term of a summation. 
 
-!["MIW's AutoFit Tree Structure"](/autofit/images/hierarchy.png "Hierarchy image")
+!["MIW's AutoFit Tree Structure"](/autofit/images/hierarchy.jpg "Hierarchy image")
 
-For example, the above image represented the model
+For example, the above image represents the model
 
-$$f(x) = A\cos(Bx+C) \cdot \sin(D\exp(x)\log(x)+Ex^2)$$
+$$f(x) = A\cos(Bx+C) \cdot \sin(D\exp(x)\cdot\log(x)+Ex^2)$$
 
 ## Contributions
 
