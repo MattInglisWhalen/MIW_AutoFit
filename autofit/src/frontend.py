@@ -1267,6 +1267,11 @@ class Frontend:
             self._fit_data_button.configure(text="Cancel")
             self.optimizer.find_best_model_for_dataset(status_bar=self._progress_label)
             self._fit_data_button.configure(text="Fit Data")
+
+            import pickle as pkl
+            with open('optimizer_pickle.pkl', 'wb') as f_o:
+                pkl.dump(self.optimizer, f_o)
+
         elif self._model_name_tkstr.get() == "Brute-Force":
             logger("Brute forcing a procedural model")
             self.brute_forcing = True

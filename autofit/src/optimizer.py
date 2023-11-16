@@ -11,15 +11,17 @@ import numpy as np
 import scipy.stats
 import scipy.special
 
-from tkinter import Label as tk_label
+
 
 # internal classes
 from autofit.src.datum1D import Datum1D
 from autofit.src.primitive_function import PrimitiveFunction
 from autofit.src.composite_function import CompositeFunction
-from autofit.src.package import logger
+from autofit.src.package import logger, DEV
 from autofit.src.algorithms import find_window_left, find_window_right, bisect
 
+if DEV >= 0 :
+    from tkinter import Label as tk_label
 
 class Optimizer:
     """
@@ -225,11 +227,11 @@ class Optimizer:
     #         if model.name == chosen_model.name :
     #             self.top5_rchisqrs[idx] = self.reduced_chi_squared_of_fit(model)
     def update_top5_rchisqrs_for_new_data(self, new_data):
-        logger(f"Updating top5 criterions. Before: {self.top5_rchisqrs}")
+        logger(f"Optimizer.update_top5_rchisqrs_for_new_data(): Updating top5 criterions. Before: {self.top5_rchisqrs}")
         self.set_data_to(new_data)
         for idx, model in enumerate(self.top5_models) :
             self.top5_rchisqrs[idx] = self.criterion(model)
-        logger(f"After: {self.top5_rchisqrs}")
+        logger(f"Optimizer.update_top5_rchisqrs_for_new_data(): After: {self.top5_rchisqrs}")
 
     # changes top5 lists, does not change _shown variables
     def query_add_to_top5(self, model: CompositeFunction, covariance):
@@ -405,7 +407,7 @@ class Optimizer:
                 yield icomp
 
     # TODO: make a generator version of this e.g. [] -> ()
-    def build_composite_function_list(self, status_bar : tk_label):
+    def build_composite_function_list(self, status_bar : Union[tk_label,None]):
         # the benefit of using this is that you can generate it once, and if the options don't change you don't need
         # to generate it again. Follow that logic
         if not self._regen_composite_flag :
@@ -425,12 +427,13 @@ class Optimizer:
         for depth in range(self._max_functions-1) :
             new_list : list[CompositeFunction] = []
             for icomp in last_list:
-                status_bar.configure(text=f"   Stage 1/3: {len(last_list)+len(new_list):>10} naive models generated,"
-                                          f" {0:>10} models fit.")
-                status_bar.master.master.update()
-                if status_bar['bg'] == "#010101":  # cancel code
-                    self._regen_composite_flag = True
-                    break
+                if status_bar is not None :
+                    status_bar.configure(text=f"   Stage 1/3: {len(last_list)+len(new_list):>10} "
+                                              f"naive models generated, {0:>10} models fit.")
+                    status_bar.master.master.update()
+                    if status_bar['bg'] == "#010101":  # cancel code
+                        self._regen_composite_flag = True
+                        break
                 for idescendent in range(icomp.num_nodes()):
                     for iprim in self._primitive_function_list[:]:
 
@@ -459,8 +462,9 @@ class Optimizer:
                             else :
                                 mul_node.add_younger_brother(iprim, update_name=True)
                                 new_list.append(new_mul)
-                if status_bar['bg'] == "#010101" :  # cancel code
-                    break
+                if status_bar is not None :
+                    if status_bar['bg'] == "#010101" :  # cancel code
+                        break
             logger(f"{depth} build_comp_list new_len=",len(new_list))
             self._composite_function_list.extend( new_list )
             last_list = new_list
@@ -475,7 +479,7 @@ class Optimizer:
         for icomp in self._composite_function_list:
             logger(icomp)
         logger("|----------------\n")
-    def trim_composite_function_list(self,status_bar:tk_label):
+    def trim_composite_function_list(self,status_bar: Union[tk_label,None]):
         # Finds and removes duplicates
         # Performs basic algebra to recognize simpler forms with fewer parameters
         # E.g. Functions like pow0(pow0) and pow1(pow1 + pow1) have fewer arguments than the naive calculation expects
@@ -490,12 +494,13 @@ class Optimizer:
         for idx, icomp in enumerate(self._composite_function_list[:]) :
 
             if idx % 500 == 0 :
-                status_bar.configure(text=f"   Stage 2/3: {len(self._composite_function_list):>10} valid "
-                                          f"models generated, {0:>10} models fit.")
-                status_bar.master.master.update()
-                if status_bar['bg'] == "#010101" :  # cancel code
-                    self._regen_composite_flag = True
-                    break
+                if status_bar is not None :
+                    status_bar.configure(text=f"   Stage 2/3: {len(self._composite_function_list):>10} valid "
+                                              f"models generated, {0:>10} models fit.")
+                    status_bar.master.master.update()
+                    if status_bar['bg'] == "#010101" :  # cancel code
+                        self._regen_composite_flag = True
+                        break
                 logger(f"{idx}/{num_comps}")
 
             # if self.fails_rules(icomp) :
@@ -764,6 +769,11 @@ class Optimizer:
                 raise RuntimeError
         except RuntimeError:
             logger("Couldn't find optimal parameters for better guess.")
+            model.args = list(initial_guess)
+            return model, np.array([1e10 for _ in range(len(initial_guess)**2)]) \
+                            .reshape(len(initial_guess),len(initial_guess))
+        except TypeError :
+            logger("Too many dof for dataset.")
             model.args = list(initial_guess)
             return model, np.array([1e10 for _ in range(len(initial_guess)**2)]) \
                             .reshape(len(initial_guess),len(initial_guess))
@@ -1047,7 +1057,7 @@ class Optimizer:
 
     # changes top5
     # does not change _shown variables
-    def find_best_model_for_dataset(self, status_bar : tk_label, halved=0):
+    def find_best_model_for_dataset(self, status_bar : Union[tk_label,None] = None, halved=0):
 
         if not halved :
             self.build_composite_function_list(status_bar=status_bar)
@@ -1062,11 +1072,12 @@ class Optimizer:
                                                      use_errors=use_errors,info_string=f"{idx+1}/{num_models} ")
 
             self.query_add_to_top5(model=fitted_model, covariance=fitted_cov)
-            status_bar.configure(text=f"   Stage 3/3: {len(self._composite_function_list):>10} valid models generated,"
-                                      f" {idx+1:>10} models fit.")
-            status_bar.master.master.update()
-            if status_bar['bg'] == "#010101" :  # cancel code
-                break
+            if status_bar is not None :
+                status_bar.configure(text=f"   Stage 3/3: {len(self._composite_function_list):>10}"
+                                          f" valid models generated, {idx+1:>10} models fit.")
+                status_bar.master.master.update()
+                if status_bar['bg'] == "#010101" :  # cancel code
+                    break
             # if model.name == "my_exp(my_sin(pow1))" :
             #     logger(fitted_model.args)
             #     logger(self._sin_freq_list)
@@ -1113,7 +1124,7 @@ class Optimizer:
     # does not change _shown variables
     def async_find_best_model_for_dataset(self, start=False) -> str:
 
-        status = ""
+        status = ""  # TODO: am I actually looking at status when this returns?
         if start:
             self._composite_generator  = self.all_valid_composites_generator()
 
@@ -1333,8 +1344,8 @@ class Optimizer:
         for point in scaling_args_sign_list:
             model.set_args( *point )
             temp_rchisqr = self.reduced_chi_squared_of_fit(model)
-            weighted_point = list_sums_weights(weighted_point,point,1,1/temp_rchisqr)
-            weighted_norm += 1/temp_rchisqr
+            weighted_point = list_sums_weights(weighted_point,point,1,1/(temp_rchisqr+1e-5))
+            weighted_norm += 1/(temp_rchisqr+1e-5)
             if temp_rchisqr < best_rchisqr :
                 best_rchisqr = temp_rchisqr
                 best_grid_point = point
@@ -1365,14 +1376,14 @@ class Optimizer:
         sorted_X = sorted([datum.pos for datum in self._data])
         charAvX =      (sorted_X[-1] + sorted_X[0]) / 2
         charDiffX =    (sorted_X[-1] - sorted_X[0]) / 2
-        charSpacingX =  sorted_X[1]  - sorted_X[0]
+        # charSpacingX =  sorted_X[1]  - sorted_X[0]
         if composite.prim.name == "pow0" :
             # this typically represents a shift, so the average X is more important than the range of x-values
             charX = charAvX
         else :
             # if the grid spacing of data is small, there's usually an important reason such a small size is chosen
-            charX = charDiffX * (charSpacingX/charDiffX)**(1/6)
-            # charX = charDiffX
+            # charX = charDiffX * (charSpacingX/charDiffX)**(1/6)  # using this, logistic.csv doesn't fit with sigmoid
+            charX = charDiffX
 
         # defaults
         xmul = charX**composite.dimension_arg if charX > 0 else charDiffX**composite.dimension_arg
@@ -1422,6 +1433,138 @@ class Optimizer:
         composite.prim.arg = xmul * ymul
 
         return composite.get_args()
+
+    @staticmethod
+    def fix_axes_labels(axes, xmin, xmax, ymin, ymax, xlabel):
+
+        #  proportion between xmin and xmax where the zero lies
+        # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
+        tx = max(0., -xmin / (xmax - xmin))
+        ty = max(0., -ymin / (max(ymax - ymin, 1e-5)))
+        offset_X, offset_Y = -0.07, -0.04  # how much of the screen is taken by the x and y spines
+
+        axes.xaxis.set_label_coords(1.050 - 0.005 * len(xlabel), offset_Y + ty)
+
+        # if ymin < 0 :
+        # else :
+        #     axes.xaxis.set_label_coords(0.5, offset_Y + ty)
+        #     # plt.tight_layout()
+
+        axes.yaxis.set_label_coords(offset_X + tx, +0.750)
+    def make_fit_image(self, model=None):
+
+        import matplotlib.ticker as ticker
+
+        x_points = []
+        y_points = []
+        sigma_x_points = []
+        sigma_y_points = []
+        upper_bar = []
+        lower_bar = []
+
+        for datum in self._data:
+            x_points.append(datum.pos)
+            y_points.append(datum.val)
+            sigma_x_points.append(datum.sigma_pos)
+            sigma_y_points.append(datum.sigma_val)
+            upper_bar = [y + dy for y, dy in zip(y_points, sigma_y_points)]
+            lower_bar = [y - dy for y, dy in zip(y_points, sigma_y_points)]
+
+        smooth_x_for_fit = np.linspace(min(x_points), max(x_points), 4 * len(x_points))
+
+        if model is not None:
+            plot_model = model.copy()
+        else:
+            plot_model = self._shown_model
+
+        fit_vals = [plot_model.eval_at(xi) for xi in smooth_x_for_fit]
+
+        # plt.close()
+        plt.figure(facecolor=(112 / 255, 146 / 255, 190 / 255),
+                   figsize=(6.4, 4.8),
+                   dpi=100 + int(np.log10(len(x_points)))
+                   )
+        plt.errorbar(x_points, y_points, xerr=sigma_x_points, yerr=sigma_y_points, fmt='o', color='k')
+        plt.plot(smooth_x_for_fit, fit_vals, '-', color='r')
+
+
+        plt.xlabel("x")
+        plt.ylabel("y")
+        axes: plt.axes = plt.gca()
+        # axes.tick_params(color='k', labelcolor='k')
+        # axes.xaxis.label.set_color('k')
+        # axes.yaxis.label.set_color('k')
+        # for spine in axes.spines.values():
+        #     spine.set_edgecolor(self._dataaxes_color)
+        if axes.get_xlim()[0] > 0:
+            axes.set_xlim([0, axes.get_xlim()[1]])
+        elif axes.get_xlim()[1] < 0:
+            axes.set_xlim([axes.get_xlim()[0], 0])
+        if axes.get_ylim()[0] > 0:
+            axes.set_ylim([0, axes.get_ylim()[1]])
+        elif axes.get_ylim()[1] < 0:
+            axes.set_ylim([axes.get_ylim()[0], 0])
+
+        axes.set(xscale="linear")
+        axes.spines['left'].set_position(('data', 0.))
+        axes.spines['right'].set_position(('data', 0.))
+        xmin, xmax = min(x_points), max(x_points)
+        log_deltaX = np.log10(xmax - xmin if xmax > xmin else 10) // 1
+        if log_deltaX > 4:
+            axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}"))
+        elif 0 <= log_deltaX <= 4:
+            axes.xaxis.set_major_formatter(ticker.FuncFormatter(
+                lambda x, pos: "" if x == 0 else (f"{x:.1F}" if (x - np.trunc(x)) ** 2 > 1e-10 else f"{int(x)}")))
+        elif log_deltaX == -1:
+            axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2F}"))
+        elif log_deltaX == -2:
+            axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.3F}"))
+        elif log_deltaX == -3:
+            axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.4F}"))
+        elif log_deltaX == -4:
+            axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.5F}"))
+        else:
+            axes.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}"))
+
+        axes.set(yscale="linear")
+        axes.spines['top'].set_position(('data', 0.))
+        axes.spines['bottom'].set_position(('data', 0.))
+        ymin, ymax = min(y_points), max(y_points)
+        log_deltaY = np.log10(ymax - ymin if ymax > ymin else 10) // 1
+        if log_deltaY > 4:
+            axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}"))
+        elif 0 <= log_deltaY <= 4:
+            axes.yaxis.set_major_formatter(
+                ticker.FuncFormatter(
+                    lambda x, pos: "" if x == 0 else (f"{x:.1F}" if (x - np.trunc(x)) ** 2 > 1e-10 else f"{int(x)}")
+                )
+            )
+        elif log_deltaY == -1:
+            axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2F}"))
+        elif log_deltaY == -2:
+            axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.3F}"))
+        elif log_deltaY == -3:
+            axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.4F}"))
+        elif log_deltaY == -4:
+            axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.5F}"))
+        else:
+            axes.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}"))
+
+        axes.set_facecolor((112 / 255, 146 / 255, 190 / 255))
+
+
+        self.fix_axes_labels(axes, min(x_points), max(x_points),
+                             min(lower_bar), max(upper_bar), 'x')
+
+
+        # https://stackoverflow.com/questions/38061267/matplotlib-graphic-image-to-base64
+        import io
+        import base64
+        my_stringIObytes = io.BytesIO()
+        plt.savefig(my_stringIObytes, format='png')
+        my_stringIObytes.seek(0)
+        my_base64_pngData = base64.b64encode(my_stringIObytes.read()).decode()
+        return my_base64_pngData
 
     def show_fit(self, model=None, pause_on_image = False):
 

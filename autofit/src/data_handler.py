@@ -1,7 +1,7 @@
 
 # built-in libraries
 import re as regex
-from typing import  Union
+from typing import Union
 
 # external libraries
 import numpy as np
@@ -240,7 +240,7 @@ class DataHandler:
         else:
             self.read_as_scatter(delim)
     def read_as_scatter(self,delim):
-
+        # should probably be using pandas pd.read_csv()
         with open(self._filepath) as file:
 
             # get headers if they exist
@@ -294,7 +294,7 @@ class DataHandler:
                                               )
                                       )
     def read_as_histogram(self,delim):
-
+        # should probably be using pandas pd.read_csv()
         vals = []
         with open(self._filepath) as file:
 
