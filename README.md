@@ -11,11 +11,11 @@
 
 ### Executables / Apps 
 
-Windows: [Version 0.3⭳](https://ingliswhalen.files.wordpress.com/2023/11/d6098-miw_autofit_03.zip)
+Windows: [Version 0.3⭳](https://ingliswhalen.files.wordpress.com/2023/11/99b60-miw_autofit_free_03.zip)
 
-MacOSX: [Version 0.3⭳](https://ingliswhalen.files.wordpress.com/2023/11/dc42b-miw_autofit_03_osx.zip)
+MacOSX: [Version 0.3⭳](https://ingliswhalen.files.wordpress.com/2023/11/a7ead-miw_autofit_free_03_osx.zip)
 
-Ubuntu: [Version 0.3⭳](https://ingliswhalen.files.wordpress.com/2023/11/48ae5-miw_autofit_03_linux.zip)
+Ubuntu: [Version 0.3⭳](https://ingliswhalen.files.wordpress.com/2023/11/5f4e1-miw_autofit_free_03_linux.zip)
 
 ### Tutorials
 
