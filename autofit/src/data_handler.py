@@ -8,8 +8,8 @@ import numpy as np
 from pandas import read_excel, isna
 
 # user-defined classes
-from autofit.src.datum1D import Datum1D
-from autofit.src.package import logger
+from .datum1D import Datum1D
+from .package import logger
 
 
 class DataHandler:

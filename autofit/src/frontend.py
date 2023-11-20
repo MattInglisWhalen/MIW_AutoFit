@@ -36,11 +36,11 @@ import scipy.special
 from PIL import Image
 
 # internal classes
-from autofit.src.composite_function import CompositeFunction
-from autofit.src.primitive_function import PrimitiveFunction
-from autofit.src.data_handler import DataHandler
-from autofit.src.optimizer import Optimizer
-from autofit.src.package import pkg_path, logger
+from .composite_function import CompositeFunction
+from .primitive_function import PrimitiveFunction
+from .data_handler import DataHandler
+from .optimizer import Optimizer
+from .package import pkg_path, logger
 
 
 # TODO:

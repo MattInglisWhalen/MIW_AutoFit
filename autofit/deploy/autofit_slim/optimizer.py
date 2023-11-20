@@ -21,7 +21,6 @@ from .package import logger, DEV
 from .algorithms import find_window_left, find_window_right, bisect
 
 
-
 class Optimizer:
     """
     Finds the top5 models for the current dataset. When a new dataset is provided, it can either generate a new
@@ -406,7 +405,7 @@ class Optimizer:
                 yield icomp
 
     # TODO: make a generator version of this e.g. [] -> ()
-    def build_composite_function_list(self, status_bar):  # status_bar : tk_label
+    def build_composite_function_list(self, status_bar):
         # the benefit of using this is that you can generate it once, and if the options don't change you don't need
         # to generate it again. Follow that logic
         if not self._regen_composite_flag :
