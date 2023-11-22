@@ -483,7 +483,7 @@ class DataHandler:
             try:
                 val = data_frame.iloc[loc[0],loc[1]]
             except IndexError:
-                print(data_frame)
+                logger(data_frame)
                 logger(f"Provided spreadsheet range is invalid for spreadsheet at {self._filepath}.")
             if idx == 0 and regex.search("[a-zA-Z]", str(val) ) :
                 self._x_label = val
@@ -500,7 +500,7 @@ class DataHandler:
             try:
                 val = data_frame.iloc[loc[0],loc[1]]
             except IndexError:
-                print(data_frame)
+                logger(data_frame)
                 logger(f"Provided spreadsheet range is invalid for spreadsheet at {self._filepath}.")
             if idx == 0 and regex.search("[a-zA-Z]", str(val) ) :
                 self._y_label = val
@@ -522,7 +522,7 @@ class DataHandler:
                 try:
                     val = data_frame.iloc[loc[0], loc[1]]
                 except IndexError:
-                    print(data_frame)
+                    logger(data_frame)
                     logger(f"Provided spreadsheet range is invalid for spreadsheet at {self._filepath}.")
                 if idx == 0 and regex.search("[a-zA-Z]", str(val) ):
                     pass
@@ -538,7 +538,7 @@ class DataHandler:
                 try:
                     val = data_frame.iloc[loc[0], loc[1]]
                 except IndexError:
-                    print(data_frame)
+                    logger(data_frame)
                     logger(f"Provided spreadsheet range is invalid for spreadsheet at {self._filepath}.")
                 if idx == 0 and regex.search("[a-zA-Z]", str(val) ):
                     pass
@@ -565,7 +565,7 @@ class DataHandler:
             try:
                 val = data_frame.iloc[loc[0],loc[1]]
             except IndexError:
-                print(data_frame)
+                logger(data_frame)
                 logger(f"Provided spreadsheet range is invalid for spreadsheet at {self._filepath}.")
             if idx == 0 and regex.search("[a-zA-Z]", str(val)) :
                 self._x_label = val

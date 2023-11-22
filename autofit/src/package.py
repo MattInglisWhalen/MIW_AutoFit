@@ -7,7 +7,7 @@ import sys
 # internal classes
 
 PACKAGE_PATH : str = ""
-DEV = 1  # 1 = print, 0 = log file, -1 = /dev/null
+DEV = 0  # 1 = print, 0 = log file, -1 = /dev/null
 
 def pkg_path():
     if PACKAGE_PATH == "" :

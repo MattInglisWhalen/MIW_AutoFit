@@ -34,6 +34,6 @@ datas=[('C:/Users/Matt/Documents/GitHub/MIW_AutoFit/autofit/icon.ico','.'),
            ('C:/Users/Matt/Documents/GitHub/MIW_AutoFit/autofit/plots','plots'),
            ('C:/Users/Matt/Documents/GitHub/MIW_AutoFit/autofit/data','data')],
 
-> pyinstaller MIW_autofit.spec
+> pyinstaller MIW_autofit_exe_maker.spec
 
 """
