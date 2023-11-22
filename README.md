@@ -11,7 +11,7 @@
 
 ### Executables / Apps 
 
-Windows: [Version 0.3⭳](https://ingliswhalen.files.wordpress.com/2023/11/99b60-miw_autofit_free_03.zip)
+Windows: [Version 0.4⭳](dl.dropboxusercontent.com/scl/fi/slssd91vwe0povac0zryg/MIWs_AutoFit_04_win.zip?rlkey=sxo89urgb44u089x165qmf08f&dl=0)
 
 MacOSX: [Version 0.3⭳](https://ingliswhalen.files.wordpress.com/2023/11/a7ead-miw_autofit_free_03_osx.zip)
 
