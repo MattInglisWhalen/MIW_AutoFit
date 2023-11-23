@@ -1268,9 +1268,9 @@ class Frontend:
             self.optimizer.find_best_model_for_dataset(status_bar=self._progress_label)
             self._fit_data_button.configure(text="Fit Data")
 
-            import pickle as pkl
-            with open('optimizer_pickle.pkl', 'wb') as f_o:
-                pkl.dump(self.optimizer, f_o)
+            # import pickle as pkl
+            # with open('optimizer_pickle.pkl', 'wb') as f_o:
+            #     pkl.dump(self.optimizer, f_o)
 
         elif self._model_name_tkstr.get() == "Brute-Force":
             logger("Brute forcing a procedural model")
@@ -2044,14 +2044,16 @@ class Frontend:
         # logger(type(event))
         d = event.delta / 120
         self._image_r *= (1 + d / 10)
+        self.save_defaults()
 
         if self._image_path in [f"{pkg_path()}/images/splash.png", f"{pkg_path()}/images/splash_mod.png"]:
             raw: Image = Image.open(f"{pkg_path()}/images/splash.png")
             resized = raw.resize((round(raw.width * self._image_r), round(raw.height * self._image_r)))
-            self._image_path = f"{pkg_path()}/splash_mod.png"
+            self._image_path = f"{pkg_path()}/images/splash_mod.png"
             resized.save(fp=self._image_path)
             self.switch_image()
             return
+
         if self._showing_fit_all_image:
             self.fit_all_command()
             # self.save_show_fit_all()  # this contains switch_image()
@@ -2924,7 +2926,6 @@ class Frontend:
         sigma_y_points = handler.unlogged_sigmay_data
         upper_bar = [ y+dy for y, dy in zip(y_points, sigma_y_points)]
         lower_bar = [ y-dy for y, dy in zip(y_points, sigma_y_points)]
-
 
         smooth_x_for_fit = np.linspace( min(x_points), max(x_points), 4 * len(x_points))
 
