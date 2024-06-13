@@ -28,6 +28,7 @@ from autofit.src.package import pkg_path, logger
 
 
 from matplotlib import ticker
+
 if sys.platform == "linux":
     import matplotlib
 
