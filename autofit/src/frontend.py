@@ -29,22 +29,22 @@ from autofit.src.package import pkg_path, logger
 
 from matplotlib import ticker
 
-if sys.platform == "linux":
-    import matplotlib
-
-    # use this with  hiddenimports=['PIL', 'PIL._imagingtk', 'PIL._tkinter_finder']
-    matplotlib.use("TkAgg")
-    # if that doesn't work, in optimizer.show_fit() change
-    #       plt.show(block=pause_on_image)
-    # to
-    # if sys.platform == "linux" :
-    #       import subprocess
-    #       plt.savefig(f"{pkg_path()}/plots/residuals", facecolor=...)
-    #       subprocess.call('xdg-open',f"{pkg_path()}/plots/residuals")
-    # else :
-    #       plt.show(block=pause_on_image)
-    #
-    # and also remove the inspect button
+# if sys.platform == "linux":
+#     import matplotlib
+#
+#     # use this with  hiddenimports=['PIL', 'PIL._imagingtk', 'PIL._tkinter_finder']
+#     matplotlib.use("TkAgg")
+#     # if that doesn't work, in optimizer.show_fit() change
+#     #       plt.show(block=pause_on_image)
+#     # to
+#     # if sys.platform == "linux" :
+#     #       import subprocess
+#     #       plt.savefig(f"{pkg_path()}/plots/residuals", facecolor=...)
+#     #       subprocess.call('xdg-open',f"{pkg_path()}/plots/residuals")
+#     # else :
+#     #       plt.show(block=pause_on_image)
+#     #
+#     # and also remove the inspect button
 import matplotlib.pyplot as plt
 
 # TODO:
