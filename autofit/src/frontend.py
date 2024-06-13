@@ -26,15 +26,13 @@ from autofit.src.data_handler import DataHandler
 from autofit.src.optimizer import Optimizer
 from autofit.src.package import pkg_path, logger
 
-import matplotlib.pyplot as plt
-from matplotlib import ticker
 
+from matplotlib import ticker
 if sys.platform == "linux":
     import matplotlib
 
-    matplotlib.use(
-        "TkAgg"
-    )  # use this with  hiddenimports=['PIL', 'PIL._imagingtk', 'PIL._tkinter_finder']
+    # use this with  hiddenimports=['PIL', 'PIL._imagingtk', 'PIL._tkinter_finder']
+    matplotlib.use("TkAgg")
     # if that doesn't work, in optimizer.show_fit() change
     #       plt.show(block=pause_on_image)
     # to
@@ -46,7 +44,7 @@ if sys.platform == "linux":
     #       plt.show(block=pause_on_image)
     #
     # and also remove the inspect button
-
+import matplotlib.pyplot as plt
 
 # TODO:
 # also Ubuntu, need matplotlib.use('TkAgg').
