@@ -39,7 +39,7 @@ Therefore, parents compose with the sum of their children, where each child repr
 Meanwhile, each `child` term represents the multiplication of a set of `brother` nodes
 $B_1 \ldots B_M(x)$ with primitive function $b_1(x) \ldots b_M(x)$, so that 
 
-$$C(x; B_1 \ldots B_M(x)) = B_1(x) \cdot B_2(x) \cdot \ldots$$
+$$C(x; B_1 \ldots B_M) = B_1(x) \cdot B_2(x) \cdot \ldots \cdot B_M(x)$$
 
 In this way multiplicative relationships are implemented in each term of a summation.
 
@@ -53,7 +53,7 @@ $$f(x) = A\cos(Bx+C) \cdot \sin(D\exp(x)\cdot\log(x)+Ex^2) + \frac{F}{x}$$
 
 As a trained physicist, my favourite measure for the goodness of fit is called the reduced chi-squared statistic
 
-$$\chi^2_{red} = \frac{\chi^2}{N_d} = \frac{1}{N_d} \sum_{i=1}^{N} \left(\frac{y_i-f(x_i)}{\sigma_i}\right)^2
+$$\chi^2_{red} = \frac{\chi^2}{N_d} = \frac{1}{N_d} \sum_{i=1}^{N} \left(\frac{y_i-f(x_i)}{\sigma_i}\right)^2$$
 
 where the sum is over each of the $N$ datapoints and $d$ is the number of degrees of freedom in
 the model (i.e. $d$ is the number of parameters to be fit). I like this statistic because when
