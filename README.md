@@ -99,7 +99,7 @@ should scale. It knows that in the model $y=A\exp(Bx)$, $A$ should scale like $[
 in the model $y=A\cos(Bx+C/x)$, $A$ should scale like $[Y]$, and $B$ should scale like $1/[X]$, and C should scale like $[X]$.
 
 But it's not as simple as taking the mean of x- and y-values. Sometimes the *extent* of x- and y-values is more important than
-their mean, so the difference between the maximum and minimum values is used instead. And for oscillatory behaviour, 
+their mean, so the difference between the maximum and minimum values is used instead as the canonical value for $[X]$. And for oscillatory behaviour, 
 it's the fundamental period of the oscillations that's more useful as a canonical length measurement. MIW's AutoFit
 can detect these scenarios, and intelligently implements different behaviours depending on the form of the model.
 
