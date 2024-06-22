@@ -23,7 +23,7 @@ def test_prim_init():
     default_prim = PrimitiveFunction()
     assert default_prim.name == "pow1"
     assert repr(default_prim) == "Prim pow1 uses pow1(x,arg) with coefficient 1.0"
-    assert default_prim._callable_1param is None
+    assert default_prim._callable_1param is None  # pylint: disable=protected-access
     assert default_prim.func is PrimitiveFunction.pow1
     assert_almost_equal(default_prim.eval_at(0.1), 0.1)
     assert_almost_equal(default_prim.eval_deriv_at(0.1), 1.0)
@@ -31,7 +31,7 @@ def test_prim_init():
     # with name and function specified
     test_prim = PrimitiveFunction(name="test_func", func=PrimitiveFunction.my_cos)
     assert test_prim.name == "test_func"
-    assert test_prim._callable_1param is None
+    assert test_prim._callable_1param is None  # pylint: disable=protected-access
     assert test_prim.func is PrimitiveFunction.my_cos
     assert_almost_equal(test_prim.eval_at(0.1), np.cos(0.1))
     assert_almost_equal(test_prim.eval_deriv_at(0.1), -np.sin(0.1))
@@ -39,10 +39,7 @@ def test_prim_init():
     # with name and other callable specified
     test_other = PrimitiveFunction(name="test_other", other_callable=np.exp)
     assert test_other.name == "test_other"
-    assert test_other._callable_1param is np.exp
-    # id1 = hex(id(test_other.func))
-    # id2 = hex(id(test_other.callable_2param))
-    # assert id1 == id2
+    assert test_other._callable_1param is np.exp  # pylint: disable=protected-access
     assert test_other.func.__name__ is test_other.callable_2param.__name__
     assert_almost_equal(test_other.eval_at(0.1), np.exp(0.1))
     assert_almost_equal(test_other.eval_deriv_at(0.1), np.exp(0.1))
@@ -97,9 +94,7 @@ def test_composite_helpers():
 
     for xval in xsuite:
 
-        assert_almost_equal(
-            PrimitiveFunction.dim0_pow2(xval, 0.1), -(xval**2) / (2 * 0.1**2)
-        )
+        assert_almost_equal(PrimitiveFunction.dim0_pow2(xval, 0.1), -(xval**2) / (2 * 0.1**2))
         assert_almost_equal(PrimitiveFunction.exp_dim1(xval, 0.1), np.exp(-xval / 0.1))
         assert_almost_equal(
             PrimitiveFunction.n_exp_dim2(xval, 0.1),

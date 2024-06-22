@@ -7,8 +7,7 @@ import re as regex
 from functools import partial
 from typing import Union
 
-# external libraries
-# import _tkinter
+# external packages
 import tkinter as tk
 import tkinter.filedialog as fd
 
@@ -18,17 +17,6 @@ from pandas import ExcelFile
 import scipy.stats
 import scipy.special
 from PIL import Image
-
-# internal classes
-from autofit.src.composite_function import CompositeFunction
-from autofit.src.primitive_function import PrimitiveFunction
-from autofit.src.data_handler import DataHandler
-from autofit.src.optimizer import Optimizer
-from autofit.src.package import pkg_path, logger
-
-
-from matplotlib import ticker
-
 # if sys.platform == "linux":
 #     import matplotlib
 #
@@ -46,6 +34,15 @@ from matplotlib import ticker
 #     #
 #     # and also remove the inspect button
 import matplotlib.pyplot as plt
+
+# internal classes
+from autofit.src.composite_function import CompositeFunction
+from autofit.src.primitive_function import PrimitiveFunction
+from autofit.src.data_handler import DataHandler
+from autofit.src.optimizer import Optimizer
+from autofit.src.package import pkg_path, logger
+import autofit.src.plot_formatter as pf
+
 
 # TODO:
 # also Ubuntu, need matplotlib.use('TkAgg').
@@ -107,7 +104,7 @@ class Frontend:
         self._all_sheets_in_file: tk.BooleanVar = tk.BooleanVar(value=False)
 
         # right panel ----------------------------------------------------------------------------->
-        self._MAX_MESSAGE_LENGTH = 20
+        self._max_message_length = 20
         self._num_messages_ever: int = 0
         self._num_messages: int = 0
 
@@ -297,9 +294,7 @@ class Frontend:
 
         if not Frontend._meipass_flag:
             self.add_message(f"  Directory is {pkg_path()}")
-        logger(
-            f"Package directory is {pkg_path()} with MEIPASS={Frontend._meipass_flag}"
-        )
+        logger(f"Package directory is {pkg_path()} with MEIPASS={Frontend._meipass_flag}")
         logger(f"Data directory is {Frontend.get_data_path()}")
         self._gui.geometry(
             f"{self._default_gui_width}x{self._default_gui_height}+{self._default_gui_x}"
@@ -605,7 +600,7 @@ class Frontend:
             log_on = int(self._use_func_dict_name_tkbool["log(x)"].get())
             pow_neg1_on = int(self._use_func_dict_name_tkbool["1/x"].get())
             custom_on = int(self._use_func_dict_name_tkbool["custom"].get())
-            if cos_on and sin_on and exp_on and log_on and pow_neg1_on and custom_on:
+            if all([cos_on, sin_on, exp_on, log_on, pow_neg1_on, custom_on]):
                 logger(
                     "You shouldn't have all functions turned on for a procedural fit. "
                     "Use brute-force instead."
@@ -675,18 +670,14 @@ class Frontend:
             self._default_gui_width = self._os_width * 3 // 4
         else:
             logger(f"Fine width {self._default_gui_width} {self._os_width * 7 / 6}")
-            self._default_gui_width = min(
-                self._default_gui_width, self._os_width * 7 // 6
-            )
+            self._default_gui_width = min(self._default_gui_width, self._os_width * 7 // 6)
 
         if self._default_gui_height <= self._os_height / 4 + 1:
             logger(f"Undersized height {self._default_gui_height} {self._os_height}")
             self._default_gui_height = self._os_height * 3 // 4
         else:
             logger(f"Fine height {self._default_gui_height} {self._os_height * 7 / 6}")
-            self._default_gui_height = min(
-                self._default_gui_height, self._os_height * 7 // 6
-            )
+            self._default_gui_height = min(self._default_gui_height, self._os_height * 7 // 6)
 
         gui.geometry(
             f"{self._default_gui_width}x{self._default_gui_height}"
@@ -731,14 +722,10 @@ class Frontend:
 
             restart_menu = tk.Menu(master=file_menu, tearoff=0)
             restart_are_you_sure_menu = tk.Menu(master=restart_menu, tearoff=0)
-            restart_are_you_sure_menu.add_command(
-                label="Yes", command=self.restart_command
-            )
+            restart_are_you_sure_menu.add_command(label="Yes", command=self.restart_command)
 
             file_menu.add_cascade(label="Restart", menu=restart_menu)
-            restart_menu.add_cascade(
-                label="Are you sure?", menu=restart_are_you_sure_menu
-            )
+            restart_menu.add_cascade(label="Are you sure?", menu=restart_are_you_sure_menu)
 
             exit_menu = tk.Menu(master=file_menu, tearoff=0)
             exit_are_you_sure_menu = tk.Menu(master=exit_menu, tearoff=0)
@@ -755,36 +742,22 @@ class Frontend:
         appearance_menu = tk.Menu(master=settings_menu, tearoff=0)
 
         self._background_menu = tk.Menu(master=appearance_menu, tearoff=0)
-        self._background_menu.add_command(
-            label="Default", command=self.bg_color_default
-        )
+        self._background_menu.add_command(label="Default", command=self.bg_color_default)
         self._background_menu.add_command(label="White", command=self.bg_color_white)
         self._background_menu.add_command(label="Dark", command=self.bg_color_dark)
         self._background_menu.add_command(label="Black", command=self.bg_color_black)
-        self.checkmark_background_options(
-            self._background_labels.index(self._default_bg_colour)
-        )
+        self.checkmark_background_options(self._background_labels.index(self._default_bg_colour))
 
         self._dataaxis_menu = tk.Menu(master=appearance_menu, tearoff=0)
-        self._dataaxis_menu.add_command(
-            label="Default", command=self.dataaxes_color_default
-        )
-        self._dataaxis_menu.add_command(
-            label="White", command=self.dataaxes_color_white
-        )
-        self.checkmark_dataaxis_options(
-            self._dataaxis_labels.index(self._default_dataaxes_colour)
-        )
+        self._dataaxis_menu.add_command(label="Default", command=self.dataaxes_color_default)
+        self._dataaxis_menu.add_command(label="White", command=self.dataaxes_color_white)
+        self.checkmark_dataaxis_options(self._dataaxis_labels.index(self._default_dataaxes_colour))
 
         self._fit_colour_menu = tk.Menu(master=appearance_menu, tearoff=0)
-        self._fit_colour_menu.add_command(
-            label="Default", command=self.fit_color_default
-        )
+        self._fit_colour_menu.add_command(label="Default", command=self.fit_color_default)
         self._fit_colour_menu.add_command(label="White", command=self.fit_color_white)
         self._fit_colour_menu.add_command(label="Black", command=self.fit_color_black)
-        self.checkmark_fit_colour_options(
-            self._fit_colour_labels.index(self._default_fit_colour)
-        )
+        self.checkmark_fit_colour_options(self._fit_colour_labels.index(self._default_fit_colour))
 
         image_size_menu = tk.Menu(master=appearance_menu, tearoff=0)
         image_size_menu.add_command(label="Up", command=self.mouse_wheel_up)
@@ -794,38 +767,24 @@ class Frontend:
         self._printout_background_menu.add_command(
             label="Default", command=self.console_color_default
         )
-        self._printout_background_menu.add_command(
-            label="White", command=self.console_color_white
-        )
-        self._printout_background_menu.add_command(
-            label="Pale", command=self.console_color_pale
-        )
+        self._printout_background_menu.add_command(label="White", command=self.console_color_white)
+        self._printout_background_menu.add_command(label="Pale", command=self.console_color_pale)
         self.checkmark_printout_background_options(
             self._printout_background_labels.index(self._default_console_colour)
         )
 
         self._printout_menu = tk.Menu(master=appearance_menu, tearoff=0)
-        self._printout_menu.add_command(
-            label="Default", command=self.printout_color_default
-        )
-        self._printout_menu.add_command(
-            label="White", command=self.printout_color_white
-        )
-        self._printout_menu.add_command(
-            label="Black", command=self.printout_color_black
-        )
-        self.checkmark_printout_options(
-            self._printout_labels.index(self._default_printout_colour)
-        )
+        self._printout_menu.add_command(label="Default", command=self.printout_color_default)
+        self._printout_menu.add_command(label="White", command=self.printout_color_white)
+        self._printout_menu.add_command(label="Black", command=self.printout_color_black)
+        self.checkmark_printout_options(self._printout_labels.index(self._default_printout_colour))
 
         gui_resolution_menu = tk.Menu(master=appearance_menu, tearoff=0)
         gui_resolution_menu.add_command(label="Up", command=self.size_up)
         gui_resolution_menu.add_command(label="Down", command=self.size_down)
 
         settings_menu.add_cascade(label="Appearance", menu=appearance_menu)
-        appearance_menu.add_cascade(
-            label="Image Background", menu=self._background_menu
-        )
+        appearance_menu.add_cascade(label="Image Background", menu=self._background_menu)
         appearance_menu.add_cascade(label="Data/Axis Colour", menu=self._dataaxis_menu)
         appearance_menu.add_cascade(label="Fit Colour", menu=self._fit_colour_menu)
         appearance_menu.add_cascade(label="Image Size", menu=image_size_menu)
@@ -852,11 +811,9 @@ class Frontend:
         self._criterion_menu.add_command(label="AIC", command=self.criterion_AIC)
         self._criterion_menu.add_command(label="AICc", command=self.criterion_AICc)
         self._criterion_menu.add_command(label="BIC", command=self.criterion_BIC)
-        self._criterion_menu.add_command(label="HQIC", command=self.criterion_HQ)
+        self._criterion_menu.add_command(label="HQIC", command=self.criterion_HQIC)
         self.checkmark_criterion_options(
-            self._criterion_labels.index(self._criterion)
-            if self._criterion != "rchisqr"
-            else 0
+            self._criterion_labels.index(self._criterion) if self._criterion != "rchisqr" else 0
         )
 
         settings_menu.add_cascade(label="Behaviour", menu=behaviour_menu)
@@ -957,9 +914,7 @@ class Frontend:
             return
 
         if self.brute_forcing or self._default_fit_type == "Brute Force":
-            logger(
-                "In load data command, we're loading a file while brute-forcing is on"
-            )
+            logger("In load data command, we're loading a file while brute-forcing is on")
             self.brute_forcing = False
 
         if self._new_user_stage % 2 != 0:
@@ -1104,8 +1059,7 @@ class Frontend:
         if sys.platform == "win32":
             explanation_label = tk.Label(
                 master=exp_frame,
-                text="\nThese settings will apply to all "
-                ".xls, .xlsx, and .ods files",
+                text="\nThese settings will apply to all " ".xls, .xlsx, and .ods files",
             )
         else:
             explanation_label = tk.Label(
@@ -1118,24 +1072,14 @@ class Frontend:
         self._gui.wait_window(dialog_box)
 
     # noinspection PyUnusedLocal
-    def close_dialog_box_command_excel(
-        self, bind_command=None
-    ):  # pylint: disable=unused-argument
+    def close_dialog_box_command_excel(self, bind_command=None):  # pylint: disable=unused-argument
 
         if self._popup_window is None:
             logger("Window already closed")
-        self._excel_x_range = (
-            self._popup_window.children["!frame"].children["!entry"].get()
-        )
-        self._excel_y_range = (
-            self._popup_window.children["!frame"].children["!entry2"].get()
-        )
-        self._excel_sigmax_range = (
-            self._popup_window.children["!frame"].children["!entry3"].get()
-        )
-        self._excel_sigmay_range = (
-            self._popup_window.children["!frame"].children["!entry4"].get()
-        )
+        self._excel_x_range = self._popup_window.children["!frame"].children["!entry"].get()
+        self._excel_y_range = self._popup_window.children["!frame"].children["!entry2"].get()
+        self._excel_sigmax_range = self._popup_window.children["!frame"].children["!entry3"].get()
+        self._excel_sigmay_range = self._popup_window.children["!frame"].children["!entry4"].get()
 
         if not DataHandler.valid_excel_endpoints(self._excel_x_range):
             self.add_message(f"\n \n> Invalid x-range {self._excel_x_range}")
@@ -1144,14 +1088,10 @@ class Frontend:
             self.add_message(f"\n \n> Invalid y-range {self._excel_y_range}")
             return
         if not DataHandler.valid_excel_endpoints(self._excel_sigmax_range):
-            self.add_message(
-                f"\n \n> Invalid range for x uncertainties {self._excel_sigmax_range}"
-            )
+            self.add_message(f"\n \n> Invalid range for x uncertainties {self._excel_sigmax_range}")
             return
         if not DataHandler.valid_excel_endpoints(self._excel_sigmay_range):
-            self.add_message(
-                f"\n \n> Invalid range for y uncertainties {self._excel_sigmay_range}"
-            )
+            self.add_message(f"\n \n> Invalid range for y uncertainties {self._excel_sigmay_range}")
             return
 
         self._default_excel_x_range = self._excel_x_range
@@ -1215,131 +1155,24 @@ class Frontend:
         axes.yaxis.label.set_color(self._dataaxes_color)
         for spine in axes.spines.values():
             spine.set_edgecolor(self._dataaxes_color)
-        if axes.get_xlim()[0] > 0:
-            axes.set_xlim([0, axes.get_xlim()[1]])
-        elif axes.get_xlim()[1] < 0:
-            axes.set_xlim([axes.get_xlim()[0], 0])
-        if axes.get_ylim()[0] > 0:
-            axes.set_ylim([0, axes.get_ylim()[1]])
-        elif axes.get_ylim()[1] < 0:
-            axes.set_ylim([axes.get_ylim()[0], 0])
 
-        # logger(f"Log flags : {self.data_handler.logx_flag} {self.data_handler.logy_flag}")
+        pf.zero_out_axes(axes)
+
         if self.data_handler.logx_flag:
             logger("Setting log x-scale in show_data")
-            log_min, log_max = np.log(min(x_points)), np.log(max(x_points))
-            logger(log_min, log_max, np.exp(log_min), np.exp(log_max))
-            axes.set_xlim(
-                [
-                    np.exp(log_min - (log_max - log_min) / 10),
-                    np.exp(log_max + (log_max - log_min) / 10),
-                ]
-            )
-            axes.set(xscale="log")
-            axes.spines["right"].set_visible(False)
+            pf.set_xaxis_format_log(axes, x_points)
         else:
-            axes.set(xscale="linear")
-            axes.spines["left"].set_position(("data", 0.0))
-            axes.spines["right"].set_position(("data", 0.0))
-            xmin, xmax = min(x_points), max(x_points)
-            log_deltaX = np.log10(xmax - xmin if xmax > xmin else 10) // 1
-            if log_deltaX > 4:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-                )
-            elif 0 <= log_deltaX <= 4:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(
-                        lambda x, pos: (
-                            ""
-                            if x == 0
-                            else (
-                                f"{x:.1F}"
-                                if (x - np.trunc(x)) ** 2 > 1e-10
-                                else f"{int(x)}"
-                            )
-                        )
-                    )
-                )
-            elif log_deltaX == -1:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2F}")
-                )
-            elif log_deltaX == -2:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.3F}")
-                )
-            elif log_deltaX == -3:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.4F}")
-                )
-            elif log_deltaX == -4:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.5F}")
-                )
-            else:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-                )
+            pf.set_xaxis_format_linear(axes, x_points)
 
         if self.data_handler.logy_flag:
             logger("Setting log y-scale in show_data")
-            axes.set(yscale="log")
-            log_min, log_max = np.log(min(y_points)), np.log(max(y_points))
-            axes.set_ylim(
-                [
-                    np.exp(log_min - (log_max - log_min) / 10),
-                    np.exp(log_max + (log_max - log_min) / 10),
-                ]
-            )
-            axes.spines["top"].set_visible(False)
+            pf.set_yaxis_format_log(axes, y_points)
         else:
-            axes.set(yscale="linear")
-            axes.spines["top"].set_position(("data", 0.0))
-            axes.spines["bottom"].set_position(("data", 0.0))
-            ymin, ymax = min(y_points), max(y_points)
-            log_deltaY = np.log10(ymax - ymin if ymax > ymin else 10) // 1
-            if log_deltaY > 4:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-                )
-            elif 0 <= log_deltaY <= 4:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(
-                        lambda x, pos: (
-                            ""
-                            if x == 0
-                            else (
-                                f"{x:.1F}"
-                                if (x - np.trunc(x)) ** 2 > 1e-10
-                                else f"{int(x)}"
-                            )
-                        )
-                    )
-                )
-            elif log_deltaY == -1:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2F}")
-                )
-            elif log_deltaY == -2:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.3F}")
-                )
-            elif log_deltaY == -3:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.4F}")
-                )
-            elif log_deltaY == -4:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.5F}")
-                )
-            else:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-                )
+            pf.set_yaxis_format_linear(axes, y_points)
+
         axes.set_facecolor(self._bg_color)
 
-        self.fix_axes_labels(
+        pf.fix_axes_labels(
             axes,
             min(x_points),
             max(x_points),
@@ -1347,18 +1180,6 @@ class Frontend:
             max(y_points),
             self.data_handler.x_label,
         )
-        # min_X, max_X = min(x_points), max(x_points)
-        # min_Y, max_Y = min(y_points), max(y_points)
-        # #  proportion between xmin and xmax where the zero lies
-        # # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
-        # tx = max(0., -min_X / (max_X - min_X))
-        # ty = max(0., -min_Y / (max(max_Y - min_Y, 1e-5)))
-        # offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
-        #
-        # axes.xaxis.set_label_coords(1.050, offset_Y + ty)
-        # axes.yaxis.set_label_coords(offset_X + tx, +0.750)
-        #
-        # plt.tight_layout()
         plt.savefig(self._image_path, facecolor=self._bg_color)
 
         # replace the splash graphic with the plot
@@ -1408,25 +1229,19 @@ class Frontend:
         # Find the fit for the currently displayed data
         if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"]:
             if self.current_model is not None:
-                self.optimizer.query_add_to_top5(
-                    self.current_model, self.current_covariance
-                )
+                self.optimizer.query_add_to_top5(self.current_model, self.current_covariance)
 
         if self._model_name_tkstr.get() == "Linear":
             logger("Fitting to linear model")
             plot_model = CompositeFunction.built_in("Linear")
             self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkstr.get() == "Polynomial":
-            logger(
-                f"Fitting to polynomial model of degree {self._polynomial_degree_tkint.get()}"
-            )
+            logger(f"Fitting to polynomial model of degree {self._polynomial_degree_tkint.get()}")
             plot_model = CompositeFunction.built_in(
                 f"Polynomial{self._polynomial_degree_tkint.get()}"
             )
             self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
-        elif (
-            self._model_name_tkstr.get() == "Gaussian" and self.data_handler.normalized
-        ):
+        elif self._model_name_tkstr.get() == "Gaussian" and self.data_handler.normalized:
             if self._gaussian_modal_tkint.get() > 1:
                 plot_model = CompositeFunction.built_in(
                     f"Gaussian{self._gaussian_modal_tkint.get()}"
@@ -1436,9 +1251,7 @@ class Frontend:
             logger(f"Fitting to {plot_model.name} distribution")
             self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkstr.get() == "Gaussian":
-            plot_model = CompositeFunction.built_in(
-                f"Gaussian{self._gaussian_modal_tkint.get()}"
-            )
+            plot_model = CompositeFunction.built_in(f"Gaussian{self._gaussian_modal_tkint.get()}")
             logger(f"Fitting to {plot_model.name} distribution")
             self.optimizer.fit_this_and_get_model_and_covariance(plot_model)
         elif self._model_name_tkstr.get() == "Sigmoid":
@@ -1448,10 +1261,7 @@ class Frontend:
         elif self._model_name_tkstr.get() == "Procedural":
 
             num_on = 2 + sum(
-                (
-                    1 if tkBool.get() else 0
-                    for tkBool in self._use_func_dict_name_tkbool.values()
-                )
+                (1 if tkBool.get() else 0 for tkBool in self._use_func_dict_name_tkbool.values())
             )
             num_nodes = num_on
             num_added = num_on
@@ -1464,9 +1274,7 @@ class Frontend:
                 f"generate ~{num_nodes} naive models."
             )
 
-            self.add_message(
-                f"   Stage 0/3: {0:>10} naive models generated, {0:>10} models fit."
-            )
+            self.add_message(f"   Stage 0/3: {0:>10} naive models generated, {0:>10} models fit.")
             self._fit_data_button.configure(text="Cancel")
             self.optimizer.find_best_model_for_dataset(status_bar=self._progress_label)
             self._fit_data_button.configure(text="Fit Data")
@@ -1648,9 +1456,7 @@ class Frontend:
             any((handler.normalized for handler in self._data_handlers))
             and not self.data_handler.normalized
         ):
-            status_good = self.data_handler.normalize_histogram_data(
-                error_handler=self.add_message
-            )
+            status_good = self.data_handler.normalize_histogram_data(error_handler=self.add_message)
             if not status_good:
                 return
         for handler in self._data_handlers:
@@ -1672,9 +1478,7 @@ class Frontend:
                 do_halving=True,
             )
             list_of_args.append(self.current_args)
-            logger(
-                f"Beelzebub={handler.shortpath} {self.current_args} +- {self.current_uncs}"
-            )
+            logger(f"Beelzebub={handler.shortpath} {self.current_args} +- {self.current_uncs}")
             list_of_uncertainties.append(self.current_uncs)
 
         means = []
@@ -1693,9 +1497,7 @@ class Frontend:
                 sum_variance += (par_list[idx] - mean) ** 2 / (N - 1) if N > 1 else 0
 
             ratio = sum_variance / (sum_variance + sum_uncertainty_sqr)
-            effective_variance = (
-                ratio * sum_variance + (1 - ratio) * sum_uncertainty_sqr
-            )
+            effective_variance = ratio * sum_variance + (1 - ratio) * sum_uncertainty_sqr
 
             means.append(mean)
             uncs.append(np.sqrt(effective_variance))
@@ -1749,9 +1551,7 @@ class Frontend:
             self.create_custom_function_button()
             return
 
-        self._custom_function_button.grid(
-            row=10, column=0, sticky="ws", padx=5, pady=10
-        )
+        self._custom_function_button.grid(row=10, column=0, sticky="ws", padx=5, pady=10)
 
     def dialog_box_new_function(self):
 
@@ -1803,14 +1603,11 @@ class Frontend:
             master=exp_frame, text="\nSupports numpy and scipy functions."
         )
         explanation_label1.grid(row=4, column=0, sticky="w")
-        explanation_label2 = tk.Label(
-            master=exp_frame, text="Avoid special characters and spaces."
-        )
+        explanation_label2 = tk.Label(master=exp_frame, text="Avoid special characters and spaces.")
         explanation_label2.grid(row=5, column=0, sticky="w")
         explanation_label3 = tk.Label(
             master=exp_frame,
-            text="The first letter of the name"
-            " should come before 's' in the alphabet.",
+            text="The first letter of the name" " should come before 's' in the alphabet.",
         )
         explanation_label3.grid(row=6, column=0, sticky="w")
 
@@ -1870,12 +1667,8 @@ class Frontend:
         self.save_defaults()
         self._popup_window.destroy()
 
-        logger(
-            f"Frontend.close_dialog(): custom names: >{self._custom_function_names}<"
-        )
-        logger(
-            f"Frontend.close_dialog(): custom defns: >{self._custom_function_forms}<"
-        )
+        logger(f"Frontend.close_dialog(): custom names: >{self._custom_function_names}<")
+        logger(f"Frontend.close_dialog(): custom defns: >{self._custom_function_forms}<")
 
     # RIGHT PANEL FUNCTIONS ----------------------------------------------------------------------->
 
@@ -1906,14 +1699,12 @@ class Frontend:
             self._num_messages_ever += 1
 
             new_message_label.update()  # required to scroll the console up when the buffer fills
-            self._MAX_MESSAGE_LENGTH = (
-                self._gui.winfo_height() // new_message_label.winfo_height()
-            )
+            self._max_message_length = self._gui.winfo_height() // new_message_label.winfo_height()
 
             self._progress_label = new_message_label
 
-        if self._num_messages > self._MAX_MESSAGE_LENGTH:
-            self.remove_n_messages(self._num_messages - self._MAX_MESSAGE_LENGTH)
+        if self._num_messages > self._max_message_length:
+            self.remove_n_messages(self._num_messages - self._max_message_length)
         return True
 
     def remove_n_messages(self, n):
@@ -1968,9 +1759,7 @@ class Frontend:
             deg = self._polynomial_degree_tkint.get()
             args = self.current_args
             uncs = (
-                self.current_uncs
-                if deg < self.max_poly_degree()
-                else [0 for _ in range(deg + 1)]
+                self.current_uncs if deg < self.max_poly_degree() else [0 for _ in range(deg + 1)]
             )
             if self.data_handler.logy_flag:
                 print_string += "\n>  Polynomial fit is LY = "
@@ -1985,13 +1774,10 @@ class Frontend:
             print_string += f"C{sub(0)}\n   where the constants are"
             for n in range(deg + 1):
                 val, sig = args[n], uncs[n]
-                print_string += (
-                    f"\n   C{sub(deg - n)} = {val:+.2E}  \u00B1  {sig:+.2E}\n"
-                )
+                print_string += f"\n   C{sub(deg - n)} = {val:+.2E}  \u00B1  {sig:+.2E}\n"
             if self.criterion != "rchisqr":
                 print_string += (
-                    f"  Goodness of fit: {self.criterion} = "
-                    f"{self.current_rchisqr:.2F}\n"
+                    f"  Goodness of fit: {self.criterion} = " f"{self.current_rchisqr:.2F}\n"
                 )
             else:
                 print_string += (
@@ -2036,16 +1822,14 @@ class Frontend:
             else:
                 print_string += f"\n>  {self.current_model.name} fit is y ="
             if self.data_handler.logx_flag:
-                print_string += (
-                    " A exp[-(LX-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
-                )
+                print_string += " A exp[-(LX-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
             else:
                 print_string += " A exp[-(x-\u03BC)\U000000B2/2\u03C3\U000000B2] with\n"
-            A, sigmaA = args[0], uncs[0]
+            A, sigma_A = args[0], uncs[0]
             sigma, sigmasigma = args[1], uncs[1]
             mu, sigmamu = args[2], uncs[2]
 
-            print_string += f"   A = {A:+.2E}  \u00B1  {sigmaA:.2E}\n"
+            print_string += f"   A = {A:+.2E}  \u00B1  {sigma_A:.2E}\n"
             print_string += f"   \u03BC = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
             print_string += f"   \u03C3 =  {sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
             if self.criterion != "rchisqr":
@@ -2058,10 +1842,7 @@ class Frontend:
                     f"  Goodness of fit: {self.sym_chi}{sup(2)}/dof = "
                     f"{self.optimizer.criterion(self.current_model):.2F}\n"
                 )
-        elif (
-            self.current_model.name[-8:] == "Gaussian"
-            and self._gaussian_modal_tkint.get() > 1
-        ):
+        elif self.current_model.name[-8:] == "Gaussian" and self._gaussian_modal_tkint.get() > 1:
             if self.data_handler.logy_flag:
                 print_string += f"\n>  {self.current_model.name} fit is LY ="
             else:
@@ -2083,17 +1864,14 @@ class Frontend:
                         f" A{sub(idx + 1)} exp[-(x-\u03BC{sub(idx + 1)})\U000000B2/2"
                         f"\u03C3{sub(idx + 1)}\U000000B2] with\n"
                     )
-                A, sigmaA = args[0], uncs[0]
+                A, sigma_A = args[0], uncs[0]
                 sigma, sigmasigma = args[1], uncs[1]
                 mu, sigmamu = args[2], uncs[2]
 
-                print_string += f"   A{sub(idx + 1)} = {A:+.2E}  \u00B1  {sigmaA:.2E}\n"
+                print_string += f"   A{sub(idx + 1)} = {A:+.2E}  \u00B1  {sigma_A:.2E}\n"
+                print_string += f"   \u03BC{sub(idx + 1)} = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
                 print_string += (
-                    f"   \u03BC{sub(idx + 1)} = {mu:+.2E}  \u00B1  {sigmamu:.2E}\n"
-                )
-                print_string += (
-                    f"   \u03C3{sub(idx + 1)} =  "
-                    f"{sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
+                    f"   \u03C3{sub(idx + 1)} =  " f"{sigma:.2E}  \u00B1  {sigmasigma:.2E}\n"
                 )
             if self.criterion != "rchisqr":
                 print_string += (
@@ -2115,15 +1893,15 @@ class Frontend:
                 print_string += " F + H/(1 + exp[-(LX-x0)/w] ) with\n"
             else:
                 print_string += " F + H/(1 + exp[-(x-x0)/w] ) with\n"
-            F, sigmaF = args[0], uncs[0]
-            H, sigmaH = args[1], uncs[1]
-            w, sigmaW = args[2], uncs[2]
-            x0, sigmax0 = args[3], uncs[3]
+            F, sigma_F = args[0], uncs[0]
+            H, sigma_H = args[1], uncs[1]
+            w, sigma_w = args[2], uncs[2]
+            x0, sigma_x0 = args[3], uncs[3]
 
-            print_string += f"   F  = {F:+.2E}  \u00B1  {sigmaF:.2E}\n"
-            print_string += f"   H  = {H:+.2E}  \u00B1  {sigmaH:.2E}\n"
-            print_string += f"   w  =  {w:.2E}  \u00B1  {sigmaW:.2E}\n"
-            print_string += f"   x0 = {x0:+.2E}  \u00B1  {sigmax0:.2E}\n"
+            print_string += f"   F  = {F:+.2E}  \u00B1  {sigma_F:.2E}\n"
+            print_string += f"   H  = {H:+.2E}  \u00B1  {sigma_H:.2E}\n"
+            print_string += f"   w  =  {w:.2E}  \u00B1  {sigma_w:.2E}\n"
+            print_string += f"   x0 = {x0:+.2E}  \u00B1  {sigma_x0:.2E}\n"
             if self.criterion != "rchisqr":
                 print_string += (
                     f"  Goodness of fit: {self.criterion} = "
@@ -2200,13 +1978,9 @@ class Frontend:
                 f"and LX = log(x/{self.data_handler.X0:.2E})\n"
             )
         elif self.data_handler.logy_flag:
-            print_string += (
-                f"Keep in mind that LY = log(y/{self.data_handler.Y0:.2E})\n"
-            )
+            print_string += f"Keep in mind that LY = log(y/{self.data_handler.Y0:.2E})\n"
         elif self.data_handler.logx_flag:
-            print_string += (
-                f"Keep in mind that LX = log(x/{self.data_handler.X0:.2E})\n"
-            )
+            print_string += f"Keep in mind that LX = log(x/{self.data_handler.X0:.2E})\n"
         self.add_message(print_string)
 
     def create_colors_console_menu(self):
@@ -2252,64 +2026,46 @@ class Frontend:
         self.load_splash_image()
 
     def create_data_perusal_frame(self):  # !frame2 : inspect, left<>right buttons
-        self._data_perusal_frame = tk.Frame(
-            master=self._gui.children["!frame2"], bg=self._sbf
-        )
+        self._data_perusal_frame = tk.Frame(master=self._gui.children["!frame2"], bg=self._sbf)
         self._data_perusal_frame.grid(row=1, column=0, sticky="ew")
         self._data_perusal_frame.grid_columnconfigure(0, weight=1)
 
-        data_perusal_frame_left = tk.Frame(
-            master=self._data_perusal_frame, bg=self._sbf
-        )
+        data_perusal_frame_left = tk.Frame(master=self._data_perusal_frame, bg=self._sbf)
         data_perusal_frame_left.grid(row=0, column=0, sticky="w")
 
-        data_perusal_frame_right = tk.Frame(
-            master=self._data_perusal_frame, bg=self._sbf
-        )
+        data_perusal_frame_right = tk.Frame(master=self._data_perusal_frame, bg=self._sbf)
         data_perusal_frame_right.grid(row=0, column=1, sticky="e")
 
     def create_fit_options_frame(
         self,
     ):  # !frame3 : fit type, procedural top5, pause/go, refit
-        self._fit_options_frame = tk.Frame(
-            master=self._gui.children["!frame2"], bg=self._sbf
-        )
+        self._fit_options_frame = tk.Frame(master=self._gui.children["!frame2"], bg=self._sbf)
         self._fit_options_frame.grid(
             row=3, column=0, sticky="w"
         )  # row2 is reserved for the black line
 
     def create_plot_options_frame(self):  # !frame4 : logx, logy, normalize
         self._gui.children["!frame2"].columnconfigure(1, minsize=50)
-        self._plot_options_frame = tk.Frame(
-            master=self._gui.children["!frame2"], bg=self._sbf
-        )
+        self._plot_options_frame = tk.Frame(master=self._gui.children["!frame2"], bg=self._sbf)
         self._plot_options_frame.grid(row=0, column=1, sticky="ns")
 
     # def create_linear_frame(self) : pass
     def create_polynomial_frame(self):  # !frame6 : depth of procedural fits
-        self._polynomial_frame = tk.Frame(
-            master=self._gui.children["!frame2"], bg=self._sbf
-        )
+        self._polynomial_frame = tk.Frame(master=self._gui.children["!frame2"], bg=self._sbf)
         self._polynomial_frame.grid(row=4, column=0, sticky="w")
 
     def create_gaussian_frame(self):  # !frame7 : depth of procedural fits
-        self._gaussian_frame = tk.Frame(
-            master=self._gui.children["!frame2"], bg=self._sbf
-        )
+        self._gaussian_frame = tk.Frame(master=self._gui.children["!frame2"], bg=self._sbf)
         self._gaussian_frame.grid(row=4, column=0, sticky="w")
 
     # def create_sigmoid_frame(self) : pass
     def create_procedural_frame(self):  # !frame5 : checkboxes, depth of procedural fit
-        self._procedural_frame = tk.Frame(
-            master=self._gui.children["!frame2"], bg=self._sbf
-        )
+        self._procedural_frame = tk.Frame(master=self._gui.children["!frame2"], bg=self._sbf)
         self._procedural_frame.grid(row=4, column=0, sticky="w")
 
     # def create_brute_force_frame(self) : pass
     def create_manual_frame(self):  # !frame6 : depth of procedural fits
-        self._manual_frame = tk.Frame(
-            master=self._gui.children["!frame2"], bg=self._sbf
-        )
+        self._manual_frame = tk.Frame(master=self._gui.children["!frame2"], bg=self._sbf)
         self._manual_frame.grid(row=4, column=0, sticky="w")
 
     # IMAGE frame --------------------------------------------------------------------------------->
@@ -2531,9 +2287,7 @@ class Frontend:
 
     def create_error_bands_button(self):
         self._error_bands_button = tk.Button(
-            master=self._gui.children["!frame2"]
-            .children["!frame2"]
-            .children["!frame2"],
+            master=self._gui.children["!frame2"].children["!frame2"].children["!frame2"],
             text="Error Bands",
             width=len("Error Bands") - self._platform_offset,
             font=(
@@ -2548,9 +2302,7 @@ class Frontend:
 
     def show_error_bands_command(self):
         if any(np.isinf(self.current_uncs)):
-            self.add_message(
-                "\n \n> Can't produce error bands with infinite uncertainty."
-            )
+            self.add_message("\n \n> Can't produce error bands with infinite uncertainty.")
             self._error_bands_button.configure(text="Error Bands")
             self._show_error_bands = 0
             return
@@ -2580,9 +2332,7 @@ class Frontend:
 
     def create_residuals_button(self):
         self._residuals_button = tk.Button(
-            master=self._gui.children["!frame2"]
-            .children["!frame2"]
-            .children["!frame2"],
+            master=self._gui.children["!frame2"].children["!frame2"].children["!frame2"],
             text="Residuals",
             width=len("Residuals") - self._platform_offset,
             font=(
@@ -2683,24 +2433,18 @@ class Frontend:
             return
 
         # rule of thumb
-        num_within_error_bars = sum(
-            (1 if -1 < norm_res < 1 else 0 for norm_res in norm_residuals)
-        )
+        num_within_error_bars = sum((1 if -1 < norm_res < 1 else 0 for norm_res in norm_residuals))
 
         touching_min = 0
         while True:
-            binomial_lowweight = scipy.stats.binom.cdf(
-                touching_min, len(residuals), 0.682689
-            )
+            binomial_lowweight = scipy.stats.binom.cdf(touching_min, len(residuals), 0.682689)
             if binomial_lowweight > 0.05:
                 break
             touching_min += 1
 
         touching_max = len(residuals)
         while True:
-            binomial_highweight = 1 - scipy.stats.binom.cdf(
-                touching_max, len(residuals), 0.682689
-            )
+            binomial_highweight = 1 - scipy.stats.binom.cdf(touching_max, len(residuals), 0.682689)
             if binomial_highweight > 0.05:
                 break
             touching_max -= 1
@@ -2737,104 +2481,70 @@ class Frontend:
                 )
 
         count_ulow = sum(
-            (
-                1 if res - sample_mean < sample_mean - 2 * std_dev else 0
-                for res in residuals
-            )
+            (1 if res - sample_mean < sample_mean - 2 * std_dev else 0 for res in residuals)
         )
         count_low = sum(
             (
-                (
-                    1
-                    if sample_mean - 2 * std_dev
-                    < res - sample_mean
-                    < sample_mean - std_dev
-                    else 0
-                )
+                (1 if sample_mean - 2 * std_dev < res - sample_mean < sample_mean - std_dev else 0)
                 for res in residuals
             )
         )
         count_middle = sum(
             (
-                (
-                    1
-                    if sample_mean - std_dev < res - sample_mean < sample_mean + std_dev
-                    else 0
-                )
+                (1 if sample_mean - std_dev < res - sample_mean < sample_mean + std_dev else 0)
                 for res in residuals
             )
         )
         count_high = sum(
             (
-                (
-                    1
-                    if sample_mean + std_dev
-                    < res - sample_mean
-                    < sample_mean + 2 * std_dev
-                    else 0
-                )
+                (1 if sample_mean + std_dev < res - sample_mean < sample_mean + 2 * std_dev else 0)
                 for res in residuals
             )
         )
         count_uhigh = sum(
-            (
-                1 if res - sample_mean > sample_mean + 2 * std_dev else 0
-                for res in residuals
-            )
+            (1 if res - sample_mean > sample_mean + 2 * std_dev else 0 for res in residuals)
         )
 
         # if we have independent trials, a binomial distribution for a sample of size N
         # will have 90% confidence regions between kmin and kmax
         kmin_fartail = 0
         while True:
-            binomial_lowweight = scipy.stats.binom.cdf(
-                kmin_fartail, len(residuals), 0.0227505
-            )
+            binomial_lowweight = scipy.stats.binom.cdf(kmin_fartail, len(residuals), 0.0227505)
             if binomial_lowweight > 0.05:
                 break
             kmin_fartail += 1
 
         kmax_fartail = len(residuals)
         while True:
-            binomial_highweight = 1 - scipy.stats.binom.cdf(
-                kmax_fartail, len(residuals), 0.0227505
-            )
+            binomial_highweight = 1 - scipy.stats.binom.cdf(kmax_fartail, len(residuals), 0.0227505)
             if binomial_highweight > 0.05:
                 break
             kmax_fartail -= 1
 
         kmin_tail = 0
         while True:
-            binomial_lowweight = scipy.stats.binom.cdf(
-                kmin_tail, len(residuals), 0.135905
-            )
+            binomial_lowweight = scipy.stats.binom.cdf(kmin_tail, len(residuals), 0.135905)
             if binomial_lowweight > 0.05:
                 break
             kmin_tail += 1
 
         kmax_tail = len(residuals)
         while True:
-            binomial_highweight = 1 - scipy.stats.binom.cdf(
-                kmax_tail, len(residuals), 0.135905
-            )
+            binomial_highweight = 1 - scipy.stats.binom.cdf(kmax_tail, len(residuals), 0.135905)
             if binomial_highweight > 0.05:
                 break
             kmax_tail -= 1
 
         kmin_centre = 0
         while True:
-            binomial_lowweight = scipy.stats.binom.cdf(
-                kmin_centre, len(residuals), 0.682689
-            )
+            binomial_lowweight = scipy.stats.binom.cdf(kmin_centre, len(residuals), 0.682689)
             if binomial_lowweight > 0.05:
                 break
             kmin_centre += 1
 
         kmax_centre = len(residuals)
         while True:
-            binomial_highweight = 1 - scipy.stats.binom.cdf(
-                kmax_centre, len(residuals), 0.682689
-            )
+            binomial_highweight = 1 - scipy.stats.binom.cdf(kmax_centre, len(residuals), 0.682689)
             if binomial_highweight > 0.05:
                 break
             kmax_centre -= 1
@@ -2844,16 +2554,14 @@ class Frontend:
             f"{kmin_fartail} ≤ {count_ulow} ≤ {kmax_fartail} "
         )
         logger(
-            f"If residuals were normally distributed, "
-            f"{kmin_tail} ≤ {count_low} ≤ {kmax_tail} "
+            f"If residuals were normally distributed, " f"{kmin_tail} ≤ {count_low} ≤ {kmax_tail} "
         )
         logger(
             f"If residuals were normally distributed, "
             f"{kmin_centre} ≤ {count_middle} ≤ {kmax_centre} "
         )
         logger(
-            f"If residuals were normally distributed, "
-            f"{kmin_tail} ≤ {count_high} ≤ {kmax_tail} "
+            f"If residuals were normally distributed, " f"{kmin_tail} ≤ {count_high} ≤ {kmax_tail} "
         )
         logger(
             f"If residuals were normally distributed, "
@@ -2891,9 +2599,7 @@ class Frontend:
         logger(f"\n{W=} {alpha=}")
         self.add_message(f"  Shapiro-Wilk       : p = {alpha:.5F}")
 
-        A2, crit, sig = scipy.stats.anderson(
-            residuals, dist="norm"
-        )  # free mean, free variance
+        A2, crit, sig = scipy.stats.anderson(residuals, dist="norm")  # free mean, free variance
         logger(f"{A2=} {crit=} {sig=}")
         threshold_idx = -1
         for idx, icrit in enumerate(crit):
@@ -2902,9 +2608,7 @@ class Frontend:
         if threshold_idx < 0:
             self.add_message(f"  Anderson-Darling   : p > {sig[0] * 0.01:.2F}")
         else:
-            self.add_message(
-                f"  Anderson-Darling   : p < {sig[threshold_idx] * 0.01:.2F}"
-            )
+            self.add_message(f"  Anderson-Darling   : p < {sig[threshold_idx] * 0.01:.2F}")
 
         # kolmogorov, kol_pvalue = scipy.stats.kstest(residuals,'norm')
         kolmogorov, kol_pvalue = scipy.stats.kstest(
@@ -2917,9 +2621,7 @@ class Frontend:
             self.add_message(f"  Kolmogorov-Smirnov : p = {kol_pvalue:.2E}")
 
         if len(residuals) > 8:
-            dagostino, dag_pvalue = scipy.stats.normaltest(
-                residuals
-            )  # free mean, free variance
+            dagostino, dag_pvalue = scipy.stats.normaltest(residuals)  # free mean, free variance
             logger(f"{dagostino=} {dag_pvalue=}")
             if dag_pvalue > 1e-5:
                 self.add_message(f"  d'Agostino         : p = {dag_pvalue:.5F}")
@@ -3036,9 +2738,7 @@ class Frontend:
 
         top5_list = [
             f"{rx_sqr:.2F}: {name}"
-            for rx_sqr, name in zip(
-                self._optimizer.top5_rchisqrs, self._optimizer.top5_names
-            )
+            for rx_sqr, name in zip(self._optimizer.top5_rchisqrs, self._optimizer.top5_names)
         ]
 
         max_len = max((len(x) for x in top5_list))
@@ -3046,9 +2746,7 @@ class Frontend:
         self._which5_name_tkstr = tk.StringVar(self._fit_options_frame)
         self._which5_name_tkstr.set("Top 5")
 
-        top5_dropdown = tk.OptionMenu(
-            self._fit_options_frame, self._which5_name_tkstr, *top5_list
-        )
+        top5_dropdown = tk.OptionMenu(self._fit_options_frame, self._which5_name_tkstr, *top5_list)
         top5_dropdown.configure(width=max_len - self._platform_offset)
 
         top5_dropdown.configure(
@@ -3066,17 +2764,13 @@ class Frontend:
         )
         top5_dropdown.grid(row=0, column=1)
 
-        self._which_tr_id = self._which5_name_tkstr.trace_add(
-            "write", self.which5_dropdown_trace
-        )
+        self._which_tr_id = self._which5_name_tkstr.trace_add("write", self.which5_dropdown_trace)
         # ^ trace_add used to be trace which is deprecated
 
     def set_which5_no_trace(self, arg):
         self._which5_name_tkstr.trace_vdelete("w", self._which_tr_id)
         self._which5_name_tkstr.set(arg)
-        self._which_tr_id = self._which5_name_tkstr.trace(
-            "w", self.which5_dropdown_trace
-        )
+        self._which_tr_id = self._which5_name_tkstr.trace("w", self.which5_dropdown_trace)
 
     # noinspection PyUnusedLocal
     def which5_dropdown_trace(self, *args) -> None:  # pylint: disable=unused-argument
@@ -3117,9 +2811,7 @@ class Frontend:
         top5_dropdown["menu"].delete(0, tk.END)
         top5_list = [
             f"{rx_sqr:.2F}: {name}" if rx_sqr < 1000 else f"----: {name}"
-            for rx_sqr, name in zip(
-                self.optimizer.top5_rchisqrs, self.optimizer.top5_names
-            )
+            for rx_sqr, name in zip(self.optimizer.top5_rchisqrs, self.optimizer.top5_names)
         ]
         for label in top5_list:
             top5_dropdown["menu"].add_command(
@@ -3315,9 +3007,7 @@ class Frontend:
         # logger("Making log_y raised")
         self._logy_button.configure(relief=tk.RAISED)
 
-        if (
-            not self.data_handler.logx_flag and self.data_handler.histogram_flag
-        ):  # purpose?
+        if not self.data_handler.logx_flag and self.data_handler.histogram_flag:  # purpose?
             self.show_normalize_button()
 
     def create_normalize_button(self):
@@ -3374,9 +3064,7 @@ class Frontend:
 
     def update_data_select(self):
         # left frame
-        text_label: tk.Label = self._data_perusal_frame.children["!frame"].children[
-            "!label"
-        ]
+        text_label: tk.Label = self._data_perusal_frame.children["!frame"].children["!label"]
         if self._showing_fit_all_image:
             text_label.configure(
                 text=f"-/{len(self._data_handlers)}",
@@ -3400,62 +3088,29 @@ class Frontend:
             shifted_args[idx] = arg + abs(arg) / 1e5
             shifted_model = self.current_model.copy()
             shifted_model.args = shifted_args
+            _X0, _Y0 = self.data_handler.X0, self.data_handler.Y0
             if self.data_handler.logx_flag and self.data_handler.logy_flag:
-                par_derivs.append(
-                    (
-                        shifted_model.eval_at(
-                            xval, X0=self.data_handler.X0, Y0=self.data_handler.Y0
-                        )
-                        - self.current_model.eval_at(
-                            xval, X0=self.data_handler.X0, Y0=self.data_handler.Y0
-                        )
-                    )
-                    / (abs(arg) / 1e5)
-                )
+                y2 = shifted_model.eval_at(xval, X0=_X0, Y0=_Y0)
+                y1 = self.current_model.eval_at(xval, X0=_X0, Y0=_Y0)
+                par_derivs.append((y2 - y1) / (abs(arg) / 1e5))
             elif self.data_handler.logx_flag:
-                par_derivs.append(
-                    (
-                        shifted_model.eval_at(xval, X0=self.data_handler.X0)
-                        - self.current_model.eval_at(xval, X0=self.data_handler.X0)
-                    )
-                    / (abs(arg) / 1e5)
-                )
+                y2 = shifted_model.eval_at(xval, X0=_X0)
+                y1 = self.current_model.eval_at(xval, X0=_X0)
+                par_derivs.append((y2 - y1) / (abs(arg) / 1e5))
             elif self.data_handler.logy_flag:
-                par_derivs.append(
-                    (
-                        shifted_model.eval_at(xval, Y0=self.data_handler.Y0)
-                        - self.current_model.eval_at(xval, Y0=self.data_handler.Y0)
-                    )
-                    / (abs(arg) / 1e5)
-                )
+                y2 = shifted_model.eval_at(xval, Y0=_Y0)
+                y1 = self.current_model.eval_at(xval, Y0=_Y0)
+                par_derivs.append((y2 - y1) / (abs(arg) / 1e5))
             else:
-                par_derivs.append(
-                    (shifted_model.eval_at(xval) - self.current_model.eval_at(xval))
-                    / (abs(arg) / 1e5)
-                )
+                y2 = shifted_model.eval_at(xval)
+                y1 = self.current_model.eval_at(xval)
+                par_derivs.append((y2 - y1) / (abs(arg) / 1e5))
 
         partial_V_partial = 0
         for i, _ in enumerate(self.current_args):
             for j, _ in enumerate(self.current_args):
-                partial_V_partial += (
-                    par_derivs[i] * self.current_covariance[i, j] * par_derivs[j]
-                )
+                partial_V_partial += par_derivs[i] * self.current_covariance[i, j] * par_derivs[j]
         return np.sqrt(partial_V_partial)
-
-    @staticmethod
-    def fix_axes_labels(axes, xmin, xmax, ymin, ymax, xlabel):
-
-        #  proportion between xmin and xmax where the zero lies
-        # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
-        tx = max(0.0, -xmin / (xmax - xmin))
-        ty = max(0.0, -ymin / (max(ymax - ymin, 1e-5)))
-
-        # how much of the screen is taken by the x and y spines
-        offset_X, offset_Y = -0.07, -0.04
-
-        axes.xaxis.set_label_coords(1.050 - 0.005 * len(xlabel), offset_Y + ty)
-
-        axes.yaxis.set_label_coords(offset_X + tx, +0.750)
 
     def save_show_fit_image(self):
 
@@ -3478,15 +3133,9 @@ class Frontend:
                 for xi in smooth_x_for_fit
             ]
         elif handler.logx_flag:
-            fit_vals = [
-                plot_model.eval_at(xi, X0=self.data_handler.X0)
-                for xi in smooth_x_for_fit
-            ]
+            fit_vals = [plot_model.eval_at(xi, X0=self.data_handler.X0) for xi in smooth_x_for_fit]
         elif handler.logy_flag:
-            fit_vals = [
-                plot_model.eval_at(xi, Y0=self.data_handler.Y0)
-                for xi in smooth_x_for_fit
-            ]
+            fit_vals = [plot_model.eval_at(xi, Y0=self.data_handler.Y0) for xi in smooth_x_for_fit]
         else:
             fit_vals = [plot_model.eval_at(xi) for xi in smooth_x_for_fit]
 
@@ -3540,126 +3189,22 @@ class Frontend:
         axes.yaxis.label.set_color(self._dataaxes_color)
         for spine in axes.spines.values():
             spine.set_edgecolor(self._dataaxes_color)
-        if axes.get_xlim()[0] > 0:
-            axes.set_xlim([0, axes.get_xlim()[1]])
-        elif axes.get_xlim()[1] < 0:
-            axes.set_xlim([axes.get_xlim()[0], 0])
-        if axes.get_ylim()[0] > 0:
-            axes.set_ylim([0, axes.get_ylim()[1]])
-        elif axes.get_ylim()[1] < 0:
-            axes.set_ylim([axes.get_ylim()[0], 0])
+
+        pf.zero_out_axes(axes)
 
         if handler.logx_flag:
-            log_min, log_max = np.log(min(x_points)), np.log(max(x_points))
-            axes.set_xlim(
-                [
-                    np.exp(log_min - (log_max - log_min) / 10),
-                    np.exp(log_max + (log_max - log_min) / 10),
-                ]
-            )
-            axes.set(xscale="log")
-            axes.spines["right"].set_visible(False)
+            pf.set_xaxis_format_log(axes, x_points)
         else:
-            axes.set(xscale="linear")
-            axes.spines["left"].set_position(("data", 0.0))
-            axes.spines["right"].set_position(("data", 0.0))
-            xmin, xmax = min(x_points), max(x_points)
-            log_deltaX = np.log10(xmax - xmin if xmax > xmin else 10) // 1
-            if log_deltaX > 4:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-                )
-            elif 0 <= log_deltaX <= 4:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(
-                        lambda x, pos: (
-                            ""
-                            if x == 0
-                            else (
-                                f"{x:.1F}"
-                                if (x - np.trunc(x)) ** 2 > 1e-10
-                                else f"{int(x)}"
-                            )
-                        )
-                    )
-                )
-            elif log_deltaX == -1:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2F}")
-                )
-            elif log_deltaX == -2:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.3F}")
-                )
-            elif log_deltaX == -3:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.4F}")
-                )
-            elif log_deltaX == -4:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.5F}")
-                )
-            else:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-                )
+            pf.set_xaxis_format_linear(axes, x_points)
+
         if handler.logy_flag:
-            axes.set(yscale="log")
-            log_min, log_max = np.log(min(y_points)), np.log(max(y_points))
-            axes.set_ylim(
-                [
-                    np.exp(log_min - (log_max - log_min) / 10),
-                    np.exp(log_max + (log_max - log_min) / 10),
-                ]
-            )
-            axes.spines["top"].set_visible(False)
+            pf.set_yaxis_format_log(axes, y_points)
         else:
-            axes.set(yscale="linear")
-            axes.spines["top"].set_position(("data", 0.0))
-            axes.spines["bottom"].set_position(("data", 0.0))
-            ymin, ymax = min(y_points), max(y_points)
-            log_deltaY = np.log10(ymax - ymin if ymax > ymin else 10) // 1
-            if log_deltaY > 4:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-                )
-            elif 0 <= log_deltaY <= 4:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(
-                        lambda x, pos: (
-                            ""
-                            if x == 0
-                            else (
-                                f"{x:.1F}"
-                                if (x - np.trunc(x)) ** 2 > 1e-10
-                                else f"{int(x)}"
-                            )
-                        )
-                    )
-                )
-            elif log_deltaY == -1:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2F}")
-                )
-            elif log_deltaY == -2:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.3F}")
-                )
-            elif log_deltaY == -3:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.4F}")
-                )
-            elif log_deltaY == -4:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.5F}")
-                )
-            else:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-                )
+            pf.set_yaxis_format_linear(axes, y_points)
+
         axes.set_facecolor(self._bg_color)
 
-        self.fix_axes_labels(
+        pf.fix_axes_labels(
             axes,
             min(x_points),
             max(x_points),
@@ -3667,18 +3212,6 @@ class Frontend:
             max(upper_bar),
             self.data_handler.x_label,
         )
-        # min_X, max_X = min(x_points), max(x_points)
-        # min_Y, max_Y = min(y_points), max(y_points)
-        # #  tx is the proportion between xmin and xmax where the zero lies
-        # # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
-        # tx = max(0., -min_X / (max_X - min_X))
-        # ty = max(0., -min_Y / (max_Y - min_Y))
-        # offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
-        #
-        # axes.xaxis.set_label_coords(1.050, offset_Y + ty)
-        # axes.yaxis.set_label_coords(offset_X + tx, +0.750)
-        #
-        # plt.tight_layout()
         plt.savefig(self._image_path, facecolor=self._bg_color)
 
         # change the view to show the fit as well
@@ -3691,8 +3224,8 @@ class Frontend:
         plot_model = self.optimizer.shown_model.copy()
 
         num_sets = len(self._data_handlers)
-        abs_minX, abs_minY = 1e5, 1e5
-        abs_maxX, abs_maxY = -1e5, -1e5
+        abs_min_x, abs_min_y = 1e5, 1e5
+        abs_max_x, abs_max_y = -1e5, -1e5
 
         sum_len = 0
 
@@ -3721,28 +3254,19 @@ class Frontend:
             logger(f"{plot_model.args=}")
             if handler.logx_flag and handler.logy_flag:
                 fit_vals = [
-                    plot_model.eval_at(xi, X0=handler.X0, Y0=handler.Y0)
-                    for xi in smooth_x_for_fit
+                    plot_model.eval_at(xi, X0=handler.X0, Y0=handler.Y0) for xi in smooth_x_for_fit
                 ]
             elif handler.logx_flag:
-                fit_vals = [
-                    plot_model.eval_at(xi, X0=handler.X0) for xi in smooth_x_for_fit
-                ]
+                fit_vals = [plot_model.eval_at(xi, X0=handler.X0) for xi in smooth_x_for_fit]
             elif handler.logy_flag:
-                fit_vals = [
-                    plot_model.eval_at(xi, Y0=handler.Y0) for xi in smooth_x_for_fit
-                ]
+                fit_vals = [plot_model.eval_at(xi, Y0=handler.Y0) for xi in smooth_x_for_fit]
             else:
                 fit_vals = [plot_model.eval_at(xi) for xi in smooth_x_for_fit]
 
             # col = 255 ** (idx/num_sets) / 255
             # col = np.sqrt(idx / num_sets)
             col_tuple = [
-                (
-                    icol / max(self._dataaxes_color)
-                    if max(self._dataaxes_color) > 0
-                    else 1
-                )
+                (icol / max(self._dataaxes_color) if max(self._dataaxes_color) > 0 else 1)
                 * (idx / num_sets)
                 for icol in self._dataaxes_color
             ]
@@ -3756,18 +3280,18 @@ class Frontend:
             )
             plt.plot(smooth_x_for_fit, fit_vals, "-", color=col_tuple)
 
-            min_X, max_X = min(x_points), max(x_points)
-            min_Y, max_Y = min(y_points), max(y_points)
+            min_x, max_x = min(x_points), max(x_points)
+            min_y, max_y = min(y_points), max(y_points)
 
-            abs_minX = min(abs_minX, min_X)
-            abs_minY = min(abs_minY, min_Y)
-            abs_maxX = max(abs_maxX, max_X)
-            abs_maxY = max(abs_maxY, max_Y)
+            abs_min_x = min(abs_min_x, min_x)
+            abs_min_y = min(abs_min_y, min_y)
+            abs_max_x = max(abs_max_x, max_x)
+            abs_max_y = max(abs_max_y, max_y)
 
             plt.draw()
 
         # also add average fit
-        smooth_x_for_fit = np.linspace(abs_minX, abs_maxX, sum_len)
+        smooth_x_for_fit = np.linspace(abs_min_x, abs_max_x, sum_len)
         if self.data_handler.logx_flag and self.data_handler.logy_flag:
             fit_vals = [
                 self.optimizer.shown_model.eval_at(
@@ -3786,9 +3310,7 @@ class Frontend:
                 for xi in smooth_x_for_fit
             ]
         else:
-            fit_vals = [
-                self.optimizer.shown_model.eval_at(xi) for xi in smooth_x_for_fit
-            ]
+            fit_vals = [self.optimizer.shown_model.eval_at(xi) for xi in smooth_x_for_fit]
 
         plt.plot(smooth_x_for_fit, fit_vals, "-", color=self._fit_color)
         if self._show_error_bands in [1, 3]:
@@ -3812,138 +3334,26 @@ class Frontend:
         plt.xlabel(self.data_handler.x_label)
         plt.ylabel(self.data_handler.y_label)
 
-        if axes.get_xlim()[0] > 0:
-            axes.set_xlim([0, axes.get_xlim()[1]])
-        elif axes.get_xlim()[1] < 0:
-            axes.set_xlim([axes.get_xlim()[0], 0])
-        if axes.get_ylim()[0] > 0:
-            axes.set_ylim([0, axes.get_ylim()[1]])
-        elif axes.get_ylim()[1] < 0:
-            axes.set_ylim([axes.get_ylim()[0], 0])
+        pf.zero_out_axes(axes)
 
         if self.data_handler.logx_flag:
-            log_min, log_max = np.log(abs_minX), np.log(abs_maxX)
-            axes.set_xlim(
-                [
-                    np.exp(log_min - (log_max - log_min) / 10),
-                    np.exp(log_max + (log_max - log_min) / 10),
-                ]
-            )
-            axes.set(xscale="log")
-            axes.spines["right"].set_visible(False)
+            pf.set_xaxis_format_log(axes, xminmax=(abs_min_x, abs_max_x))
         else:
-            axes.set(xscale="linear")
-            axes.spines["left"].set_position(("data", 0.0))
-            axes.spines["right"].set_position(("data", 0.0))
-            xmin, xmax = min(x_points), max(x_points)
-            log_deltaX = np.log10(xmax - xmin if xmax > xmin else 10) // 1
-            if log_deltaX > 4:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-                )
-            elif 0 <= log_deltaX <= 4:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(
-                        lambda x, pos: (
-                            ""
-                            if x == 0
-                            else (
-                                f"{x:.1F}"
-                                if (x - np.trunc(x)) ** 2 > 1e-10
-                                else f"{int(x)}"
-                            )
-                        )
-                    )
-                )
-            elif log_deltaX == -1:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2F}")
-                )
-            elif log_deltaX == -2:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.3F}")
-                )
-            elif log_deltaX == -3:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.4F}")
-                )
-            elif log_deltaX == -4:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.5F}")
-                )
-            else:
-                axes.xaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-                )
+            pf.set_xaxis_format_linear(axes, xminmax=(abs_min_x, abs_max_x))
         if self.data_handler.logy_flag:
-            axes.set(yscale="log")
-            log_min, log_max = np.log(abs_minY), np.log(abs_maxY)
-            axes.set_ylim(
-                [
-                    np.exp(log_min - (log_max - log_min) / 10),
-                    np.exp(log_max + (log_max - log_min) / 10),
-                ]
-            )
-            axes.spines["top"].set_visible(False)
+            pf.set_yaxis_format_log(axes, yminmax=(abs_min_y, abs_max_y))
         else:
-            axes.set(yscale="linear")
-            axes.spines["top"].set_position(("data", 0.0))
-            axes.spines["bottom"].set_position(("data", 0.0))
-            ymin, ymax = min(y_points), max(y_points)
-            log_deltaY = np.log10(ymax - ymin if ymax > ymin else 10) // 1
-            if log_deltaY > 4:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-                )
-            elif 0 <= log_deltaY <= 4:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(
-                        lambda x, pos: (
-                            ""
-                            if x == 0
-                            else (
-                                f"{x:.1F}"
-                                if (x - np.trunc(x)) ** 2 > 1e-10
-                                else f"{int(x)}"
-                            )
-                        )
-                    )
-                )
-            elif log_deltaY == -1:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2F}")
-                )
-            elif log_deltaY == -2:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.3F}")
-                )
-            elif log_deltaY == -3:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.4F}")
-                )
-            elif log_deltaY == -4:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.5F}")
-                )
-            else:
-                axes.yaxis.set_major_formatter(
-                    ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-                )
+            pf.set_yaxis_format_linear(axes, yminmax=(abs_min_y, abs_max_y))
         axes.set_facecolor(self._bg_color)
 
-        self.fix_axes_labels(
-            axes, abs_minX, abs_maxX, abs_minY, abs_maxY, self.data_handler.x_label
+        pf.fix_axes_labels(
+            axes,
+            abs_min_x,
+            abs_max_x,
+            abs_min_y,
+            abs_max_y,
+            self.data_handler.x_label,
         )
-        # #  tx is the proportion between xmin and xmax where the zero lies
-        # # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
-        # tx = max(0., -abs_minX / (abs_maxX - abs_minX))
-        # ty = max(0., -abs_minY / (abs_maxY - abs_minY))
-        # offset_X, offset_Y = -0.1, 0.0  # how much of the screen is taken by the x and y spines
-        #
-        # axes.xaxis.set_label_coords(1.050, offset_Y + ty)
-        # axes.yaxis.set_label_coords(offset_X + tx, +0.750)
-        #
-        # plt.tight_layout()
         plt.savefig(self._image_path, facecolor=self._bg_color)
 
         # change the view to show the fit as well
@@ -3951,9 +3361,7 @@ class Frontend:
         self._showing_fit_image = True
         self._showing_fit_all_image = True
 
-    def show_current_data_with_fit(
-        self, quiet=False, do_halving=False, show_image=True
-    ):
+    def show_current_data_with_fit(self, quiet=False, do_halving=False, show_image=True):
         # this fits the data again, unlike save_show_fit
         self.update_optimizer()
 
@@ -4108,18 +3516,14 @@ class Frontend:
     def modal_down_command(self):
         if self._gaussian_modal_tkint.get() > 1:
             self._gaussian_modal_tkint.set(self._gaussian_modal_tkint.get() - 1)
-            self._gaussian_modal_label.configure(
-                text=f"Modes: {self._gaussian_modal_tkint.get()}"
-            )
+            self._gaussian_modal_label.configure(text=f"Modes: {self._gaussian_modal_tkint.get()}")
         else:
             self.add_message("> Gaussians models must have at least 1 peak\n")
 
     def modal_up_command(self):
         if self._gaussian_modal_tkint.get() < self.max_modal():
             self._gaussian_modal_tkint.set(self._gaussian_modal_tkint.get() + 1)
-            self._gaussian_modal_label.configure(
-                text=f"Modes: {self._gaussian_modal_tkint.get()}"
-            )
+            self._gaussian_modal_label.configure(text=f"Modes: {self._gaussian_modal_tkint.get()}")
         else:
             self.add_message(
                 f"> Multi-modal Gaussian models with "
@@ -4159,9 +3563,7 @@ class Frontend:
         # sliders for initial parameter guesses
 
         for idx, name in enumerate(self._checkbox_names_list):
-            my_font = "TkDefaultFont", int(
-                12 * self._default_os_scaling * self._platform_scale
-            )
+            my_font = "TkDefaultFont", int(12 * self._default_os_scaling * self._platform_scale)
             # logger(regex.split(f" ", self._custom_function_names))
             checkbox = tk.Checkbutton(
                 master=self._procedural_frame,
@@ -4261,9 +3663,7 @@ class Frontend:
         )
         for name in [x for x in regex.split(" ", self._custom_function_names) if x]:
             logger(f"Added command for {name}")
-            names_menu.add_command(
-                label=name, command=partial(self.remove_named_custom, name)
-            )
+            names_menu.add_command(label=name, command=partial(self.remove_named_custom, name))
 
         head_menu.add_cascade(label="Remove Custom", menu=names_menu)
 
@@ -4326,9 +3726,7 @@ class Frontend:
             status = self.optimizer.async_find_best_model_for_dataset()
             if status != "":
                 self.pause_command()
-                self.add_message(
-                    f"\n\n >>> End of brute-forcing reached <<< {status}\n\n"
-                )
+                self.add_message(f"\n\n >>> End of brute-forcing reached <<< {status}\n\n")
             # self.optimizer.show_fit(pause_on_image=True)
             if self.current_rchisqr != self._optimizer.top5_rchisqrs[0]:
                 self.make_top_shown()
@@ -4392,9 +3790,7 @@ class Frontend:
             self.begin_brute_loop()
 
     def update_number_tested(self):
-        self._progress_label.configure(
-            text=f"{self.optimizer.gen_idx:>10} models tested"
-        )
+        self._progress_label.configure(text=f"{self.optimizer.gen_idx:>10} models tested")
 
     # manual model
     def create_manual_fields(self):
@@ -4438,9 +3834,7 @@ class Frontend:
             bg=self._sbf,
         )
         long_label.grid(row=1, column=0, sticky="nw")
-        long_data = tk.Text(
-            master=self._manual_frame, width=55, height=5, font=def_font
-        )
+        long_data = tk.Text(master=self._manual_frame, width=55, height=5, font=def_font)
         long_data.insert(
             "1.0",
             (
@@ -4451,9 +3845,7 @@ class Frontend:
         )
         long_data.grid(row=1, column=1, sticky="w")
 
-        self._error_label = tk.Label(
-            master=self._manual_frame, text="", fg="#EF0909", bg=self._sbf
-        )
+        self._error_label = tk.Label(master=self._manual_frame, text="", fg="#EF0909", bg=self._sbf)
         self._error_label.grid(row=2, column=1, sticky="w", pady=5)
 
         current_name_title_label = tk.Label(
@@ -4463,9 +3855,7 @@ class Frontend:
             bg=self._sbf,
         )
         current_name_title_label.grid(row=3, column=0, sticky="w", pady=(5, 0))
-        self._current_name_label = tk.Label(
-            master=self._manual_frame, text="N/A", bg=self._sbf
-        )
+        self._current_name_label = tk.Label(master=self._manual_frame, text="N/A", bg=self._sbf)
         self._current_name_label.grid(row=3, column=1, sticky="w", pady=(5, 0))
         current_form_title_label = tk.Label(
             master=self._manual_frame,
@@ -4474,9 +3864,7 @@ class Frontend:
             bg=self._sbf,
         )
         current_form_title_label.grid(row=4, column=0, sticky="w")
-        self._current_form_label = tk.Label(
-            master=self._manual_frame, text="N/A", bg=self._sbf
-        )
+        self._current_form_label = tk.Label(master=self._manual_frame, text="N/A", bg=self._sbf)
         self._current_form_label.grid(row=4, column=1, sticky="w")
 
         submit_button = tk.Button(
@@ -4500,12 +3888,8 @@ class Frontend:
             if manual_model is None:
                 return
 
-            self._current_name_label.configure(
-                text=self._default_manual_name, font=def_font
-            )
-            self._current_form_label.configure(
-                text=self._default_manual_form, font=def_font
-            )
+            self._current_name_label.configure(text=self._default_manual_name, font=def_font)
+            self._current_form_label.configure(text=self._default_manual_form, font=def_font)
             manual_model.print_tree()
             self._manual_model = manual_model
 
@@ -4532,9 +3916,7 @@ class Frontend:
         )
 
         namestr = "".join(self._manual_frame.children["!entry"].get().split())
-        formstr = "".join(
-            self._manual_frame.children["!text"].get("1.0", "end-1c").split()
-        )
+        formstr = "".join(self._manual_frame.children["!text"].get("1.0", "end-1c").split())
         if "," in formstr:
             return self.error_handling(
                 "Support for special functions with parameters are not yet implemented."
@@ -4546,9 +3928,7 @@ class Frontend:
         if "^" in formstr:
             return self.error_handling("Exponentiation through '^' is not permitted.")
         if "." in formstr:
-            return self.error_handling(
-                "Subpackage functions (with '.') are not permitted."
-            )
+            return self.error_handling("Subpackage functions (with '.') are not permitted.")
         if ")(" in formstr:
             return self.error_handling(
                 "Implicit multiplication with ')(' is not supported. Use '*' or '·'."
@@ -4589,9 +3969,7 @@ class Frontend:
             self.add_message("\n \n> Mismatched parentheses.")
             return False
         if formstr[0] in ["·", "+", ")", "*"]:
-            self.error_handling(
-                f"You can't start a function with an operation '{formstr[0]}'."
-            )
+            self.error_handling(f"You can't start a function with an operation '{formstr[0]}'.")
 
         manual_model = CompositeFunction.construct_model_from_str(
             form=formstr,
@@ -4745,16 +4123,10 @@ class Frontend:
 
     def print_stats_library(self):
         buffer = "\n \n  <scipy.stats> options: \n  "
-        for memb in dir(
-            scipy.stats._continuous_distns
-        ):  # pylint: disable=protected-access
-            fn = getattr(
-                scipy.stats._continuous_distns, memb
-            )  # pylint: disable=protected-access
+        for memb in dir(scipy.stats._continuous_distns):  # pylint: disable=protected-access
+            fn = getattr(scipy.stats._continuous_distns, memb)  # pylint: disable=protected-access
             target_type = "<class 'scipy.stats."
-            if (
-                str(type(fn))[:20] == target_type
-            ):  # pylint: disable=unidiomatic-typecheck
+            if str(type(fn))[:20] == target_type:  # pylint: disable=unidiomatic-typecheck
                 try:
                     y = fn.pdf(np.pi / 4)
                 except TypeError:
@@ -4808,9 +4180,7 @@ class Frontend:
         # TODO: why do sliders conform to the block shape in the row above?
 
         for idx, _ in enumerate(self.current_args):
-            new_label = tk.Label(
-                self._slider_frame, text=f"c{idx}", font=def_font, bg=self._sbf
-            )
+            new_label = tk.Label(self._slider_frame, text=f"c{idx}", font=def_font, bg=self._sbf)
             new_slider = tk.Scale(
                 self._slider_frame,
                 from_=10,
@@ -4833,9 +4203,7 @@ class Frontend:
 
         # TODO: number of sliders doesn't change when dof changes
 
-        for idx, (slider, slider_label) in enumerate(
-            zip(self._sliders, self._slider_labels)
-        ):
+        for idx, (slider, slider_label) in enumerate(zip(self._sliders, self._slider_labels)):
             slider_label.grid(row=5, column=idx, sticky="w")
             slider.grid(row=6, column=idx, sticky="w")
 
@@ -4876,9 +4244,7 @@ class Frontend:
             if arg == 0:
                 args_to_set.append(0)
                 continue
-            args_to_set.append(
-                np.power(10, arg - 5) if arg > 0 else -np.power(10, -arg - 5)
-            )
+            args_to_set.append(np.power(10, arg - 5) if arg > 0 else -np.power(10, -arg - 5))
         return args_to_set
 
     @staticmethod
@@ -5007,10 +4373,7 @@ class Frontend:
 
     @property
     def use_functions_dict(self):
-        return {
-            key: tkBoolVar.get()
-            for key, tkBoolVar in self._use_func_dict_name_tkbool.items()
-        }
+        return {key: tkBoolVar.get() for key, tkBoolVar in self._use_func_dict_name_tkbool.items()}
 
     @property
     def max_functions(self) -> int:
@@ -5210,16 +4573,12 @@ class Frontend:
     def criterion_rchisqr(self):
         self.checkmark_criterion_options(0)
         self.criterion = "rchisqr"
-        self.add_message(
-            f"\n \n> Default criterion {self.sym_chi}{sup(2)}/dof selected. Here"
-        )
+        self.add_message(f"\n \n> Default criterion {self.sym_chi}{sup(2)}/dof selected. Here")
         self.add_message(
             f"  {self.sym_chi}{sup(2)} is defined as \U000003A3\U00001D62 "
             f"[f(x\U00001D62)-y\U00001D62]{sup(2)}/\U000003C3\U00001D62{sup(2)}"
         )
-        self.add_message(
-            "  and dof = N - k = (num data points) - (number of parameters in model)"
-        )
+        self.add_message("  and dof = N - k = (num data points) - (number of parameters in model)")
         self.add_message(
             "  When \U000003C3\U00001D62 is not provided (no data uncertainty),\n"
             "  \U000003C3\U00001D62 is defined to be one tenth of ymax-ymin."
@@ -5250,7 +4609,7 @@ class Frontend:
             return
         if not self._showing_fit_image:
             return
-        self.optimizer.criterion = self.optimizer.Akaike_criterion
+        self.optimizer.criterion = self.optimizer.akaike_criterion
         if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"]:
             self.update_top5_chisqrs()
             self.set_which5_no_trace(
@@ -5262,9 +4621,7 @@ class Frontend:
     def criterion_AICc(self):
         self.checkmark_criterion_options(2)
         self.criterion = "AICc"
-        self.add_message(
-            "\n \n> Corrected Akaike Information Criterion (AICc) selected."
-        )
+        self.add_message("\n \n> Corrected Akaike Information Criterion (AICc) selected.")
         self.add_message(
             "  AICc is defined as AIC + 2k(k+1)/(N-k-1),\n"
             "  where N is (num data points) and k = (number of parameters in model)"
@@ -5273,7 +4630,7 @@ class Frontend:
             return
         if not self._showing_fit_image:
             return
-        self.optimizer.criterion = self.optimizer.Akaike_criterion_corrected
+        self.optimizer.criterion = self.optimizer.akaike_criterion_corrected
         if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"]:
             self.update_top5_chisqrs()
             self.set_which5_no_trace(
@@ -5294,7 +4651,7 @@ class Frontend:
             return
         if not self._showing_fit_image:
             return
-        self.optimizer.criterion = self.optimizer.Bayes_criterion
+        self.optimizer.criterion = self.optimizer.bayes_criterion
         if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"]:
             self.update_top5_chisqrs()
             self.set_which5_no_trace(
@@ -5303,7 +4660,7 @@ class Frontend:
 
         self.save_defaults()
 
-    def criterion_HQ(self):
+    def criterion_HQIC(self):
         self.checkmark_criterion_options(4)
         logger(f"Changed to HQIC from {self.criterion}")
         self.criterion = "HQIC"
@@ -5316,7 +4673,7 @@ class Frontend:
             return
         if not self._showing_fit_image:
             return
-        self.optimizer.criterion = self.optimizer.HannanQuinn_criterion
+        self.optimizer.criterion = self.optimizer.hannan_quinn_criterion
         if self._model_name_tkstr.get() in ["Procedural", "Brute-Force"]:
             self.update_top5_chisqrs()
             self.set_which5_no_trace(
@@ -5369,9 +4726,7 @@ class Frontend:
         if idx < 0 or idx > len(self._refit_labels):
             return
         for i, label in enumerate(self._refit_labels):
-            self._refit_menu.entryconfigure(
-                i, label=label + (self.sym_check if i == idx else "")
-            )
+            self._refit_menu.entryconfigure(i, label=label + (self.sym_check if i == idx else ""))
 
     def checkmark_criterion_options(self, idx: int):
         if idx < 0 or idx > len(self._criterion_labels):
@@ -5384,11 +4739,14 @@ class Frontend:
     def exist(self):
         self._gui.mainloop()
 
+    def shutdown(self):
+        self._gui.destroy()
+
     def restart_command(self):
         if sys.platform == "darwin":
             return
         self.save_defaults()
-        self._gui.destroy()
+        self.shutdown()
 
         new_frontend = Frontend()
         new_frontend.exist()

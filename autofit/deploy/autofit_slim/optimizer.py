@@ -86,9 +86,7 @@ class Optimizer:
         self._composite_generator: Union[None, Iterator[CompositeFunction]] = None
         self._gen_idx = -1
 
-        self._criterion: Callable[[CompositeFunction], float] = (
-            self.reduced_chi_squared_of_fit
-        )
+        self._criterion: Callable[[CompositeFunction], float] = self.reduced_chi_squared_of_fit
         if criterion == "AIC":
             self._criterion = self.Akaike_criterion
         elif criterion == "AICc":
@@ -177,10 +175,7 @@ class Optimizer:
 
     @property
     def top5_uncertainties(self) -> list[list[float]]:
-        return [
-            list(np.sqrt(np.diagonal(covariance)))
-            for covariance in self._top5_covariances
-        ]
+        return [list(np.sqrt(np.diagonal(covariance))) for covariance in self._top5_covariances]
 
     @property
     def top_uncs(self) -> list[float]:
@@ -275,9 +270,7 @@ class Optimizer:
         self.set_data_to(new_data)
         for idx, model in enumerate(self.top5_models):
             self.top5_rchisqrs[idx] = self.criterion(model)
-        logger(
-            f"Optimizer.update_top5_rchisqrs_for_new_data(): After: {self.top5_rchisqrs}"
-        )
+        logger(f"Optimizer.update_top5_rchisqrs_for_new_data(): After: {self.top5_rchisqrs}")
 
     # changes top5 lists, does not change _shown variables
     def query_add_to_top5(self, model: CompositeFunction, covariance):
@@ -296,9 +289,7 @@ class Optimizer:
             logger(f"Adjustment: {rchisqr} -> {rchisqr_adjusted}")
             rchisqr = rchisqr_adjusted
         # check for duplication
-        for idx, (topper, chisqr) in enumerate(
-            zip(self.top5_models[:], self.top5_rchisqrs[:])
-        ):
+        for idx, (topper, chisqr) in enumerate(zip(self.top5_models[:], self.top5_rchisqrs[:])):
             # comparing with names
             if model.longname == topper.longname:
                 logger("Same name in query")
@@ -407,16 +398,12 @@ class Optimizer:
                                 del self.top5_rchisqrs[idx]
                                 break
                         # this method changes shown models
-                        improved_reduced, improved_cov = (
-                            self.fit_this_and_get_model_and_covariance(
-                                model_=reduced_model,
-                                initial_guess=reduced_model.args,
-                                change_shown=False,
-                            )
+                        improved_reduced, improved_cov = self.fit_this_and_get_model_and_covariance(
+                            model_=reduced_model,
+                            initial_guess=reduced_model.args,
+                            change_shown=False,
                         )
-                        self.query_add_to_top5(
-                            model=improved_reduced, covariance=improved_cov
-                        )
+                        self.query_add_to_top5(model=improved_reduced, covariance=improved_cov)
                         break
                 return
 
@@ -430,9 +417,7 @@ class Optimizer:
         self, depth, regen_built_ins=True
     ) -> Iterator[CompositeFunction]:
 
-        self._primitive_names_list = [
-            iprim.name for iprim in self._primitive_function_list
-        ]
+        self._primitive_names_list = [iprim.name for iprim in self._primitive_function_list]
 
         if depth == 0:
             if regen_built_ins:
@@ -449,9 +434,7 @@ class Optimizer:
                 yield new_comp
 
         else:
-            head_gen = self.composite_function_generator(
-                depth=depth - 1, regen_built_ins=False
-            )
+            head_gen = self.composite_function_generator(depth=depth - 1, regen_built_ins=False)
             for icomp in head_gen:
                 for idescendent in range(icomp.num_nodes()):
                     for iprim in self._primitive_function_list:
@@ -613,9 +596,7 @@ class Optimizer:
         # you will miss out on some functions possibilities
 
         num_comps = len(self._composite_function_list[:])
-        self._primitive_names_list = [
-            iprim.name for iprim in self._primitive_function_list
-        ]
+        self._primitive_names_list = [iprim.name for iprim in self._primitive_function_list]
 
         # use regex to trim based on rules applied to composite names
         for idx, icomp in enumerate(self._composite_function_list[:]):
@@ -638,9 +619,7 @@ class Optimizer:
 
         # remove duplicates using a dict{}
         self._composite_function_list = list(
-            {
-                icomp.__repr__(): icomp for icomp in self._composite_function_list[:]
-            }.values()
+            {icomp.__repr__(): icomp for icomp in self._composite_function_list[:]}.values()
         )
 
     def fails_rules(self, icomp):
@@ -658,11 +637,7 @@ class Optimizer:
         ):
             return 1
         # trig inside trig is too complex, and very (very) rarely occurs in applications
-        if (
-            icomp.has_double_trigness()
-            or icomp.has_double_expness()
-            or icomp.has_double_logness()
-        ):
+        if icomp.has_double_trigness() or icomp.has_double_expness() or icomp.has_double_logness():
             return 29
         # sins, cosines, exps, and logs never have angular frequency or decay parameters exactly 1
         # all unitless-argument functions start with my_
@@ -944,18 +919,16 @@ class Optimizer:
         except RuntimeError:
             logger("Couldn't find optimal parameters for better guess.")
             model.args = list(initial_guess)
-            return model, np.array(
-                [1e10 for _ in range(len(initial_guess) ** 2)]
-            ).reshape(len(initial_guess), len(initial_guess))
+            return model, np.array([1e10 for _ in range(len(initial_guess) ** 2)]).reshape(
+                len(initial_guess), len(initial_guess)
+            )
         except TypeError:
             logger("Too many dof for dataset.")
             model.args = list(initial_guess)
-            return model, np.array(
-                [1e10 for _ in range(len(initial_guess) ** 2)]
-            ).reshape(len(initial_guess), len(initial_guess))
-        logger(
-            f"{info_string}Better guess: {better_guess} +- {np.sqrt(np.diagonal(better_cov))}"
-        )
+            return model, np.array([1e10 for _ in range(len(initial_guess) ** 2)]).reshape(
+                len(initial_guess), len(initial_guess)
+            )
+        logger(f"{info_string}Better guess: {better_guess} +- {np.sqrt(np.diagonal(better_cov))}")
 
         # Finally, use the better guess to find the true minimum with the true error bars
         try:
@@ -980,12 +953,7 @@ class Optimizer:
 
         # should use the effective variance method if x-errors exist, e.g.
         # sigma^2 = sigma_y^2 + sigma_x^2 (dy/dx)^2
-        if any(
-            [
-                datum.sigma_pos**2 / (datum.pos**2 + 1e-10) > 1e-10
-                for datum in self._data
-            ]
-        ):
+        if any([datum.sigma_pos**2 / (datum.pos**2 + 1e-10) > 1e-10 for datum in self._data]):
             for it in range(3):  # iterate 3 times
                 effective_sigma = np.sqrt(
                     [
@@ -1054,9 +1022,7 @@ class Optimizer:
                 logger(f"Peaks expected at {means}")
                 widths = self.find_widths_for_gaussian(means=means)
                 logger(f"Widths expected to be {widths}")
-                est_amplitudes = self.find_amplitudes_for_gaussian(
-                    means=means, widths=widths
-                )
+                est_amplitudes = self.find_amplitudes_for_gaussian(means=means, widths=widths)
                 logger(f"Amplitudes expected to be {est_amplitudes}")
                 init_guess = []
                 for amp, width, mean in zip(est_amplitudes, widths, means):
@@ -1076,8 +1042,7 @@ class Optimizer:
 
         if fitted_rchisqr > 10 and len(self._data) > 20 and do_halving:
             logger(
-                " " * halved * 4
-                + f"It is unlikely that we have found the correct model... "
+                " " * halved * 4 + f"It is unlikely that we have found the correct model... "
                 f"halving the dataset to {len(self._data)//2}"
             )
 
@@ -1105,9 +1070,7 @@ class Optimizer:
 
         if initial_guess is None and model_.is_submodel:
             # make the submodel realize it's a submodel
-            fitted_model.set_submodel_of_zero_idx(
-                model_.submodel_of, model_.submodel_zero_index
-            )
+            fitted_model.set_submodel_of_zero_idx(model_.submodel_of, model_.submodel_zero_index)
 
         if np.any(np.isinf(fitted_cov)) and self._try_harder and halved < 1:
             try:
@@ -1129,9 +1092,7 @@ class Optimizer:
         return fitted_model, fitted_cov
 
     def set_estimated_std(self, model: CompositeFunction):
-        logger(
-            "Optimizer.set_estimated_std(): Setting implied error bars. Resids below."
-        )
+        logger("Optimizer.set_estimated_std(): Setting implied error bars. Resids below.")
         resids = [datum.val - model.eval_at(datum.pos) for datum in self._data]
         logger(resids)
 
@@ -1156,12 +1117,7 @@ class Optimizer:
         # in https://123.physics.ucdavis.edu/week_0_files/taylor_181-199.pdf
 
         uncs_y = [datum.sigma_val for datum in self._data]
-        if any(
-            [
-                unc / (abs(datum.val) + 1e-5) < 1e-5
-                for unc, datum in zip(uncs_y, self._data)
-            ]
-        ):
+        if any([unc / (abs(datum.val) + 1e-5) < 1e-5 for unc, datum in zip(uncs_y, self._data)]):
             self.set_estimated_std(model)
 
         # to be determined
@@ -1183,9 +1139,7 @@ class Optimizer:
                     model.set_arg_i(idx, better_arg_R)
                     break
 
-                diff_L, better_arg_L = find_window_left(
-                    self.chi_squared_of_fit, target, model, idx
-                )
+                diff_L, better_arg_L = find_window_left(self.chi_squared_of_fit, target, model, idx)
                 if diff_L < 0:
                     model.set_arg_i(idx, better_arg_L)
                     break
@@ -1292,16 +1246,9 @@ class Optimizer:
         cov = np.linalg.inv(invV)
         logger("Optimizer.try_harder_for_cov(), invV=\n", invV)
         logger("Optimizer.try_harder_for_cov(), cov=\n", cov)
-        logger(
-            f"Optimizer.try_harder_for_cov(), recalculated sigmas = {np.sqrt(np.diag(cov))}"
-        )
+        logger(f"Optimizer.try_harder_for_cov(), recalculated sigmas = {np.sqrt(np.diag(cov))}")
 
-        if any(
-            [
-                unc / (abs(datum.val) + 1e-5) < 1e-5
-                for unc, datum in zip(uncs_y, self._data)
-            ]
-        ):
+        if any([unc / (abs(datum.val) + 1e-5) < 1e-5 for unc, datum in zip(uncs_y, self._data)]):
             self.reset_estimated_std(uncs_y)
 
         return cov
@@ -1312,12 +1259,8 @@ class Optimizer:
         cov = self.try_harder_for_cov(model)
         sigma = np.sqrt(cov[par_idx, par_idx])
 
-        xvals = [
-            mu + (i - num_sigmas * 10) * sigma / 10 for i in range(num_sigmas * 20)
-        ]
-        yvals = [
-            self.likelihood_with_modified_par(model, par_idx, xval) for xval in xvals
-        ]
+        xvals = [mu + (i - num_sigmas * 10) * sigma / 10 for i in range(num_sigmas * 20)]
+        yvals = [self.likelihood_with_modified_par(model, par_idx, xval) for xval in xvals]
 
         plt.close()
         plt.title("Likelihood across parameter")
@@ -1379,9 +1322,7 @@ class Optimizer:
         if self.top_rchisqr > 10 and len(self._data) > 20:
             # if a better model is found here it will probably underestimate the actual rchisqr since
             # it will only calculate based on half the data
-            logger(
-                "It is unlikely that we have found the correct model... halving the dataset"
-            )
+            logger("It is unlikely that we have found the correct model... halving the dataset")
             lower_data = self._data[: len(self._data) // 2]
             lower_optimizer = Optimizer(
                 data=lower_data,
@@ -1418,9 +1359,7 @@ class Optimizer:
         if start:
             self._composite_generator = self.all_valid_composites_generator()
 
-        x_points, y_points, sigma_points, use_errors = self.fit_setup(
-            fourier_condition=start
-        )
+        x_points, y_points, sigma_points, use_errors = self.fit_setup(fourier_condition=start)
 
         batch_size = 10
         for idx in range(batch_size):
@@ -1499,15 +1438,10 @@ class Optimizer:
                     amplitudes.append((datumlow.val + datumhigh.val) / 2)
                     break
         avg_bin_width = (self._data[-1].pos - self._data[0].pos) / (len(self._data) - 1)
-        expected_amplitude_sum = (
-            sum([datum.val for datum in self._data]) * avg_bin_width
-        )
+        expected_amplitude_sum = sum([datum.val for datum in self._data]) * avg_bin_width
         actual_amplitude_sum = sum(amplitudes)
         return [
-            amp
-            * expected_amplitude_sum
-            / actual_amplitude_sum
-            / np.sqrt(2 * np.pi * width**2)
+            amp * expected_amplitude_sum / actual_amplitude_sum / np.sqrt(2 * np.pi * width**2)
             for (amp, width) in zip(amplitudes, widths)
         ]
 
@@ -1543,8 +1477,7 @@ class Optimizer:
                         self._data[idx].val,
                     )  # wtf its been wrong this entire time
                     y_points.append(
-                        (y_low * (x_high - target) + y_high * (target - x_low))
-                        / (x_high - x_low)
+                        (y_low * (x_high - target) + y_high * (target - x_low)) / (x_high - x_low)
                     )
                     break
 
@@ -1592,9 +1525,7 @@ class Optimizer:
                     2 * np.abs(pos_Ynu[argmax]),
                     2 * np.pi * (pos_nu[argmax] + delta_nu * (i - 3) / 3),
                 )
-                sin_rchisqr_list.append(
-                    self.reduced_chi_squared_of_fit(model=test_func1)
-                )
+                sin_rchisqr_list.append(self.reduced_chi_squared_of_fit(model=test_func1))
 
             # logger(f"{avg_y:.3F}", [ 2*np.pi*(pos_nu[argmax]+delta_nu*(i-3)/3) for i in range(7)])
             # logger(sin_rchisqr_list)
@@ -1632,9 +1563,7 @@ class Optimizer:
                     2 * np.abs(pos_Ynu[argmax]),
                     2 * np.pi * (pos_nu[argmax] + delta_nu * (i - 3) / 3),
                 )
-                cos_rchisqr_list.append(
-                    self.reduced_chi_squared_of_fit(model=test_func2)
-                )
+                cos_rchisqr_list.append(self.reduced_chi_squared_of_fit(model=test_func2))
 
             # should only do this if we find a minimum
             min_idx, min_val = np.argmin(cos_rchisqr_list[1:-1]), min(
@@ -1678,9 +1607,7 @@ class Optimizer:
 
             new_gridpoint = scaling_args_no_sign.copy()
             for bit, arg in enumerate(new_gridpoint):
-                new_gridpoint[bit] = arg * (
-                    1 - 2 * int(binary_string_of_index[-1 - bit])
-                )
+                new_gridpoint[bit] = arg * (1 - 2 * int(binary_string_of_index[-1 - bit]))
             scaling_args_sign_list.append(new_gridpoint)
 
         # tests each of the +/- combinations for the best fit
@@ -1690,9 +1617,7 @@ class Optimizer:
         for point in scaling_args_sign_list:
             model.set_args(*point)
             temp_rchisqr = self.reduced_chi_squared_of_fit(model)
-            weighted_point = list_sums_weights(
-                weighted_point, point, 1, 1 / (temp_rchisqr + 1e-5)
-            )
+            weighted_point = list_sums_weights(weighted_point, point, 1, 1 / (temp_rchisqr + 1e-5))
             weighted_norm += 1 / (temp_rchisqr + 1e-5)
             if temp_rchisqr < best_rchisqr:
                 best_rchisqr = temp_rchisqr
@@ -1726,8 +1651,7 @@ class Optimizer:
         # use knowledge of scaling to guess parameter sizes from the characteristic sizes in the data
         # charAvY = (max([datum.val for datum in self._data]) + min([datum.val for datum in self._data])) / 2
         charDiffY = (
-            max([datum.val for datum in self._data])
-            - min([datum.val for datum in self._data])
+            max([datum.val for datum in self._data]) - min([datum.val for datum in self._data])
         ) / 2
         sorted_X = sorted([datum.pos for datum in self._data])
         charAvX = (sorted_X[-1] + sorted_X[0]) / 2
@@ -1742,11 +1666,7 @@ class Optimizer:
             charX = charDiffX
 
         # defaults
-        xmul = (
-            charX**composite.dimension_arg
-            if charX > 0
-            else charDiffX**composite.dimension_arg
-        )
+        xmul = charX**composite.dimension_arg if charX > 0 else charDiffX**composite.dimension_arg
         ymul = 1
 
         # overrides
@@ -1767,9 +1687,7 @@ class Optimizer:
             )
             if abs(slope_at_zero) > 1e-5:
                 if len(self._cos_freq_list_dup) > 0:
-                    logger(
-                        f"Using cosine ang. frequency {2*np.pi*self._cos_freq_list_dup[0]}"
-                    )
+                    logger(f"Using cosine ang. frequency {2*np.pi*self._cos_freq_list_dup[0]}")
                     xmul = (2 * np.pi * self._cos_freq_list_dup.pop(0)) / slope_at_zero
                     logger(f"   so with {slope_at_zero=}, {xmul=}")
 
@@ -1790,9 +1708,7 @@ class Optimizer:
             )
             if abs(slope_at_zero) > 1e-5:
                 if len(self._sin_freq_list_dup) > 0:
-                    logger(
-                        f"Using sine ang. frequency {2*np.pi*self._sin_freq_list_dup[0]}"
-                    )
+                    logger(f"Using sine ang. frequency {2*np.pi*self._sin_freq_list_dup[0]}")
                     xmul = (2 * np.pi * self._sin_freq_list_dup.pop(0)) / slope_at_zero
                     logger(f"   so with {slope_at_zero=}, {xmul=}")
                 else:  # misassigned cosine frequency
@@ -1899,11 +1815,7 @@ class Optimizer:
                     lambda x, pos: (
                         ""
                         if x == 0
-                        else (
-                            f"{x:.1F}"
-                            if (x - np.trunc(x)) ** 2 > 1e-10
-                            else f"{int(x)}"
-                        )
+                        else (f"{x:.1F}" if (x - np.trunc(x)) ** 2 > 1e-10 else f"{int(x)}")
                     )
                 )
             )
@@ -1943,11 +1855,7 @@ class Optimizer:
                     lambda x, pos: (
                         ""
                         if x == 0
-                        else (
-                            f"{x:.1F}"
-                            if (x - np.trunc(x)) ** 2 > 1e-10
-                            else f"{int(x)}"
-                        )
+                        else (f"{x:.1F}" if (x - np.trunc(x)) ** 2 > 1e-10 else f"{int(x)}")
                     )
                 )
             )
@@ -2040,9 +1948,7 @@ class Optimizer:
     def chi_squared_of_fit(self, model: CompositeFunction) -> float:
 
         if any([datum.sigma_val < 1e-5 for datum in self._data]):
-            sumsqr = sum(
-                [(model.eval_at(datum.pos) - datum.val) ** 2 for datum in self._data]
-            )
+            sumsqr = sum([(model.eval_at(datum.pos) - datum.val) ** 2 for datum in self._data])
             return sumsqr / self.inferred_error_bar_size() ** 2
 
         return sum(
@@ -2080,9 +1986,7 @@ class Optimizer:
             ]:
                 if node.prim.arg > 10 * avg_grid_spacing:
                     logger("LIAR! FREQUENCY EXTRAVAGENT")
-                    return (
-                        self.criterion(model) * (node.prim.arg / avg_grid_spacing) ** 2
-                    )
+                    return self.criterion(model) * (node.prim.arg / avg_grid_spacing) ** 2
         return self.criterion(model)
 
     def criterion_w_cov_punish(self, model, cov):
@@ -2094,9 +1998,7 @@ class Optimizer:
 
     def r_squared(self, model):
         mean = sum([datum.val for datum in self._data]) / len(self._data)
-        variance_data = sum([(datum.val - mean) ** 2 for datum in self._data]) / len(
-            self._data
-        )
+        variance_data = sum([(datum.val - mean) ** 2 for datum in self._data]) / len(self._data)
         variance_fit = sum(
             [(datum.val - model.eval_at(datum.pos)) ** 2 for datum in self._data]
         ) / len(self._data)
@@ -2106,20 +2008,14 @@ class Optimizer:
         # the AIC is equivalent, for normally distributed residuals, to the least chi squared
         k = model.dof
         # N = len(self._data)
-        AIC = (
-            self.chi_squared_of_fit(model) + 2 * k
-        )  # we take chi^2 = -2logL + C, discard the C
+        AIC = self.chi_squared_of_fit(model) + 2 * k  # we take chi^2 = -2logL + C, discard the C
         return AIC
 
     def Akaike_criterion_corrected(self, model):
         # correction for small datasets, fixes overfitting
         k = model.dof
         N = len(self._data)
-        AICc = (
-            self.Akaike_criterion(model) + 2 * k * (k + 1) / (N - k - 1)
-            if N > k + 1
-            else 1e5
-        )
+        AICc = self.Akaike_criterion(model) + 2 * k * (k + 1) / (N - k - 1) if N > k + 1 else 1e5
         return AICc
 
     def Bayes_criterion(self, model):
@@ -2133,9 +2029,7 @@ class Optimizer:
         # agrees with AIC at small datasets, but punishes less strongly than Bayes at large N
         k = model.dof
         N = len(self._data)
-        HQIC = (
-            self.chi_squared_of_fit(model) + 2 * k * np.log(np.log(N)) if N > 1 else 1e5
-        )
+        HQIC = self.chi_squared_of_fit(model) + 2 * k * np.log(np.log(N)) if N > 1 else 1e5
         return HQIC
 
     def smoothed_data(self, data=None, n=1) -> list[Datum1D]:
@@ -2190,12 +2084,9 @@ class Optimizer:
 
             # propagation of uncertainty
             new_sigma_pos = np.sqrt(
-                (data_to_diff[idx + 2].sigma_pos / 2) ** 2
-                + (data_to_diff[idx].sigma_pos / 2) ** 2
+                (data_to_diff[idx + 2].sigma_pos / 2) ** 2 + (data_to_diff[idx].sigma_pos / 2) ** 2
             )
-            new_sigma_deriv = (
-                1 / (data_to_diff[idx + 2].pos - data_to_diff[idx].pos)
-            ) * np.sqrt(
+            new_sigma_deriv = (1 / (data_to_diff[idx + 2].pos - data_to_diff[idx].pos)) * np.sqrt(
                 data_to_diff[idx + 2].sigma_val ** 2 + data_to_diff[idx].sigma_val ** 2
             ) + new_deriv**2 * (
                 data_to_diff[idx + 2].sigma_pos ** 2 + data_to_diff[idx].sigma_pos ** 2
@@ -2238,20 +2129,15 @@ class Optimizer:
                 propagation_variance_y_dict.get(datum.pos, 0) + datum.sigma_val**2
             )
             sample_variance_y_dict[datum.pos] = (
-                sample_variance_y_dict.get(datum.pos, 0)
-                + (datum.val - mean_dict[datum.pos]) ** 2
+                sample_variance_y_dict.get(datum.pos, 0) + (datum.val - mean_dict[datum.pos]) ** 2
             )
 
         averaged_data = []
         for key, val in mean_dict.items():
             sample_uncertainty_squared = (
-                sample_variance_y_dict[key] / (num_dict[key] - 1)
-                if num_dict[key] > 1
-                else 0
+                sample_variance_y_dict[key] / (num_dict[key] - 1) if num_dict[key] > 1 else 0
             )
-            propagation_uncertainty_squared = (
-                propagation_variance_y_dict[key] / num_dict[key]
-            )
+            propagation_uncertainty_squared = propagation_variance_y_dict[key] / num_dict[key]
             ratio = (
                 sample_uncertainty_squared
                 / (sample_uncertainty_squared + propagation_uncertainty_squared)
@@ -2265,8 +2151,7 @@ class Optimizer:
             #  https://stats.stackexchange.com/questions/454120/how-can-i-calculate-uncertainty-of-the-mean-of-a-set-of-samples-with-different-u
             # for a more rigorous treatment
             effective_uncertainty_squared = (
-                ratio * sample_uncertainty_squared
-                + (1 - ratio) * propagation_uncertainty_squared
+                ratio * sample_uncertainty_squared + (1 - ratio) * propagation_uncertainty_squared
             )
 
             averaged_data.append(
@@ -2295,9 +2180,7 @@ class Optimizer:
             if key == "log(x)" and use_function:
                 self._primitive_function_list.append(PrimitiveFunction.built_in("log"))
             if key == "1/x" and use_function:
-                self._primitive_function_list.append(
-                    PrimitiveFunction.built_in("pow_neg1")
-                )
+                self._primitive_function_list.append(PrimitiveFunction.built_in("pow_neg1"))
             # if key == "x\U000000B2" and use_function:
             #     self._primitive_function_list.append(PrimitiveFunction.built_in("pow2"))
             # if key == "x\U000000B3" and use_function:
@@ -2319,9 +2202,7 @@ def correlation_from_covariance(cov_mat: np.ndarray) -> np.ndarray:
     return correlation
 
 
-def coefficient_of_covariance(
-    cov_mat: np.ndarray, mean_list: list[float]
-) -> np.ndarray:
+def coefficient_of_covariance(cov_mat: np.ndarray, mean_list: list[float]) -> np.ndarray:
     cc = cov_mat.copy()
     for idx, (cov_i, mean_i) in enumerate(zip(cov_mat, mean_list)):
         for jdx, (cov_ij, mean_j) in enumerate(zip(cov_i, mean_list)):

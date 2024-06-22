@@ -195,9 +195,7 @@ def autofit_demo_prediction():
         res_str = af_result_string(af_optimizer)
         # res_str = "<br>".join(result_string(optimizer).split('\n'))
         print(res_str)
-        base64_img = af_optimizer.make_fit_image(
-            af_optimizer.top_model
-        )  # "This is an image"
+        base64_img = af_optimizer.make_fit_image(af_optimizer.top_model)  # "This is an image"
         return {"res_str": res_str, "base64_img": base64_img}
         # # Transform the input string with the HasheVectorizer
         # transformed_data = vocab.transform([data])

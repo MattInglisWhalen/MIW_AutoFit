@@ -1,3 +1,5 @@
+"""Tests MIW's AutoFit Datum1D class"""
+
 # built-in packages
 
 # external libraries
@@ -9,7 +11,8 @@ from autofit.src.datum1D import Datum1D
 
 def test_default():
     with pytest.raises(TypeError):
-        data = Datum1D()
+        # noinspection PyArgumentList
+        data = Datum1D()  # pylint: disable=no-value-for-parameter,unused-variable
 
 
 def test_no_errors():
@@ -39,9 +42,7 @@ def test_symm_errors():
 
 
 def test_asymm_errors():
-    data = Datum1D(
-        pos=5.4, val=7.9, assym_sigma_pos=(1.1, 0.2), assym_sigma_val=(1.2, 0.3)
-    )
+    data = Datum1D(pos=5.4, val=7.9, assym_sigma_pos=(1.1, 0.2), assym_sigma_val=(1.2, 0.3))
 
     assert data.pos == 5.4
     assert data.val == 7.9

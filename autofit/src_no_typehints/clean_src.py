@@ -18,15 +18,11 @@ def clean_src():
         if filename[-3:] != ".py" or "datum1D" in filename:
             continue
         print(filename, cleaned_files + "/" + filename)
-        with open(filename, "r") as infile, open(
-            cleaned_files + "/" + filename, "w"
-        ) as outfile:
+        with open(filename, "r") as infile, open(cleaned_files + "/" + filename, "w") as outfile:
             for line in infile:
 
                 # no type hinting for tuple
-                stripped_line_1 = regex.sub(
-                    " tuple\[[,a-zA-Z0-9\[\]\s]*]", " tuple", line
-                )
+                stripped_line_1 = regex.sub(" tuple\[[,a-zA-Z0-9\[\]\s]*]", " tuple", line)
 
                 # no type hinting for callable
                 stripped_line_2 = regex.sub(
@@ -34,14 +30,10 @@ def clean_src():
                 )
 
                 # no type hinting for Union
-                stripped_line_3 = regex.sub(
-                    "Union\[[,a-zA-Z\[\]\s]*]", "Union", stripped_line_2
-                )
+                stripped_line_3 = regex.sub("Union\[[,a-zA-Z\[\]\s]*]", "Union", stripped_line_2)
 
                 # no type hinting for list
-                stripped_line_4 = regex.sub(
-                    " list\[[,a-zA-Z0-9\[\]\s]*]", " list", stripped_line_3
-                )
+                stripped_line_4 = regex.sub(" list\[[,a-zA-Z0-9\[\]\s]*]", " list", stripped_line_3)
 
                 # no type hinting for dict
                 stripped_line_5 = regex.sub(
@@ -51,9 +43,7 @@ def clean_src():
                 )
 
                 # no type hinting for returns
-                stripped_line_6 = regex.sub(
-                    "->[.a-zA-Z\[\]\s]*:", " :", stripped_line_5
-                )
+                stripped_line_6 = regex.sub("->[.a-zA-Z\[\]\s]*:", " :", stripped_line_5)
 
                 # no type hinting for function args
                 stripped_line_7 = regex.sub(":[.a-zA-Z\s]*,", ",", stripped_line_6)

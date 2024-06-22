@@ -185,16 +185,35 @@ function-naming-style=snake_case
 #function-rgx=
 
 # Good variable names which should always be accepted, separated by a comma.
-good-names=i,
+good-names=A2,
+           B,
+           W,
+           i,
            j,
            k,
            ex,
            Run,
            _
 
+
 # Good variable names regexes, separated by a comma. If names match any regex,
 # they will always be accepted
-good-names-rgxs=
+good-names-rgxs=([a-z]*_)*L,
+                ([a-z]*_)*R,
+                ([a-z]*_)*A,
+                ([a-z]*_)*F,
+                ([a-z]*_)*H,
+                [a-z]*[_]?AIC,
+                [a-z]*[_]?AICc,
+                [a-z]*[_]?BIC,
+                [a-z]*[_]?HQIC,
+                N(_[a-z]*)*,
+                ([a-z]*_)*V(_[a-z]*)*,
+                ([a-z]*_)*Ynu,
+                [_]?[A-Z][0-9],
+                ([a-z]*_)*[a-z]*[_]?1D,
+
+
 
 # Include a hint for the correct naming format with invalid-name.
 include-naming-hint=no
@@ -431,7 +450,8 @@ disable=raw-checker-failed,
         use-symbolic-message-instead,
         use-implicit-booleaness-not-comparison-to-string,
         use-implicit-booleaness-not-comparison-to-zero,
-        invalid-name
+        pointless-string-statement
+        # invalid-name
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option

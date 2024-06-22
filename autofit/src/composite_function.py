@@ -55,9 +55,7 @@ class CompositeFunction:
 
     def __init__(
         self,
-        children_list: Union[
-            None, list[PrimitiveFunction], list[CompositeFunction]
-        ] = None,
+        children_list: Union[None, list[PrimitiveFunction], list[CompositeFunction]] = None,
         younger_brother: Union[None, PrimitiveFunction, CompositeFunction] = None,
         parent: Union[None, CompositeFunction] = None,
         prim_: PrimitiveFunction = PrimitiveFunction.built_in("sum"),
@@ -218,9 +216,7 @@ class CompositeFunction:
             raise AttributeError
 
         new_child = child.copy()
-        if isinstance(
-            new_child, PrimitiveFunction
-        ):  # have to convert it to a Composite
+        if isinstance(new_child, PrimitiveFunction):  # have to convert it to a Composite
             prim_as_comp = CompositeFunction(prim_=new_child, parent=self)
             self._children_list.append(prim_as_comp)
         else:
@@ -241,9 +237,7 @@ class CompositeFunction:
             raise AttributeError
 
         new_brother = brother_to_add.copy()
-        if isinstance(
-            new_brother, PrimitiveFunction
-        ):  # have to convert it to a Composite
+        if isinstance(new_brother, PrimitiveFunction):  # have to convert it to a Composite
             new_brother_comp = CompositeFunction(prim_=new_brother)
         else:
             new_brother_comp = new_brother
@@ -308,9 +302,7 @@ class CompositeFunction:
         if self.older_brother is not None:
             self._older_brother.build_longname()
 
-    def add_constraint(
-        self, constraint_3tuple: tuple[int, Callable[[float], float], int]
-    ):
+    def add_constraint(self, constraint_3tuple: tuple[int, Callable[[float], float], int]):
         self._constraints.append(constraint_3tuple)
 
     """
@@ -482,15 +474,11 @@ class CompositeFunction:
         for idx, child in enumerate(self._children_list):
             if idx > 0:
                 tree_str += buffer_chars + next_buffer
-            tree_str += child.tree_as_string_with_args(
-                buffer_chars=buffer_chars + next_buffer
-            )
+            tree_str += child.tree_as_string_with_args(buffer_chars=buffer_chars + next_buffer)
 
         if self.younger_brother is not None:
             tree_str += "\n" + buffer_chars
-            bro_str = self._younger_brother.tree_as_string_with_args(
-                buffer_chars=buffer_chars
-            )
+            bro_str = self._younger_brother.tree_as_string_with_args(buffer_chars=buffer_chars)
             tree_str += bro_str
 
         # return tree_str.rstrip('\n') + "\n"
@@ -580,9 +568,7 @@ class CompositeFunction:
             return 1
         if self.younger_brother is None:
             return sum((child.width for child in self._children_list))
-        return self.younger_brother.width + sum(
-            (child.width for child in self._children_list)
-        )
+        return self.younger_brother.width + sum((child.width for child in self._children_list))
 
     def has_trig_children(self):
         for child in self._children_list:
@@ -651,10 +637,7 @@ class CompositeFunction:
         return brothers_list
 
     def has_argless_explike(self):
-        if (
-            self.prim.name in ["my_cos", "my_sin", "my_exp", "my_log"]
-            and self.num_children() < 1
-        ):
+        if self.prim.name in ["my_cos", "my_sin", "my_exp", "my_log"] and self.num_children() < 1:
             if self.prim.name == "my_log" and self.parent is not None:
                 if self.parent.prim.name == "my_exp":
                     return False
@@ -668,8 +651,7 @@ class CompositeFunction:
 
     def has_trivial_pow1(self):
         if self.prim.name == "pow1" and (
-            self.num_children() == 1
-            or (self.num_children() > 1 and self.younger_brother is None)
+            self.num_children() == 1 or (self.num_children() > 1 and self.younger_brother is None)
         ):
             return True
         if any((child.has_trivial_pow1() for child in self._children_list)):
@@ -682,8 +664,7 @@ class CompositeFunction:
         if self.prim.name == "pow_neg1" and self.num_children() == 1:
             child = self.children_list[0]
             if any(
-                bro.prim.name in ["pow_neg1", "my_exp"]
-                for bro in child.self_and_all_youngers()
+                bro.prim.name in ["pow_neg1", "my_exp"] for bro in child.self_and_all_youngers()
             ):
                 return True
         if any((child.has_repeated_reciprocal() for child in self._children_list)):
@@ -710,8 +691,7 @@ class CompositeFunction:
         if (
             self.prim.name == "my_log"
             and self.num_children() == 1
-            and self.children_list[0].prim.name
-            in ["pow_neg1", "pow3", "my_cos", "my_sin"]
+            and self.children_list[0].prim.name in ["pow_neg1", "pow3", "my_cos", "my_sin"]
         ):
             child = self.children_list[0]
             if child.younger_brother is None or (
@@ -800,9 +780,7 @@ class CompositeFunction:
             N_choose_i = np.math.factorial(Nsmooth) / (
                 np.math.factorial(Nsmooth - i) * np.math.factorial(i)
             )
-            smooth_sum += N_choose_i * self.eval_at(
-                x - (Nsmooth - i) * dx + i * dx, X0, Y0
-            )
+            smooth_sum += N_choose_i * self.eval_at(x - (Nsmooth - i) * dx + i * dx, X0, Y0)
         return smooth_sum / 2**Nsmooth
 
     def eval_deriv_at(self, x):
@@ -819,9 +797,7 @@ class CompositeFunction:
         for idx_constrained, _, _ in sorted(self._constraints, key=lambda tup: tup[0]):
             args_as_list.insert(idx_constrained, 0)
         # apply the constraints
-        for idx_constrained, func, idx_other in sorted(
-            self._constraints, key=lambda tup: tup[0]
-        ):
+        for idx_constrained, func, idx_other in sorted(self._constraints, key=lambda tup: tup[0]):
             args_as_list[idx_constrained] = func(args_as_list[idx_other])
 
         if self.older_brother is None and self._prim.name != "sum_":
@@ -947,15 +923,11 @@ class CompositeFunction:
                     else:
                         if lib == scipy_continuous:
                             prim_list.append(
-                                PrimitiveFunction(
-                                    other_callable=getattr(lib, prim).pdf, name=prim
-                                )
+                                PrimitiveFunction(other_callable=getattr(lib, prim).pdf, name=prim)
                             )
                         else:
                             prim_list.append(
-                                PrimitiveFunction(
-                                    other_callable=getattr(lib, prim), name=prim
-                                )
+                                PrimitiveFunction(other_callable=getattr(lib, prim), name=prim)
                             )
                         valid = True
 
@@ -976,9 +948,7 @@ class CompositeFunction:
 
         form_it = 0
         last_char = "+"
-        man_model = CompositeFunction(
-            name=name, prim_=PrimitiveFunction.built_in("sum")
-        )
+        man_model = CompositeFunction(name=name, prim_=PrimitiveFunction.built_in("sum"))
 
         while form_it < len(form):
 
@@ -999,9 +969,7 @@ class CompositeFunction:
                     form=sub_form[:-1], error_handler=error_handler
                 )
                 if sub_model is None:
-                    error_handler(
-                        f"{form} had a problem creating sub-model with {sub_form[:-1]}"
-                    )
+                    error_handler(f"{form} had a problem creating sub-model with {sub_form[:-1]}")
                     return None
 
                 if last_char == "+":
@@ -1076,10 +1044,7 @@ class CompositeFunction:
                             f"with {prim_to_add_name} or {composed_fn_name}"
                         )
                         return None
-                    if (
-                        composed_fn.prim.name == "sum_"
-                        and composed_fn.younger_brother is None
-                    ):
+                    if composed_fn.prim.name == "sum_" and composed_fn.younger_brother is None:
                         for composed_child in composed_fn.children_list:
                             prim_with_composition.add_child(composed_child)
                     else:
@@ -1087,9 +1052,7 @@ class CompositeFunction:
                     if last_char == "+":
                         man_model.add_child(prim_with_composition)
                     elif last_char in ["·", "*"]:
-                        man_model.children_list[-1].add_younger_brother(
-                            prim_with_composition
-                        )
+                        man_model.children_list[-1].add_younger_brother(prim_with_composition)
                     else:
                         man_model.children_list[-1].add_child(prim_with_composition)
                     last_char = ")"
@@ -1129,12 +1092,10 @@ class CompositeFunction:
             return None
         if node_to_remove.name == "my_sin(pow1)":
             # it's likely Asin(wx) is using small angle approx ~ Awx
-            replacement_node = CompositeFunction(
-                prim_=PrimitiveFunction.built_in("pow1")
-            )
+            replacement_node = CompositeFunction(prim_=PrimitiveFunction.built_in("pow1"))
             A, w = tuple(node_to_remove.args)
             replacement_node.set_arg_i(0, A * w)
-            reduced_model = new_model._replace_node(node_to_remove, replacement_node)
+            reduced_model = new_model.replace_node(node_to_remove, replacement_node)
         else:
             reduced_model = new_model.remove_node(node=node_to_remove)
 
@@ -1157,8 +1118,8 @@ class CompositeFunction:
 
         return self
 
-    def _replace_node(
-        self, old_node: CompositeFunction, new_node: CompositeFunction
+    def replace_node(
+            self, old_node: CompositeFunction, new_node: CompositeFunction
     ) -> CompositeFunction:
 
         # untested with siblings
@@ -1199,9 +1160,7 @@ class CompositeFunction:
         )
 
         # Gaussian: A, mu, sigma as parameters (roughly)
-        prim_dim0_pow2_neg = PrimitiveFunction(
-            func=PrimitiveFunction.dim0_pow2
-        )  # sigma
+        prim_dim0_pow2_neg = PrimitiveFunction(func=PrimitiveFunction.dim0_pow2)  # sigma
         prim_pow1_shift = PrimitiveFunction(func=PrimitiveFunction.pow1_shift)  # mu
         gaussian_inner_negativequadratic = CompositeFunction(
             prim_=prim_dim0_pow2_neg, children_list=[prim_pow1_shift]
@@ -1213,9 +1172,7 @@ class CompositeFunction:
         )
 
         # Normal: mu, sigma as parameters (roughly)
-        prim_outer_gaussian = PrimitiveFunction(
-            func=PrimitiveFunction.n_exp_dim2
-        )  # sigma
+        prim_outer_gaussian = PrimitiveFunction(func=PrimitiveFunction.n_exp_dim2)  # sigma
         normal = CompositeFunction(
             prim_=prim_outer_gaussian,
             children_list=[prim_pow1_shift],  # mu
@@ -1225,9 +1182,7 @@ class CompositeFunction:
         # Sigmoid H/(1 + exp(-w(x-x0)) ) + F
         # aka F[ 1 + h/( 1+Bexp(-wx) ) ]
         prim_exp_dim1 = PrimitiveFunction(func=PrimitiveFunction.exp_dim1)  # w
-        exp_part = CompositeFunction(
-            prim_=prim_exp_dim1, children_list=[prim_pow1_shift]
-        )  # x0
+        exp_part = CompositeFunction(prim_=prim_exp_dim1, children_list=[prim_pow1_shift])  # x0
         inv_part = CompositeFunction(
             prim_=PrimitiveFunction.built_in("pow_neg1"),  # H
             children_list=[PrimitiveFunction.built_in("pow0"), exp_part],
@@ -1269,9 +1224,7 @@ class CompositeFunction:
             modal = int(key[8:])
             summed_gaussians = []
             for _ in range(modal):
-                summed_gaussians.append(
-                    CompositeFunction._built_in_comps_dict["Gaussian"]
-                )
+                summed_gaussians.append(CompositeFunction._built_in_comps_dict["Gaussian"])
             if modal == 2:
                 prestr = "Bim"
             elif modal == 3:
@@ -1308,9 +1261,7 @@ class CompositeFunction:
     def net_function_dimension_self_and_younger_siblings(self) -> int:
         dim = self.dimension_func
         if self._younger_brother is not None:
-            dim += (
-                self._younger_brother.net_function_dimension_self_and_younger_siblings
-            )
+            dim += self._younger_brother.net_function_dimension_self_and_younger_siblings
         return dim
 
     @property
@@ -1330,9 +1281,7 @@ class CompositeFunction:
                 return 0
             # else
             return (
-                self.parent.children_list[
-                    0
-                ].net_function_dimension_self_and_younger_siblings
+                self.parent.children_list[0].net_function_dimension_self_and_younger_siblings
                 - self.net_function_dimension_self_and_younger_siblings
             )
         # else, e.g. self.parent.func.name in ["my_cos","my_sin","my_exp","my_log"] :
@@ -1341,11 +1290,7 @@ class CompositeFunction:
     @property
     def dimension_func(self) -> int:
         # untested with siblings
-        if (
-            self._prim.name[:3] == "my_"
-            or "sin" in self._prim.name
-            or "cos" in self._prim.name
-        ):
+        if self._prim.name[:3] == "my_" or "sin" in self._prim.name or "cos" in self._prim.name:
             return 0
         if self._prim.name == "pow0":
             return 0
@@ -1388,6 +1333,4 @@ class CompositeFunction:
 
     @property
     def dimension(self) -> int:
-        return (
-            self.dimension_arg + self.net_function_dimension_self_and_younger_siblings
-        )
+        return self.dimension_arg + self.net_function_dimension_self_and_younger_siblings

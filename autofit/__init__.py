@@ -15,5 +15,5 @@ from autofit.src.datum1D import Datum1D
 from autofit.src.frontend import Frontend
 from autofit.src.data_handler import DataHandler
 from autofit.src.optimizer import Optimizer
-from autofit.src.package import logger, debug, performance
+from autofit.src.package import logger, debug, performance, pkg_path
 from autofit.src.primitive_function import PrimitiveFunction

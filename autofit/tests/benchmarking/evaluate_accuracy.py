@@ -86,21 +86,14 @@ def get_success_failure(fn, base_optimizer) -> int:
 
 
 @performance
-def find_accuracy_of_optimizer(MAX_DEPTH=2, n_repeats=1):
+def find_accuracy_of_optimizer(max_depth=2, n_repeats=1):
     """
     Finds the accuracy of the backend optimizer across functional models
-    with a max depth of MAX_DEPTH. Repeats for each trial n_repeats times.
+    with max_depth. Repeats for each trial n_repeats times.
     """
 
-    all_functions_dict = {
-        "cos(x)": True,
-        "sin(x)": True,
-        "exp(x)": True,
-        "log(x)": True,
-        "1/x": True,
-    }
     opt_for_models = Optimizer(
-        use_functions_dict=all_functions_dict, max_functions=MAX_DEPTH
+        use_functions_dict=Optimizer.all_defaults_on_dict(), max_functions=max_depth
     )
     opt_for_models.build_composite_function_list()
 
@@ -133,9 +126,7 @@ def find_accuracy_of_optimizer(MAX_DEPTH=2, n_repeats=1):
         f"= {(100/n_repeats)*len(successes)/len(test_fns):.2f}%"
     )
 
-    print(
-        f"Total percent successful: {sum(successes)}/{len(successes)} = {acc*100:.2f}%"
-    )
+    print(f"Total percent successful: {sum(successes)}/{len(successes)} = {acc*100:.2f}%")
     print(f"Binary-equivalent accuracy: {acc ** (1/(len(test_fns)-1))*100:.2f}%")
 
 

@@ -114,12 +114,12 @@ class DataHandler:
                 if self._normalized_histogram_flag:
                     self.normalize_histogram_data()
 
-            min_X = min((datum.pos for datum in self._data))
-            max_X = max((datum.pos for datum in self._data))
-            if min_X <= 0:
+            min_x = min((datum.pos for datum in self._data))
+            max_x = max((datum.pos for datum in self._data))
+            if min_x <= 0:
                 logger("You can't log the x-data if there are negative numbers!")
                 return
-            self._X0 = np.sqrt(min_X * max_X) if self.X0 > 0 else -self._X0
+            self._X0 = np.sqrt(min_x * max_x) if self.X0 > 0 else -self._X0
             for datum in self._data:
                 if self._histogram_flag:
                     sigma_lower, sigma_upper = (
@@ -169,14 +169,12 @@ class DataHandler:
     def logy_flag(self, new_flag):
         if new_flag and not self._logy_flag:
             # we are not currently logging the data, but want to log it now
-            min_Y = min((datum.val for datum in self._data))
-            max_Y = max((datum.val for datum in self._data))
-            if min_Y <= 0:
-                logger(
-                    "You can't log the y-data if there are zeroes or negative numbers!"
-                )
+            min_y = min((datum.val for datum in self._data))
+            max_y = max((datum.val for datum in self._data))
+            if min_y <= 0:
+                logger("You can't log the y-data if there are zeroes or negative numbers!")
                 return
-            self._Y0 = np.sqrt(min_Y * max_Y) if self._Y0 > 0 else -self._Y0
+            self._Y0 = np.sqrt(min_y * max_y) if self._Y0 > 0 else -self._Y0
             for datum in self._data:
                 datum.sigma_val = datum.sigma_val / datum.val
                 datum.val = np.log(datum.val / self._Y0)
@@ -210,9 +208,7 @@ class DataHandler:
             return [datum.sigma_pos for datum in self._data]
 
         if not self._histogram_flag:
-            return [
-                datum.sigma_pos * self._X0 * np.exp(datum.pos) for datum in self._data
-            ]
+            return [datum.sigma_pos * self._X0 * np.exp(datum.pos) for datum in self._data]
 
         return np.array(
             [
@@ -228,9 +224,7 @@ class DataHandler:
     def unlogged_sigmay_data(self) -> list[float]:
         if self._logy_flag:
             # we're logging the data, so return it unlogged
-            return [
-                datum.sigma_val * self._Y0 * np.exp(datum.val) for datum in self._data
-            ]
+            return [datum.sigma_val * self._Y0 * np.exp(datum.val) for datum in self._data]
         # else
         return [datum.sigma_val for datum in self._data]
 
@@ -306,9 +300,7 @@ class DataHandler:
                     if line == "\n":
                         continue
                     data_str = DataHandler.cleaned_line_as_str_list(line, delim)
-                    self._data.append(
-                        Datum1D(pos=float(data_str[0]), val=float(data_str[1]))
-                    )
+                    self._data.append(Datum1D(pos=float(data_str[0]), val=float(data_str[1])))
 
             if self._line_width == 3:
                 # x, y, and sigma_y values
@@ -455,9 +447,7 @@ class DataHandler:
             self._logy_flag = False
             self.logy_flag = True
 
-    def set_excel_args(
-        self, x_range_str, y_range_str="", x_error_str="", y_error_str=""
-    ):
+    def set_excel_args(self, x_range_str, y_range_str="", x_error_str="", y_error_str=""):
         logger(
             f"Thank you for providing data ranges "
             f"{x_range_str} {y_range_str} {x_error_str} {y_error_str}"
@@ -476,9 +466,7 @@ class DataHandler:
     def valid_excel_endpoints(excel_range_str: str) -> bool:
         if excel_range_str == "":
             return True
-        if regex.match(
-            "[A-Z][A-Z]*[0-9][0-9]*:[A-Z][A-Z]*[0-9][0-9]*", excel_range_str
-        ):
+        if regex.match("[A-Z][A-Z]*[0-9][0-9]*:[A-Z][A-Z]*[0-9][0-9]*", excel_range_str):
             return True
         return False
 
@@ -604,9 +592,7 @@ class DataHandler:
 
         sigmaxvals = []
         if DataHandler.valid_excel_endpoints(self._sigmax_column_endpoints):
-            its = DataHandler.excel_range_as_list_of_idx_tuples(
-                self._sigmax_column_endpoints
-            )
+            its = DataHandler.excel_range_as_list_of_idx_tuples(self._sigmax_column_endpoints)
             for idx, loc in enumerate(its):
                 try:
                     val = data_frame.iloc[loc[0], loc[1]]
@@ -626,9 +612,7 @@ class DataHandler:
 
         sigmayvals = []
         if DataHandler.valid_excel_endpoints(self._sigmay_column_endpoints):
-            its = DataHandler.excel_range_as_list_of_idx_tuples(
-                self._sigmay_column_endpoints
-            )
+            its = DataHandler.excel_range_as_list_of_idx_tuples(self._sigmay_column_endpoints)
             for idx, loc in enumerate(its):
                 try:
                     val = data_frame.iloc[loc[0], loc[1]]
@@ -736,16 +720,15 @@ class DataHandler:
 
         self._y_label = "probability density"
         if self._logy_flag:
-            min_Y, max_Y = min((datum.val for datum in self._data)), max(
-                (datum.val for datum in self._data)
-            )
-            if min_Y <= 0:
+            min_y = min((datum.val for datum in self._data))
+            max_y = max((datum.val for datum in self._data))
+            if min_y <= 0:
                 error_handler(
                     "\n \n> Normalize: You can't log the y-data if there are non-positive numbers!"
                 )
                 self._normalized_histogram_flag = False
                 return False
-            self._Y0 = np.sqrt(min_Y * max_Y)
+            self._Y0 = np.sqrt(min_y * max_y)
             for datum in self._data:
                 datum.sigma_val = datum.sigma_val / datum.val
                 datum.val = np.log(datum.val / self._Y0)

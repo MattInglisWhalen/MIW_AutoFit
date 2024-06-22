@@ -93,9 +93,7 @@ def _set_package_path() -> None:
             loc = fallback
             break
         if failsafe > 50:
-            print(
-                "Frontend.get_package_path(): Failsafe reached in _set_package_path.py"
-            )
+            print("Frontend.get_package_path(): Failsafe reached in _set_package_path.py")
             loc = fallback
             break
 

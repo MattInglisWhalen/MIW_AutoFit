@@ -12,18 +12,26 @@ from autofit.tests.conftest import assert_almost_equal
 
 
 def test_init_scatter():
+
     with pytest.raises(TypeError):
-        default = DataHandler()
+        # noinspection PyArgumentList
+        default = DataHandler()  # pylint: disable=no-value-for-parameter,unused-variable
 
     csv = DataHandler(filepath=pkg_path() + "/data/linear_data_yerrors.csv")
     xls = DataHandler(filepath=pkg_path() + "/data/file_example_XLS_10.xls")
     xlsx = DataHandler(filepath=pkg_path() + "/data/DampedOscillations.xlsx")
     ods = DataHandler(filepath=pkg_path() + "/data/linear_noerror_multisheet.ods")
 
+    assert csv.shortpath == "linear_data_yerrors.csv"
+    assert xls.shortpath == "file_example_XLS_10.xls"
+    assert xlsx.shortpath == "DampedOscillations.xlsx"
+    assert ods.shortpath == "linear_noerror_multisheet.ods"
+
 
 def test_init_histo():
 
     hist = DataHandler(filepath=pkg_path() + "/data/binormal.csv")
+    assert hist.shortpath == "binormal.csv"
 
 
 def test_log_unlog():
@@ -38,9 +46,7 @@ def test_log_unlog():
     hist.logx_flag = False
     assert not hist.logx_flag
 
-    hist = DataHandler(
-        filepath=pkg_path() + "/data/random_sample_from_normal_distribution.csv"
-    )
+    hist = DataHandler(filepath=pkg_path() + "/data/random_sample_from_normal_distribution.csv")
     hist.logy_flag = True
     assert hist.logy_flag
     hist.logy_flag = True
@@ -75,4 +81,4 @@ def test_normalize():
     assert ods.shortpath == "libre_histo.ods"
     assert ods.x_label == "x"
     assert ods.y_label == "probability density"
-    assert_almost_equal(ods.bin_width() * sum([datum.val for datum in ods.data]), 1)
+    assert_almost_equal(ods.bin_width() * sum((datum.val for datum in ods.data)), 1)

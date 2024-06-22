@@ -1,9 +1,16 @@
+"""
+Contains the simple Datum1D class, a container for pointlike 1D data (1 independent variable)
+with uncertainties in x and/or y or neither
+"""
 from dataclasses import dataclass
 
 
 @dataclass
 class Datum1D:
-
+    """
+    A container for `pos`, `val`, `sigma_pos`, `sigma_val`, and possibly
+    `assym_sigma_pos` or `assym_sigma_val`
+    """
     pos: float  # the position of the measurement
     val: float  # the value of the measurement
 

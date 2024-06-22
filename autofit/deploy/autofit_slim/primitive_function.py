@@ -168,11 +168,7 @@ class PrimitiveFunction:
 
     @staticmethod
     def n_exp_dim2(x, arg) -> float:  # for Normal Composite
-        return (
-            np.exp(-(x**2) / (2 * arg**2)) / np.sqrt(2 * np.pi * arg**2)
-            if arg > 0
-            else 1e5
-        )
+        return np.exp(-(x**2) / (2 * arg**2)) / np.sqrt(2 * np.pi * arg**2) if arg > 0 else 1e5
 
     # arbitrary powers can be created using function composition (i.e using the CompositeFunction class)
     # For example x^1.5 = exp( 1.5 log(x) )

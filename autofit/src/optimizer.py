@@ -14,11 +14,13 @@ from base64 import b64encode
 
 # external libraries
 import numpy as np
-from matplotlib import ticker
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-from scipy.fft import fft, fftshift, fftfreq
-import scipy.stats  # pylint: disable=unused-import, needed for runtime usage
+# pylint has a hard time with fft, see
+# https://stackoverflow.com/questions/65880880/no-name-fft-in-module-scipy
+from scipy.fft import fft, fftshift, fftfreq  # pylint: disable=no-name-in-module
+# following pylint-disables imports needed for runtime `exec` usage
+import scipy.stats  # pylint: disable=unused-import
 import scipy.special  # pylint: disable=unused-import
 
 # internal classes
@@ -27,6 +29,7 @@ from autofit.src.primitive_function import PrimitiveFunction
 from autofit.src.composite_function import CompositeFunction
 from autofit.src.package import logger
 from autofit.src.algorithms import find_window_left, find_window_right, bisect
+import autofit.src.plot_formatter as pf
 
 
 class Optimizer:
@@ -95,17 +98,15 @@ class Optimizer:
         self._composite_generator: Optional[Iterator[CompositeFunction]] = None
         self._gen_idx = -1
 
-        self._criterion: Callable[[CompositeFunction], float] = (
-            self.reduced_chi_squared_of_fit
-        )
+        self._criterion: Callable[[CompositeFunction], float] = self.reduced_chi_squared_of_fit
         if criterion == "AIC":
-            self._criterion = self.Akaike_criterion
+            self._criterion = self.akaike_criterion
         elif criterion == "AICc":
-            self._criterion = self.Akaike_criterion_corrected
+            self._criterion = self.akaike_criterion_corrected
         elif criterion == "BIC":
-            self._criterion = self.Bayes_criterion
+            self._criterion = self.bayes_criterion
         elif criterion == "HQIC":
-            self._criterion = self.HannanQuinn_criterion
+            self._criterion = self.hannan_quinn_criterion
 
         self._regen_composite_flag = regen
         self._try_harder = True
@@ -193,10 +194,7 @@ class Optimizer:
 
     @property
     def top5_uncertainties(self) -> list[list[float]]:
-        return [
-            list(np.sqrt(np.diagonal(covariance)))
-            for covariance in self._top5_covariances
-        ]
+        return [list(np.sqrt(np.diagonal(covariance))) for covariance in self._top5_covariances]
 
     @property
     def top_uncs(self) -> list[float]:
@@ -233,7 +231,7 @@ class Optimizer:
     def top5_maccs(self):
         top5_mean_absolute_ccs = []
         for cov, model in zip(self.top5_covariances, self.top5_models):
-            top5_mean_absolute_ccs.append(self._mean_abs_coc(cov, model))
+            top5_mean_absolute_ccs.append(self._mean_abs_coc(model, cov))
         return top5_mean_absolute_ccs
 
     @property
@@ -295,9 +293,7 @@ class Optimizer:
         self.set_data_to(new_data)
         for idx, model in enumerate(self.top5_models):
             self.top5_rchisqrs[idx] = self.criterion(model)
-        logger(
-            f"Optimizer.update_top5_rchisqrs_for_new_data(): After: {self.top5_rchisqrs}"
-        )
+        logger(f"Optimizer.update_top5_rchisqrs_for_new_data(): After: {self.top5_rchisqrs}")
 
     # changes top5 lists, does not change _shown variables
     def query_add_to_top5(self, model: CompositeFunction, covariance):
@@ -316,9 +312,7 @@ class Optimizer:
             logger(f"Adjustment: {rchisqr} -> {rchisqr_adjusted}")
             rchisqr = rchisqr_adjusted
         # check for duplication
-        for idx, (topper, chisqr) in enumerate(
-            zip(self.top5_models[:], self.top5_rchisqrs[:])
-        ):
+        for idx, (topper, chisqr) in enumerate(zip(self.top5_models[:], self.top5_rchisqrs[:])):
             # comparing with names
             if model.longname == topper.longname:
                 logger("Same name in query")
@@ -361,9 +355,7 @@ class Optimizer:
                     )
                     return
                 # check the coefficients of covariance
-                cc_topper = self._mean_abs_coc(
-                    self._top5_models[idx], self._top5_covariances[idx]
-                )
+                cc_topper = self._mean_abs_coc(self._top5_models[idx], self._top5_covariances[idx])
                 cc_model = self._mean_abs_coc(model, covariance)
                 if cc_topper < cc_model:
                     logger(
@@ -447,16 +439,12 @@ class Optimizer:
                                 del self.top5_rchisqrs[idx]
                                 break
                         # this method changes shown models
-                        improved_reduced, improved_cov = (
-                            self.fit_this_and_get_model_and_covariance(
-                                model_=reduced_model,
-                                initial_guess=reduced_model.args,
-                                change_shown=False,
-                            )
+                        improved_reduced, improved_cov = self.fit_this_and_get_model_and_covariance(
+                            model_=reduced_model,
+                            initial_guess=reduced_model.args,
+                            change_shown=False,
                         )
-                        self.query_add_to_top5(
-                            model=improved_reduced, covariance=improved_cov
-                        )
+                        self.query_add_to_top5(model=improved_reduced, covariance=improved_cov)
                         break
                 return
 
@@ -464,9 +452,7 @@ class Optimizer:
         self, depth, regen_built_ins=True
     ) -> Iterator[CompositeFunction]:
 
-        self._primitive_names_list = [
-            iprim.name for iprim in self._primitive_function_list
-        ]
+        self._primitive_names_list = [iprim.name for iprim in self._primitive_function_list]
 
         if depth == 0:
             if regen_built_ins:
@@ -482,9 +468,7 @@ class Optimizer:
                 yield new_comp
 
         else:
-            head_gen = self.composite_function_generator(
-                depth=depth - 1, regen_built_ins=False
-            )
+            head_gen = self.composite_function_generator(depth=depth - 1, regen_built_ins=False)
             for icomp in head_gen:
                 for idescendent in range(icomp.num_nodes()):
                     for iprim in self._primitive_function_list:
@@ -650,9 +634,7 @@ class Optimizer:
         # you will miss out on some functions possibilities
 
         num_comps = len(self._composite_function_list[:])
-        self._primitive_names_list = [
-            iprim.name for iprim in self._primitive_function_list
-        ]
+        self._primitive_names_list = [iprim.name for iprim in self._primitive_function_list]
 
         # use regex to trim based on rules applied to composite names
         for idx, icomp in enumerate(self._composite_function_list[:]):
@@ -693,11 +675,7 @@ class Optimizer:
         ):
             return 1
         # trig inside trig is too complex, and very (very) rarely occurs in applications
-        if (
-            icomp.has_double_trigness()
-            or icomp.has_double_expness()
-            or icomp.has_double_logness()
-        ):
+        if icomp.has_double_trigness() or icomp.has_double_expness() or icomp.has_double_logness():
             return 29
         # sins, cosines, exps, and logs never have angular frequency or decay parameters exactly 1
         # all unitless-argument functions start with my_
@@ -809,10 +787,7 @@ class Optimizer:
             logger(icomp.has_double_expness())
             raise SystemExit
 
-        if (
-            name in ["pow1·my_exp(my_exp)", "pow1·my_exp(pow1·my_exp)"]
-            and not remove_flag
-        ):
+        if name in ["pow1·my_exp(my_exp)", "pow1·my_exp(pow1·my_exp)"] and not remove_flag:
             logger(f"\n\n>>> Why did we NOT remove {name=} at remove_flag=29 <<<\n\n")
             logger(icomp.has_double_expness())
             raise SystemExit
@@ -958,15 +933,13 @@ class Optimizer:
         # Unintuitively, this helps. Tight error bars flatten the gradients
         # away from the global minimum, and so relaxed error bars help point towards global minima
         try:
-            better_guess, better_cov = (
-                curve_fit(  # pylint: disable=unbalanced-tuple-unpacking
-                    model.scipy_func_smoothed,
-                    xdata=x_points,
-                    ydata=y_points,
-                    p0=initial_guess,
-                    maxfev=500,
-                    method="lm",
-                )
+            better_guess, better_cov = curve_fit(  # pylint: disable=unbalanced-tuple-unpacking
+                model.scipy_func_smoothed,
+                xdata=x_points,
+                ydata=y_points,
+                p0=initial_guess,
+                maxfev=500,
+                method="lm",
             )
             if any((x < 0 for x in np.diagonal(better_cov))):
                 logger("Negative variance encountered")
@@ -974,18 +947,16 @@ class Optimizer:
         except RuntimeError:
             logger("Couldn't find optimal parameters for better guess.")
             model.args = list(initial_guess)
-            return model, np.array(
-                [1e10 for _ in range(len(initial_guess) ** 2)]
-            ).reshape(len(initial_guess), len(initial_guess))
+            return model, np.array([1e10 for _ in range(len(initial_guess) ** 2)]).reshape(
+                len(initial_guess), len(initial_guess)
+            )
         except TypeError:
             logger("Too many dof for dataset.")
             model.args = list(initial_guess)
-            return model, np.array(
-                [1e10 for _ in range(len(initial_guess) ** 2)]
-            ).reshape(len(initial_guess), len(initial_guess))
-        logger(
-            f"{info_string}Better guess: {better_guess} +- {np.sqrt(np.diagonal(better_cov))}"
-        )
+            return model, np.array([1e10 for _ in range(len(initial_guess) ** 2)]).reshape(
+                len(initial_guess), len(initial_guess)
+            )
+        logger(f"{info_string}Better guess: {better_guess} +- {np.sqrt(np.diagonal(better_cov))}")
 
         # TODO: delete this graient descent if you can't get it working
         if model.name == "adsawpow_neg1+pow1":
@@ -1039,12 +1010,7 @@ class Optimizer:
 
         # should use the effective variance method if x-errors exist, e.g.
         # sigma^2 = sigma_y^2 + sigma_x^2 (dy/dx)^2
-        if any(
-            (
-                datum.sigma_pos**2 / (datum.pos**2 + 1e-10) > 1e-10
-                for datum in self._data
-            )
-        ):
+        if any((datum.sigma_pos**2 / (datum.pos**2 + 1e-10) > 1e-10 for datum in self._data)):
             for it in range(3):  # iterate 3 times
                 effective_sigma = np.sqrt(
                     [
@@ -1054,16 +1020,14 @@ class Optimizer:
                     ]
                 )
                 try:
-                    np_pars, np_cov = (
-                        curve_fit(  # pylint: disable=unbalanced-tuple-unpacking
-                            model.scipy_func,
-                            xdata=x_points,
-                            ydata=y_points,
-                            sigma=effective_sigma,
-                            absolute_sigma=use_errors,
-                            p0=np_pars,
-                            maxfev=5000,
-                        )
+                    np_pars, np_cov = curve_fit(  # pylint: disable=unbalanced-tuple-unpacking
+                        model.scipy_func,
+                        xdata=x_points,
+                        ydata=y_points,
+                        sigma=effective_sigma,
+                        absolute_sigma=use_errors,
+                        p0=np_pars,
+                        maxfev=5000,
                     )
                 except RuntimeError:
                     logger(f"On model {model} max_fev reached")
@@ -1117,9 +1081,7 @@ class Optimizer:
                 logger(f"Peaks expected at {means}")
                 widths = self.find_widths_for_gaussian(means=means)
                 logger(f"Widths expected to be {widths}")
-                est_amplitudes = self.find_amplitudes_for_gaussian(
-                    means=means, widths=widths
-                )
+                est_amplitudes = self.find_amplitudes_for_gaussian(means=means, widths=widths)
                 logger(f"Amplitudes expected to be {est_amplitudes}")
                 init_guess = []
                 for amp, width, mean in zip(est_amplitudes, widths, means):
@@ -1139,8 +1101,7 @@ class Optimizer:
 
         if fitted_rchisqr > 10 and len(self._data) > 20 and do_halving:
             logger(
-                " " * halved * 4
-                + f"It is unlikely that we have found the correct model... "
+                " " * halved * 4 + f"It is unlikely that we have found the correct model... "
                 f"halving the dataset to {len(self._data)//2}"
             )
 
@@ -1168,9 +1129,7 @@ class Optimizer:
 
         if initial_guess is None and model_.is_submodel:
             # make the submodel realize it's a submodel
-            fitted_model.set_submodel_of_zero_idx(
-                model_.submodel_of, model_.submodel_zero_index
-            )
+            fitted_model.set_submodel_of_zero_idx(model_.submodel_of, model_.submodel_zero_index)
 
         if np.any(np.isinf(fitted_cov)) and self._try_harder and halved < 1:
             try:
@@ -1189,9 +1148,7 @@ class Optimizer:
         return fitted_model, fitted_cov
 
     def set_estimated_std(self, model: CompositeFunction):
-        logger(
-            "Optimizer.set_estimated_std(): Setting implied error bars. Resids below."
-        )
+        logger("Optimizer.set_estimated_std(): Setting implied error bars. Resids below.")
         resids = [datum.val - model.eval_at(datum.pos) for datum in self._data]
         logger(resids)
 
@@ -1218,19 +1175,14 @@ class Optimizer:
         # in https://123.physics.ucdavis.edu/week_0_files/taylor_181-199.pdf
 
         uncs_y = [datum.sigma_val for datum in self._data]
-        if any(
-            (
-                unc / (abs(datum.val) + 1e-5) < 1e-5
-                for unc, datum in zip(uncs_y, self._data)
-            )
-        ):
+        if any((unc / (abs(datum.val) + 1e-5) < 1e-5 for unc, datum in zip(uncs_y, self._data))):
             self.set_estimated_std(model)
 
         # to be determined
-        invV = np.ndarray((len(model.args), len(model.args)))
+        inv_cov = np.ndarray((len(model.args), len(model.args)))
 
         it_limit = 30
-        # find the diagonals of invV using the bisection algorithm
+        # find the diagonals of inv_covariance using the bisection algorithm
         while True:
             dir_bigger = []
             opt_chisqr = self.chi_squared_of_fit(model)
@@ -1245,9 +1197,7 @@ class Optimizer:
                     model.set_arg_i(idx, better_arg_R)
                     break
 
-                diff_L, better_arg_L = find_window_left(
-                    self.chi_squared_of_fit, target, model, idx
-                )
+                diff_L, better_arg_L = find_window_left(self.chi_squared_of_fit, target, model, idx)
                 if diff_L < 0:
                     model.set_arg_i(idx, better_arg_L)
                     break
@@ -1283,7 +1233,7 @@ class Optimizer:
                 # the interval left_x < x < right_x contain the point where chi^2 = chi0^2 + 1,
                 # which is the definition of a 1-sigma uncertainty in the MaxLikelihood model,
                 # since chi^2 ~ exp[ -(x-x0)Vinv(x-x0)/2 ]
-                invV[idx, idx] = 1 / sigma**2
+                inv_cov[idx, idx] = 1 / sigma**2
             else:
                 break
 
@@ -1345,28 +1295,18 @@ class Optimizer:
                         break
 
                 mid_delta = (inner_delta + outer_delta) / 2
-                invCovIJ = (
-                    dir_bigger[i]
-                    * dir_bigger[j]
-                    * 0.5
-                    * (1 / mid_delta**2 - invV[i, i] - invV[j, j])
-                )
-                invV[i, j] = invCovIJ
-                invV[j, i] = invCovIJ
+                num_ij = 0.5 * dir_bigger[i] * dir_bigger[j]
+                den_ij = mid_delta**2 - inv_cov[i, i] - inv_cov[j, j]
+                inv_cov_ij = num_ij / den_ij
+                inv_cov[i, j] = inv_cov_ij
+                inv_cov[j, i] = inv_cov_ij
 
-        cov = np.linalg.inv(invV)
-        logger("Optimizer.try_harder_for_cov(), invV=\n", invV)
+        cov = np.linalg.inv(inv_cov)
+        logger("Optimizer.try_harder_for_cov(), invV=\n", inv_cov)
         logger("Optimizer.try_harder_for_cov(), cov=\n", cov)
-        logger(
-            f"Optimizer.try_harder_for_cov(), recalculated sigmas = {np.sqrt(np.diag(cov))}"
-        )
+        logger(f"Optimizer.try_harder_for_cov(), recalculated sigmas = {np.sqrt(np.diag(cov))}")
 
-        if any(
-            (
-                unc / (abs(datum.val) + 1e-5) < 1e-5
-                for unc, datum in zip(uncs_y, self._data)
-            )
-        ):
+        if any((unc / (abs(datum.val) + 1e-5) < 1e-5 for unc, datum in zip(uncs_y, self._data))):
             self.reset_estimated_std(uncs_y)
 
         return cov
@@ -1377,12 +1317,8 @@ class Optimizer:
         cov = self.try_harder_for_cov(model)
         sigma = np.sqrt(cov[par_idx, par_idx])
 
-        xvals = [
-            mu + (i - num_sigmas * 10) * sigma / 10 for i in range(num_sigmas * 20)
-        ]
-        yvals = [
-            self.likelihood_with_modified_par(model, par_idx, xval) for xval in xvals
-        ]
+        xvals = [mu + (i - num_sigmas * 10) * sigma / 10 for i in range(num_sigmas * 20)]
+        yvals = [self.likelihood_with_modified_par(model, par_idx, xval) for xval in xvals]
 
         plt.close()
         plt.title("Likelihood across parameter")
@@ -1420,10 +1356,14 @@ class Optimizer:
                 if status_bar["bg"] == "#010101":  # cancel code
                     break
 
+        best_cocs = [
+            self._mean_abs_coc(model, cov)
+            for model, cov in zip(self._top5_models,self._top5_covariances)
+        ]
         logger(
             f"\nBest models are {[m.name for m in self.top5_models]} with \n"
             f"associated reduced chi-squareds {self.top5_rchisqrs}, \n"
-            f"and CoCs {[self._mean_abs_coc(model, cov) for model, cov in zip(self._top5_models,self._top5_covariances)]}"
+            f"and CoCs {best_cocs}"
         )
 
         logger(
@@ -1438,9 +1378,7 @@ class Optimizer:
             # if a better model is found here it will probably
             # underestimate the actual rchisqr since
             # it will only calculate based on half the data
-            logger(
-                "It is unlikely that we have found the correct model... halving the dataset"
-            )
+            logger("It is unlikely that we have found the correct model... halving the dataset")
             lower_data = self._data[: len(self._data) // 2]
             lower_optimizer = Optimizer(
                 data=lower_data,
@@ -1477,9 +1415,7 @@ class Optimizer:
         if start:
             self._composite_generator = self.all_valid_composites_generator()
 
-        x_points, y_points, sigma_points, use_errors = self.fit_setup(
-            fourier_condition=start
-        )
+        x_points, y_points, sigma_points, use_errors = self.fit_setup(fourier_condition=start)
 
         batch_size = 10
         for _ in range(batch_size):
@@ -1554,15 +1490,10 @@ class Optimizer:
                     amplitudes.append((datumlow.val + datumhigh.val) / 2)
                     break
         avg_bin_width = (self._data[-1].pos - self._data[0].pos) / (len(self._data) - 1)
-        expected_amplitude_sum = (
-            sum((datum.val for datum in self._data)) * avg_bin_width
-        )
+        expected_amplitude_sum = sum((datum.val for datum in self._data)) * avg_bin_width
         actual_amplitude_sum = sum(amplitudes)
         return [
-            amp
-            * expected_amplitude_sum
-            / actual_amplitude_sum
-            / np.sqrt(2 * np.pi * width**2)
+            amp * expected_amplitude_sum / actual_amplitude_sum / np.sqrt(2 * np.pi * width**2)
             for (amp, width) in zip(amplitudes, widths)
         ]
 
@@ -1594,8 +1525,7 @@ class Optimizer:
                     x_low, y_low = self._data[idx - 1].pos, self._data[idx - 1].val
                     x_high, y_high = (self._data[idx].pos, self._data[idx].val)
                     y_points.append(
-                        (y_low * (x_high - target) + y_high * (target - x_low))
-                        / (x_high - x_low)
+                        (y_low * (x_high - target) + y_high * (target - x_low)) / (x_high - x_low)
                     )
                     break
         y_points.append(self._data[-1].val)
@@ -1653,9 +1583,7 @@ class Optimizer:
 
             new_gridpoint = scaling_args_no_sign.copy()
             for bit, arg in enumerate(new_gridpoint):
-                new_gridpoint[bit] = arg * (
-                    1 - 2 * int(binary_string_of_index[-1 - bit])
-                )
+                new_gridpoint[bit] = arg * (1 - 2 * int(binary_string_of_index[-1 - bit]))
             scaling_args_sign_list.append(new_gridpoint)
 
         # tests each of the +/- combinations for the best fit
@@ -1668,12 +1596,8 @@ class Optimizer:
             # if model.name == "pow_neg1+pow1":
             #     print(point, temp_rchisqr)
             #     self.show_fit(model=model, pause_on_image=True)
-            weighted_point = list_sums_weights(
-                weighted_point, point, 1, 1 / (temp_rchisqr + 1e-5)
-            )
-            weighted_norm += (
-                1e-10 if np.isnan(temp_rchisqr) else 1 / (temp_rchisqr + 1e-5)
-            )
+            weighted_point = list_sums_weights(weighted_point, point, 1, 1 / (temp_rchisqr + 1e-5))
+            weighted_norm += 1e-10 if np.isnan(temp_rchisqr) else 1 / (temp_rchisqr + 1e-5)
             if temp_rchisqr < best_rchisqr:
                 best_rchisqr = temp_rchisqr
                 best_grid_point = point
@@ -1712,50 +1636,50 @@ class Optimizer:
         min_y = min((datum.val for datum in self._data))
         max_y = max((datum.val for datum in self._data))
 
-        charAvY = (max_y + min_y) / 2
-        charDiffY = (max_y - min_y) / 2
-        charAvX = (max_x + min_x) / 2
-        charDiffX = (max_x - min_x) / 2
+        char_av_y = (max_y + min_y) / 2
+        char_diff_y = (max_y - min_y) / 2
+        char_av_x = (max_x + min_x) / 2
+        char_diff_x = (max_x - min_x) / 2
         # charSpacingX =  sorted_X[1]  - sorted_X[0]
         if composite.prim.name == "pow0":
             # this typically represents a y-shift, so the average X
             # is more important than the range of x-values
-            charX = charAvX
+            char_x = char_av_x
         elif composite.parent is not None and composite.parent.prim.name == "my_log":
             # alt-1: this arg this typically represents a log(x/x0) so the average is more important
             # but also A log(x/x0) = A log(x) - Alog(x0) ~ Alog(x) + y0
             # so A log(x0) should also scale like y, i.e.
-            # charX = charAvX
+            # char_x = char_av_x
 
             # y(x)/y0 = log(x/x0) implies that (taking ratio of y2/y1)
             # x0 = ( x1^(y2/y1) / x2 )^[y1/(y2-y1)]
-            charX = abs(abs(min_x) ** (max_y / min_y) / abs(max_x)) ** abs(
-                min_y / (max_y - min_y)
-            )
+            base = abs(abs(min_x) ** (max_y / min_y) / abs(max_x))
+            exponent = abs(min_y / (max_y - min_y))
+            char_x = base**exponent
 
             # x0 represents the spot where log(x/x0) = 0. So search for that place
             # ...
             # ...
         else:
-            charX = charDiffX
+            char_x = char_diff_x
 
         # defaults
-        # if charX > 0:
-        #     xmul = charX ** composite.dimension_arg
+        # if char_x > 0:
+        #     xmul = char_x ** composite.dimension_arg
         # else:
-        #     # for some reason negative charX implies charDiffX is more important
-        #     xmul = charDiffX ** composite.dimension_arg
-        xmul = charX**composite.dimension_arg
+        #     # for some reason negative char_x implies char_diff_x is more important
+        #     xmul = char_diff_x ** composite.dimension_arg
+        xmul = char_x**composite.dimension_arg
         ymul = 1
 
         # overrides
         if composite.parent is None:
             if composite.prim.name[:2] != "n_" and composite.prim.name != "sum_":
-                ymul = charDiffY
+                ymul = char_diff_y
             else:
                 pass
         elif composite.parent.prim.name == "sum_" and composite.parent.parent is None:
-            ymul = charDiffY
+            ymul = char_diff_y
         elif "cos" in composite.parent.prim.name:
             # in cos( Aexp(Lx) ), for small x the inner composition goes like A + ALx
             # = f(0) + x f'(0) and here f'(0) should correspond to the largest fourier component
@@ -1766,9 +1690,7 @@ class Optimizer:
             slope_at_zero = dy / dx
             if 1e-5 < abs(slope_at_zero) < 1e5:
                 if len(self._cos_freq_list_dup) > 0:
-                    logger(
-                        f"Using cosine ang. frequency {2*np.pi*self._cos_freq_list_dup[0]}"
-                    )
+                    logger(f"Using cosine ang. frequency {2*np.pi*self._cos_freq_list_dup[0]}")
                     xmul = (2 * np.pi * self._cos_freq_list_dup.pop(0)) / slope_at_zero
                     logger(f"   so with {slope_at_zero=}, {xmul=}")
 
@@ -1781,9 +1703,7 @@ class Optimizer:
             slope_at_zero = dy / dx
             if 1e-5 < abs(slope_at_zero) < 1e5:
                 if len(self._sin_freq_list_dup) > 0:
-                    logger(
-                        f"Using sine ang. frequency {2*np.pi*self._sin_freq_list_dup[0]}"
-                    )
+                    logger(f"Using sine ang. frequency {2*np.pi*self._sin_freq_list_dup[0]}")
                     xmul = (2 * np.pi * self._sin_freq_list_dup.pop(0)) / slope_at_zero
                     logger(f"   so with {slope_at_zero=}, {xmul=}")
                 else:  # misassigned cosine frequency
@@ -1795,27 +1715,6 @@ class Optimizer:
         composite.prim.arg = xmul * ymul
 
         return composite.get_args()
-
-    @staticmethod
-    def fix_axes_labels(axes, xmin, xmax, ymin, ymax, xlabel):
-
-        #  proportion between xmin and xmax where the zero lies
-        # x(tx) = xmin + (xmax - xmin)*tx with 0<tx<1 so
-        tx = max(0.0, -xmin / (xmax - xmin))
-        ty = max(0.0, -ymin / (max(ymax - ymin, 1e-5)))
-        offset_X, offset_Y = (
-            -0.07,
-            -0.04,
-        )  # how much of the screen is taken by the x and y spines
-
-        axes.xaxis.set_label_coords(1.050 - 0.005 * len(xlabel), offset_Y + ty)
-
-        # if ymin < 0 :
-        # else :
-        #     axes.xaxis.set_label_coords(0.5, offset_Y + ty)
-        #     # plt.tight_layout()
-
-        axes.yaxis.set_label_coords(offset_X + tx, +0.750)
 
     def make_fit_image(self, model=None):
 
@@ -1863,114 +1762,19 @@ class Optimizer:
         plt.ylabel("y")
         axes: plt.axes = plt.gca()
 
-        if axes.get_xlim()[0] > 0:
-            axes.set_xlim([0, axes.get_xlim()[1]])
-        elif axes.get_xlim()[1] < 0:
-            axes.set_xlim([axes.get_xlim()[0], 0])
-        if axes.get_ylim()[0] > 0:
-            axes.set_ylim([0, axes.get_ylim()[1]])
-        elif axes.get_ylim()[1] < 0:
-            axes.set_ylim([axes.get_ylim()[0], 0])
-
-        axes.set(xscale="linear")
-        axes.spines["left"].set_position(("data", 0.0))
-        axes.spines["right"].set_position(("data", 0.0))
-        xmin, xmax = min(x_points), max(x_points)
-        log_deltaX = np.log10(xmax - xmin if xmax > xmin else 10) // 1
-        if log_deltaX > 4:
-            axes.xaxis.set_major_formatter(
-                ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-            )
-        elif 0 <= log_deltaX <= 4:
-            axes.xaxis.set_major_formatter(
-                ticker.FuncFormatter(
-                    lambda x, pos: (
-                        ""
-                        if x == 0
-                        else (
-                            f"{x:.1F}"
-                            if (x - np.trunc(x)) ** 2 > 1e-10
-                            else f"{int(x)}"
-                        )
-                    )
-                )
-            )
-        elif log_deltaX == -1:
-            axes.xaxis.set_major_formatter(
-                ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2F}")
-            )
-        elif log_deltaX == -2:
-            axes.xaxis.set_major_formatter(
-                ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.3F}")
-            )
-        elif log_deltaX == -3:
-            axes.xaxis.set_major_formatter(
-                ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.4F}")
-            )
-        elif log_deltaX == -4:
-            axes.xaxis.set_major_formatter(
-                ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.5F}")
-            )
-        else:
-            axes.xaxis.set_major_formatter(
-                ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-            )
-
-        axes.set(yscale="linear")
-        axes.spines["top"].set_position(("data", 0.0))
-        axes.spines["bottom"].set_position(("data", 0.0))
-        ymin, ymax = min(y_points), max(y_points)
-        log_deltaY = np.log10(ymax - ymin if ymax > ymin else 10) // 1
-        if log_deltaY > 4:
-            axes.yaxis.set_major_formatter(
-                ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-            )
-        elif 0 <= log_deltaY <= 4:
-            axes.yaxis.set_major_formatter(
-                ticker.FuncFormatter(
-                    lambda x, pos: (
-                        ""
-                        if x == 0
-                        else (
-                            f"{x:.1F}"
-                            if (x - np.trunc(x)) ** 2 > 1e-10
-                            else f"{int(x)}"
-                        )
-                    )
-                )
-            )
-        elif log_deltaY == -1:
-            axes.yaxis.set_major_formatter(
-                ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2F}")
-            )
-        elif log_deltaY == -2:
-            axes.yaxis.set_major_formatter(
-                ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.3F}")
-            )
-        elif log_deltaY == -3:
-            axes.yaxis.set_major_formatter(
-                ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.4F}")
-            )
-        elif log_deltaY == -4:
-            axes.yaxis.set_major_formatter(
-                ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.5F}")
-            )
-        else:
-            axes.yaxis.set_major_formatter(
-                ticker.FuncFormatter(lambda x, pos: "" if x == 0 else f"{x:.2E}")
-            )
+        pf.zero_out_axes(axes)
+        pf.set_xaxis_format_linear(axes, x_points)
+        pf.set_yaxis_format_linear(axes, y_points)
 
         axes.set_facecolor((112 / 255, 146 / 255, 190 / 255))
 
-        self.fix_axes_labels(
-            axes, min(x_points), max(x_points), min(lower_bar), max(upper_bar), "x"
-        )
+        pf.fix_axes_labels(axes, min(x_points), max(x_points), min(lower_bar), max(upper_bar), "x")
 
-        my_stringIObytes = BytesIO()
-        plt.savefig(my_stringIObytes, format="png")
-        my_stringIObytes.seek(0)
-        my_base64_pngData = b64encode(my_stringIObytes.read()).decode()
-        return my_base64_pngData
+        my_string_iobytes = BytesIO()
+        plt.savefig(my_string_iobytes, format="png")
+        my_string_iobytes.seek(0)
+        my_base64_png_data = b64encode(my_string_iobytes.read()).decode()
+        return my_base64_png_data
 
     def show_fit(self, model=None, pause_on_image=False):
 
@@ -2013,7 +1817,7 @@ class Optimizer:
         if axes.get_ylim()[0] > 0:
             axes.set_ylim([0, axes.get_ylim()[1]])
         axes.set_facecolor((112 / 255, 146 / 255, 190 / 255))
-        # logger("Optimizer show fit: here once")
+
         plt.show(block=pause_on_image)
 
     def inferred_error_bar_size(self) -> float:
@@ -2027,9 +1831,7 @@ class Optimizer:
     def chi_squared_of_fit(self, model: CompositeFunction) -> float:
 
         if any((datum.sigma_val < 1e-5 for datum in self._data)):
-            sumsqr = sum(
-                ((model.eval_at(datum.pos) - datum.val) ** 2 for datum in self._data)
-            )
+            sumsqr = sum(((model.eval_at(datum.pos) - datum.val) ** 2 for datum in self._data))
             return sumsqr / self.inferred_error_bar_size() ** 2
 
         return sum(
@@ -2094,48 +1896,43 @@ class Optimizer:
         return np.sum(np.abs(cc)) / N**2
 
     def r_squared(self, model):
-        mean = np.mean((datum.val for datum in self._data))
-        variance_data = np.mean(((datum.val - mean) ** 2 for datum in self._data))
-        variance_fit = np.mean(
-            ((datum.val - model.eval_at(datum.pos)) ** 2 for datum in self._data)
-        )
+        mean = np.mean([datum.val for datum in self._data])
+        variations_from_mean = [(datum.val - mean) ** 2 for datum in self._data]
+        variations_from_fit = [(datum.val - model.eval_at(datum.pos)) ** 2 for datum in self._data]
+        variance_data = np.mean(variations_from_mean)
+        variance_fit = np.mean(variations_from_fit)
+
         return 1 - variance_fit / variance_data
 
-    def Akaike_criterion(self, model):
+    def akaike_criterion(self, model):
         # the AIC is equivalent, for normally distributed residuals, to the least chi squared
         k = model.dof
         # N = len(self._data)
-        AIC = (
-            self.chi_squared_of_fit(model) + 2 * k
-        )  # we take chi^2 = -2logL + C, discard the C
+        AIC = self.chi_squared_of_fit(model) + 2 * k  # we take chi^2 = -2logL + C, discard the C
         return AIC
 
-    def Akaike_criterion_corrected(self, model):
+    def akaike_criterion_corrected(self, model):
         # correction for small datasets, fixes overfitting
         k = model.dof
         N = len(self._data)
-        AICc = (
-            self.Akaike_criterion(model) + 2 * k * (k + 1) / (N - k - 1)
-            if N > k + 1
-            else 1e5
-        )
-        return AICc
+        if N > k + 1:
+            return self.akaike_criterion(model) + 2 * k * (k + 1) / (N - k - 1)
+        return 1e5
 
-    def Bayes_criterion(self, model):
+    def bayes_criterion(self, model):
         # the same as AIC but penalizes additional parameters more heavily for larger datasets
         k = model.dof
         N = len(self._data)
         BIC = self.chi_squared_of_fit(model) + k * np.log(N)
         return BIC
 
-    def HannanQuinn_criterion(self, model):
+    def hannan_quinn_criterion(self, model):
         # agrees with AIC at small datasets, but punishes less strongly than Bayes at large N
         k = model.dof
         N = len(self._data)
-        HQIC = (
-            self.chi_squared_of_fit(model) + 2 * k * np.log(np.log(N)) if N > 1 else 1e5
-        )
-        return HQIC
+        if N > 1:
+            return self.chi_squared_of_fit(model) + 2 * k * np.log(np.log(N))
+        return 1e5
 
     def smoothed_data(self, data=None, n=1) -> list[Datum1D]:
 
@@ -2175,7 +1972,8 @@ class Optimizer:
 
     def deriv_n(self, data, n=1) -> list[Datum1D]:
 
-        # this assumes that data is sequential, i.e. that there are no repeated measurements for each x position
+        # this assumes that data is sequential, i.e. that there are
+        # no repeated measurements for each x position
         return_deriv = []
         if n <= 1:
             data_to_diff = data
@@ -2189,12 +1987,9 @@ class Optimizer:
 
             # propagation of uncertainty
             new_sigma_pos = np.sqrt(
-                (data_to_diff[idx + 2].sigma_pos / 2) ** 2
-                + (data_to_diff[idx].sigma_pos / 2) ** 2
+                (data_to_diff[idx + 2].sigma_pos / 2) ** 2 + (data_to_diff[idx].sigma_pos / 2) ** 2
             )
-            new_sigma_deriv = (
-                1 / (data_to_diff[idx + 2].pos - data_to_diff[idx].pos)
-            ) * np.sqrt(
+            new_sigma_deriv = (1 / (data_to_diff[idx + 2].pos - data_to_diff[idx].pos)) * np.sqrt(
                 data_to_diff[idx + 2].sigma_val ** 2 + data_to_diff[idx].sigma_val ** 2
             ) + new_deriv**2 * (
                 data_to_diff[idx + 2].sigma_pos ** 2 + data_to_diff[idx].sigma_pos ** 2
@@ -2210,8 +2005,8 @@ class Optimizer:
 
         return return_deriv
 
-    # this is only used to find an initial guess for the data, and so more sophisticated techniques like
-    # weighted means is not reqired
+    # this is only used to find an initial guess for the data, and so
+    # more sophisticated techniques like weighted means is not reqired
     def average_data(self) -> list[Datum1D]:
 
         # get means and number of pos-instances into dict
@@ -2237,20 +2032,15 @@ class Optimizer:
                 propagation_variance_y_dict.get(datum.pos, 0) + datum.sigma_val**2
             )
             sample_variance_y_dict[datum.pos] = (
-                sample_variance_y_dict.get(datum.pos, 0)
-                + (datum.val - mean_dict[datum.pos]) ** 2
+                sample_variance_y_dict.get(datum.pos, 0) + (datum.val - mean_dict[datum.pos]) ** 2
             )
 
         averaged_data = []
         for key, val in mean_dict.items():
             sample_uncertainty_squared = (
-                sample_variance_y_dict[key] / (num_dict[key] - 1)
-                if num_dict[key] > 1
-                else 0
+                sample_variance_y_dict[key] / (num_dict[key] - 1) if num_dict[key] > 1 else 0
             )
-            propagation_uncertainty_squared = (
-                propagation_variance_y_dict[key] / num_dict[key]
-            )
+            propagation_uncertainty_squared = propagation_variance_y_dict[key] / num_dict[key]
             ratio = (
                 sample_uncertainty_squared
                 / (sample_uncertainty_squared + propagation_uncertainty_squared)
@@ -2258,14 +2048,15 @@ class Optimizer:
                 else 1
             )
 
-            # interpolates smoothly between 0 uncertainty in data points (so all uncertainty comes from sample spread)
+            # interpolates smoothly between 0 uncertainty in data points
+            # (so all uncertainty comes from sample spread)
             # to the usual uncertainty coming from both the data and the spread
             # TODO: see
-            #  https://stats.stackexchange.com/questions/454120/how-can-i-calculate-uncertainty-of-the-mean-of-a-set-of-samples-with-different-u
+            #  https://stats.stackexchange.com/questions/454120/
+            #  how-can-i-calculate-uncertainty-of-the-mean-of-a-set-of-samples-with-different-u
             # for a more rigorous treatment
             effective_uncertainty_squared = (
-                ratio * sample_uncertainty_squared
-                + (1 - ratio) * propagation_uncertainty_squared
+                ratio * sample_uncertainty_squared + (1 - ratio) * propagation_uncertainty_squared
             )
 
             averaged_data.append(
@@ -2294,10 +2085,19 @@ class Optimizer:
             if key == "log(x)" and use_function:
                 self._primitive_function_list.append(PrimitiveFunction.built_in("log"))
             if key == "1/x" and use_function:
-                self._primitive_function_list.append(
-                    PrimitiveFunction.built_in("pow_neg1")
-                )
+                self._primitive_function_list.append(PrimitiveFunction.built_in("pow_neg1"))
             # custom functions are also loaded, but elsewhere, using add_primitive_to_list()
+
+    @staticmethod
+    def all_defaults_on_dict():
+        all_functions_dict = {
+            "cos(x)": True,
+            "sin(x)": True,
+            "exp(x)": True,
+            "log(x)": True,
+            "1/x": True,
+        }
+        return all_functions_dict
 
 
 def std(cov):
@@ -2318,9 +2118,7 @@ def correlation_from_covariance(cov_mat: np.ndarray) -> np.ndarray:
     return correlation
 
 
-def coefficient_of_covariance(
-    cov_mat: np.ndarray, mean_list: list[float]
-) -> np.ndarray:
+def coefficient_of_covariance(cov_mat: np.ndarray, mean_list: list[float]) -> np.ndarray:
     """
     Coefficient of covariance is defined as
     cc_ij = cov_ij / (mu_i mu_j)
