@@ -7,6 +7,7 @@ from __future__ import annotations
 # built-in libraries
 from typing import Callable, Union
 import re as regex
+from math import factorial
 
 # external libraries
 import numpy as np
@@ -777,9 +778,7 @@ class CompositeFunction:
         smooth_sum = 0
         Nsmooth = max(Nsmooth, 1)
         for i in range(Nsmooth + 1):
-            N_choose_i = np.math.factorial(Nsmooth) / (
-                np.math.factorial(Nsmooth - i) * np.math.factorial(i)
-            )
+            N_choose_i = factorial(Nsmooth) / (factorial(Nsmooth - i) * factorial(i))
             smooth_sum += N_choose_i * self.eval_at(x - (Nsmooth - i) * dx + i * dx, X0, Y0)
         return smooth_sum / 2**Nsmooth
 
