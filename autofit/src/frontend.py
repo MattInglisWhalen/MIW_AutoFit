@@ -17,6 +17,7 @@ from pandas import ExcelFile
 import scipy.stats
 import scipy.special
 from PIL import Image
+
 # if sys.platform == "linux":
 #     import matplotlib
 #
@@ -69,9 +70,9 @@ class Frontend:
         self.set_meipass()
 
         # UX
-        self._new_user_stage: int = (
-            1  # uses prime factors to notate which actions the user has taken
-        )
+
+        # uses prime factors to notate which actions the user has taken
+        self._new_user_stage: int = 1
 
         # UI
         self._gui: tk.Tk = tk.Tk()
@@ -241,9 +242,8 @@ class Frontend:
             self.sym_up = "\U00002191"
             self.sym_right = "\U00002192"
             self.sym_down = "\U00002193"
-            self.sym_sigma = (
-                "sigma"  # "\U000003C3"  # u"\U000003C3"  # "\U000003C3".encode('utf-8')
-            )
+            self.sym_sigma = "sigma"
+
         self.sym_check = " \U00002713"
 
         if sys.platform == "linux":

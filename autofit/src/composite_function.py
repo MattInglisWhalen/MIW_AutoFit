@@ -1119,7 +1119,7 @@ class CompositeFunction:
         return self
 
     def replace_node(
-            self, old_node: CompositeFunction, new_node: CompositeFunction
+        self, old_node: CompositeFunction, new_node: CompositeFunction
     ) -> CompositeFunction:
 
         # untested with siblings

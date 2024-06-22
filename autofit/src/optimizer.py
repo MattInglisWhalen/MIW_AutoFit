@@ -16,9 +16,11 @@ from base64 import b64encode
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+
 # pylint has a hard time with fft, see
 # https://stackoverflow.com/questions/65880880/no-name-fft-in-module-scipy
 from scipy.fft import fft, fftshift, fftfreq  # pylint: disable=no-name-in-module
+
 # following pylint-disables imports needed for runtime `exec` usage
 import scipy.stats  # pylint: disable=unused-import
 import scipy.special  # pylint: disable=unused-import
@@ -1358,7 +1360,7 @@ class Optimizer:
 
         best_cocs = [
             self._mean_abs_coc(model, cov)
-            for model, cov in zip(self._top5_models,self._top5_covariances)
+            for model, cov in zip(self._top5_models, self._top5_covariances)
         ]
         logger(
             f"\nBest models are {[m.name for m in self.top5_models]} with \n"

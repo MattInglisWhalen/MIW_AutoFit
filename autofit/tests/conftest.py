@@ -5,6 +5,27 @@
 # external packages
 import pytest
 import numpy as np
+import tkinter as tk
+import _tkinter as tk_hidden
+
+# internal classes
+
+
+def tkinter_available(func):
+    try:
+        tk.Tk().destroy()
+
+        def wrapper_with_tk():
+            func()
+
+        return wrapper_with_tk
+
+    except tk_hidden.TclError:
+
+        def wrapper_without_tk():
+            pass
+
+        return wrapper_without_tk
 
 
 def assert_almost_equal(a, b, tol=1e-5, recurse=2):

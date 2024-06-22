@@ -215,7 +215,7 @@ def test_tree_printout():
     )
     test_brother_tree = test_brother.tree_as_string()
     expected_brother_tree = (
-        "   my_sin    \n" 
+        "   my_sin    \n"
         " x pow1       ~ pow1      \n"
         "              ~ pow0      \n"  # this line has a comment for python black
     )

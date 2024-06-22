@@ -16,7 +16,7 @@ def test_dev_1(capture_stdout):
     assert pkg.PACKAGE_PATH[-7:] == "autofit"
     pkg.logger("printed")
     assert capture_stdout["stdout"] == f"{pkg.pkg_path()}\nprinted\n"
-    with open(pkg.pkg_path() + "/autofit.log", mode='r', encoding='utf-8') as file:
+    with open(pkg.pkg_path() + "/autofit.log", mode="r", encoding="utf-8") as file:
         line1 = file.readline()
         assert line1 == pkg.pkg_path() + "\n"
         line2 = file.readline()
@@ -30,7 +30,7 @@ def test_dev_0():
     assert pkg.pkg_path()[-7:] == "autofit"
     assert pkg.PACKAGE_PATH[-7:] == "autofit"
     pkg.logger("logged")
-    with open(pkg.pkg_path() + "/autofit.log", mode='r', encoding='utf-8') as file:
+    with open(pkg.pkg_path() + "/autofit.log", mode="r", encoding="utf-8") as file:
         line1 = file.readline()
         assert line1 == pkg.pkg_path() + "\n"
         line2 = file.readline()
@@ -46,7 +46,7 @@ def test_dev_neg1():
     assert pkg.pkg_path()[-7:] == "autofit"
     assert pkg.PACKAGE_PATH[-7:] == "autofit"
     pkg.logger("/dev/null")
-    with open(pkg.pkg_path() + "/autofit.log", mode='r', encoding='utf-8') as file:
+    with open(pkg.pkg_path() + "/autofit.log", mode="r", encoding="utf-8") as file:
         line1 = file.readline()
         assert line1 == pkg.pkg_path() + "\n"
         line2 = file.readline()
