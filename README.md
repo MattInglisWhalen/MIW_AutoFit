@@ -69,8 +69,8 @@ criterion, called Akaike's Information Criterion. AIC is defined as
 $$AIC = 2d + \chi^2 + \mathrm{const}$$
 
 where the constant term depends only on the data rather than the model. This criterion is often used in
-order to get an estimate of relative probabilities of correctness when comparing models; the probability that
-one alternative model with $AIC_\mathrm{alt}$ would better fit the data compared to the base model with $AIC_0$ is
+order to get an estimate of relative probabilities of correctness when comparing models; if the top model (lowest AIC)
+has $AIC_\mathrm{top}$ then the probability that an alternative model with $AIC_\mathrm{alt}$ would better fit the data is given by
 $$P_\mathrm{alt} = \exp\left(\frac{AIC_0-AIC_\mathrm{alt}}{2}\right)$$
 
 There are many other alternatives to the reduced $\chi^2$ or AIC. MIW's AutoFit has also implemented the corrected
