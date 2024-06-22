@@ -86,17 +86,17 @@ minimization algorithm can easily become stuck in a local minimum.
 A concept that is hammered into physics students early on in their studies is that of dimensional scaling.
 If a dataset is built to capture all the relevant behaviour of a function, then the set of x-values chosen
 in the dataset are presumably relevant to any model that properly describes that dataset. A 
-`canonical` value \[X\] for x might then be the average of all the x-values in the dataset. Similarly, over 
+`canonical` value $[X]$ for x might then be the average of all the x-values in the dataset. Similarly, over 
 that same domain of x-values, the measured values making up the range of y-values are also relevant to the model.
-So a `canonical` value \[Y\] for y might be the average of all the y-values.
+So a `canonical` value $[Y]$ for y might be the average of all the y-values.
 
 Applying this intuition to the model is simply a matter of determining how a particular parameter *scales* with
 repect to x or y. In a simple model like a linear equation $y=mx+b$, the parameter $m$ scales like $[Y]/[X]$ and
 the parameter $b$ scales like $[Y]$. So we might first estimate $m$ to be mean($y$)/mean($x$) and $b$ as mean($y$).
 
 MIW's AutoFit recursively applies this behaviour to get the initial guess for how all parameters in any model
-should scale. It knows that in the model $y=A\exp(Bx)$, $A$ should scale like \[Y\] and $B$ should scale like 1/\[X\]. It knows that
-in the model $y=A\cos(Bx+C/x)$, $A$ should scale like \[Y\], and $B$ should scale like 1/\[X\], and C should scale like \[X\].
+should scale. It knows that in the model $y=A\exp(Bx)$, $A$ should scale like $[Y]$ and $B$ should scale like $1/[X]$. It knows that
+in the model $y=A\cos(Bx+C/x)$, $A$ should scale like $[Y]$, and $B$ should scale like $1/[X]$, and C should scale like $[X]$.
 
 But it's not as simple as taking the mean of x- and y-values. Sometimes the *extent* of x- and y-values is more important than
 their mean, so the difference between the maximum and minimum values is used instead. And for oscillatory behaviour, 
