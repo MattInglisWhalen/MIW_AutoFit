@@ -32,7 +32,7 @@ the primitives are related through composition, summation, or multiplication. A 
 $p(x)$ can have `child` nodes $C_1 \ldots C_N$ that all have their own respective primitives $c_1(x) \ldots c_N(x)$. 
 The output $P(x)$ of evaluating the parent at a particular input $x$ is given by 
 
-$$P(x;C_1 \ldots C_N) = P(C_1(x) + C_2(x) + \ldots)$$
+$$P(x;C_1 \ldots C_N) = P(C_1(x) + C_2(x) + \ldots + C_N(x))$$
 
 Therefore, parents compose with the sum of their children, where each child represents one term in the summation.
 
