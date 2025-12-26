@@ -1,6 +1,6 @@
 # MIW's AutoFit -- Dev Notes
 
-*A reminder for future Matt on how to handle linting / stylinh / testing*
+*A reminder for future Matt on how to handle linting / styling / testing*
 
 ## Testing
 

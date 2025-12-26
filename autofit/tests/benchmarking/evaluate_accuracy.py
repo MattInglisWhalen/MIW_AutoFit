@@ -131,5 +131,5 @@ def find_accuracy_of_optimizer(max_depth=2, n_repeats=1):
 
 
 if __name__ == "__main__":
-    for depth in range(2):
+    for depth in range(4):
         find_accuracy_of_optimizer(depth + 1, n_repeats=5)
