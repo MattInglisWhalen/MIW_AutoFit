@@ -7,6 +7,8 @@
  Have data but don't know how to fit it? This tool will automatically 
  tell you the best function to model your data, along with the best-fit parameters and uncertainties.
 
+ This is a change on the GitHub repo
+
 ---
 
 ### Executables / Apps 
