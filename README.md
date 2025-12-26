@@ -53,7 +53,7 @@ $$f(x) = A\cos(Bx+C) \cdot \sin(D\exp(x)\cdot\log(x)+Ex^2) + \frac{F}{x}$$
 
 As a trained physicist, my favourite measure for the goodness of fit is called the reduced chi-squared statistic
 
-$$\chi^2_{red} = \frac{\chi^2}{N_d} = \frac{1}{N-d} \sum_{i=1}^{N} \left(\frac{y_i-f(x_i)}{\sigma_i}\right)^2$$
+$$\chi^2_{red} = \frac{\chi^2}{N-d} = \frac{1}{N-d} \sum_{i=1}^{N} \left(\frac{y_i-f(x_i)}{\sigma_i}\right)^2$$
 
 where the sum is over each of the $N$ datapoints and $d$ is the number of degrees of freedom in
 the model (i.e. $d$ is the number of parameters to be fit). I like this statistic because when
@@ -69,8 +69,8 @@ criterion, called Akaike's Information Criterion. AIC is defined as
 $$AIC = 2d + \chi^2 + \mathrm{const}$$
 
 where the constant term depends only on the data rather than the model. This criterion is often used in
-order to get an estimate of relative probabilities of correctness when comparing models; the probability that
-one alternative model with $AIC_\mathrm{alt}$ would better fit the data compared to the base model with $AIC_0$ is
+order to get an estimate of relative probabilities of correctness when comparing models; if the top model (lowest AIC)
+has $AIC_\mathrm{top}$ then the probability that an alternative model with $AIC_\mathrm{alt}$ would better fit the data is given by
 $$P_\mathrm{alt} = \exp\left(\frac{AIC_0-AIC_\mathrm{alt}}{2}\right)$$
 
 There are many other alternatives to the reduced $\chi^2$ or AIC. MIW's AutoFit has also implemented the corrected
@@ -86,20 +86,20 @@ minimization algorithm can easily become stuck in a local minimum.
 A concept that is hammered into physics students early on in their studies is that of dimensional scaling.
 If a dataset is built to capture all the relevant behaviour of a function, then the set of x-values chosen
 in the dataset are presumably relevant to any model that properly describes that dataset. A 
-`canonical` value \[X\] for x might then be the average of all the x-values in the dataset. Similarly, over 
+`canonical` value $[X]$ for x might then be the average of all the x-values in the dataset. Similarly, over 
 that same domain of x-values, the measured values making up the range of y-values are also relevant to the model.
-So a `canonical` value \[Y\] for y might be the average of all the y-values.
+So a `canonical` value $[Y]$ for y might be the average of all the y-values.
 
 Applying this intuition to the model is simply a matter of determining how a particular parameter *scales* with
 repect to x or y. In a simple model like a linear equation $y=mx+b$, the parameter $m$ scales like $[Y]/[X]$ and
 the parameter $b$ scales like $[Y]$. So we might first estimate $m$ to be mean($y$)/mean($x$) and $b$ as mean($y$).
 
 MIW's AutoFit recursively applies this behaviour to get the initial guess for how all parameters in any model
-should scale. It knows that in the model $y=A\exp(Bx)$, $A$ should scale like \[Y\] and $B$ should scale like 1/\[X\]. It knows that
-in the model $y=A\cos(Bx+C/x)$, $A$ should scale like \[Y\], and $B$ should scale like 1/\[X\], and C should scale like \[X\].
+should scale. It knows that in the model $y=A\exp(Bx)$, $A$ should scale like $[Y]$ and $B$ should scale like $1/[X]$. It knows that
+in the model $y=A\cos(Bx+C/x)$, $A$ should scale like $[Y]$, and $B$ should scale like $1/[X]$, and C should scale like $[X]$.
 
 But it's not as simple as taking the mean of x- and y-values. Sometimes the *extent* of x- and y-values is more important than
-their mean, so the difference between the maximum and minimum values is used instead. And for oscillatory behaviour, 
+their mean, so the difference between the maximum and minimum values is used instead as the canonical value for $[X]$. And for oscillatory behaviour, 
 it's the fundamental period of the oscillations that's more useful as a canonical length measurement. MIW's AutoFit
 can detect these scenarios, and intelligently implements different behaviours depending on the form of the model.
 
